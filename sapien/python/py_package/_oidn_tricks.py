@@ -1,0 +1,54 @@
+#
+# Copyright 2025 Hillbot Inc.
+# Copyright 2020-2024 UCSD SU Lab
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at:
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import ctypes
+import platform
+import os
+
+if platform.system() == "Linux":
+    try:
+        oidn_dll = ctypes.CDLL(
+            os.path.join(
+                os.path.dirname(__file__),
+                "oidn_library/libOpenImageDenoise_core.so.2.0.1",
+            ),
+            ctypes.RTLD_LOCAL,
+        )
+
+        oidn_dll = ctypes.CDLL(
+            os.path.join(
+                os.path.dirname(__file__), "oidn_library/libOpenImageDenoise.so.2.0.1"
+            ),
+            ctypes.RTLD_LOCAL,
+        )
+    except Exception:
+        pass
+if platform.system() == "Windows":
+    try:
+        oidn_dll = ctypes.CDLL(
+            os.path.join(
+                os.path.dirname(__file__),
+                "oidn_library/OpenImageDenoise_core.dll",
+            ),
+        )
+
+        oidn_dll = ctypes.CDLL(
+            os.path.join(
+                os.path.dirname(__file__), "oidn_library/OpenImageDenoise.dll"
+            ),
+        )
+    except Exception:
+        pass

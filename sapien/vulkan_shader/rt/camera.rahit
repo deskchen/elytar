@@ -1,0 +1,66 @@
+#version 460
+//
+// Copyright 2025 Hillbot Inc.
+// Copyright 2020-2024 UCSD SU Lab
+// 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at:
+// 
+//     http://www.apache.org/licenses/LICENSE-2.0
+// 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+#include "random.glsl"
+#include "ray.glsl"
+#include "geometry.glsl"
+#include "push_constant.glsl"
+
+layout(location = 0) rayPayloadInEXT Ray ray;
+
+layout(set = 1, binding = 1) readonly buffer GeometryInstances
+{
+  GeometryInstance i[];
+} geometryInstances;
+
+layout(set = 1, binding = 2) readonly buffer Materials
+{
+  Material m;
+} materials[];
+
+struct Object {
+  uvec4 segmentation;
+  float transparency;
+  int shadeFlat;
+  int padding0;
+  int padding1;
+};
+
+layout(set = 1, binding = 11) readonly buffer Objects {
+  Object o[];
+} objects;
+
+
+void main() {
+  Object obj = objects.o[gl_InstanceID];
+  if (obj.transparency > 0.99) {
+    ignoreIntersectionEXT;
+  }
+
+  // HACK: manual backface culling for bad models
+  int instanceId = gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT;
+  uint materialIndex = geometryInstances.i[instanceId].materialIndex;
+  Material mat = materials[nonuniformEXT(materialIndex)].m;
+  bool isInside = gl_HitKindEXT == gl_HitKindBackFacingTriangleEXT;
+  if (isInside && mat.transmission < 1e-4) {
+    ignoreIntersectionEXT;
+  }
+}
