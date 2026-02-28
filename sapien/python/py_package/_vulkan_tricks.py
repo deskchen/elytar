@@ -101,7 +101,11 @@ def _ensure_egl_icd():
     )
 
 
-if platform.system() == "Linux":
+# Skip Vulkan/EGL setup when only using PhysX GPU (e.g. headless benchmark). Avoids "invalid device context"
+# when CUDA is used without any rendering.
+if os.environ.get("SAPIEN_SKIP_VULKAN"):
+    pass
+elif platform.system() == "Linux":
     _ensure_libvulkan_linux()
     _ensure_vulkan_icd()
     _ensure_egl_icd()

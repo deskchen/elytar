@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 import io
+import os
 import platform
 from pathlib import Path
 from zipfile import ZipFile
@@ -24,36 +25,99 @@ import requests
 from ..pysapien.physx import *
 from ..pysapien.physx import _enable_gpu
 
+try:
+    from ..version import __local_physx_version__
+except ImportError:
+    __local_physx_version__ = ""
+
+
+def _resolve_gpu_lib_path():
+    """Return (path, local_required). When local_required, path must exist; no prebuilt download."""
+    physx_version = version()
+    if platform.system() == "Windows":
+        lib_name = "PhysXGpu_64.dll"
+    else:
+        lib_name = "libPhysXGpu_64.so"
+
+    configs = [
+        os.environ.get("PHYSX_CONFIG", "checked"),
+        "checked",
+        "profile",
+        "release",
+    ]
+
+    if __local_physx_version__:
+        # This wheel was built with local PhysX: require local GPU lib only; do not fall back to prebuilt.
+        physx_root = os.environ.get("SAPIEN_PHYSX5_DIR")
+        if not physx_root:
+            return (None, True)
+        root = Path(physx_root)
+        if platform.system() == "Linux":
+            subdir = "linux.x86_64" if platform.machine() in ("x86_64", "AMD64") else "linux.aarch64"
+            for cfg in configs:
+                candidate = root / "bin" / subdir / cfg / lib_name
+                if candidate.exists():
+                    return (candidate, True)
+            return (root / "bin" / subdir / configs[0] / lib_name, True)
+        if platform.system() == "Windows":
+            subdir = "win.x86_64.vc142.mt"
+            for cfg in configs:
+                candidate = root / "bin" / subdir / cfg / lib_name
+                if candidate.exists():
+                    return (candidate, True)
+            return (root / "bin" / subdir / configs[0] / lib_name, True)
+        return (None, True)
+
+    # Non-local wheel: allow prebuilt path (download if missing).
+    parent = Path.home() / ".sapien" / "physx" / physx_version
+    return (parent / lib_name, False)
+
 
 def enable_gpu():
     if is_gpu_enabled():
         return
 
     physx_version = version()
-    parent = Path.home() / ".sapien" / "physx" / physx_version
-    parent.mkdir(exist_ok=True, parents=True)
+    dll_path, local_required = _resolve_gpu_lib_path()
 
-    if platform.system() == "Windows":
-        dll = parent / "PhysXGpu_64.dll"
-        url = f"https://github.com/sapien-sim/physx-precompiled/releases/download/{physx_version}/windows-dll.zip"
-    elif platform.system() == "Linux" and platform.machine() in ("x86_64", "AMD64"):
-        dll = parent / "libPhysXGpu_64.so"
-        url = f"https://github.com/sapien-sim/physx-precompiled/releases/download/{physx_version}/linux-so.zip"
-    elif platform.system() == "Linux" and platform.machine() in ("aarch64", "arm64"):
-        dll = parent / "libPhysXGpu_64.so"
-        url = f"https://github.com/sapien-sim/physx-precompiled/releases/download/{physx_version}/linux-aarch64-so.zip"
+    if local_required:
+        if dll_path is None:
+            raise RuntimeError(
+                "This SAPIEN build requires a local PhysX GPU library. Set SAPIEN_PHYSX5_DIR to your "
+                "PhysX source directory (e.g. /workspace/physx). Run from repo root after "
+                "scripts/update_toolchain.sh so it is set automatically, or export SAPIEN_PHYSX5_DIR."
+            )
+        if not dll_path.exists():
+            raise RuntimeError(
+                f"Local PhysX GPU library not found at {dll_path}. "
+                "Build PhysX with GPU support (scripts/update_toolchain.sh) and ensure "
+                "SAPIEN_PHYSX5_DIR points to that PhysX tree. Tried configs: checked, profile, release."
+            )
+        if os.environ.get("SAPIEN_DEBUG_GPU_LIB"):
+            print(f"[SAPIEN] Loading local PhysX GPU lib: {dll_path}", flush=True)
+        dll = dll_path
+        parent = dll.parent
     else:
-        raise RuntimeError("Unsupported platform")
-
-    if not dll.exists():
-        print(
-            f"Downloading PhysX GPU library to {parent} from Github. This can take several minutes."
-            f" If it fails to download, please manually download f{url} and unzip at {parent}."
-        )
-        res = requests.get(url)
-        z = ZipFile(io.BytesIO(res.content))
-        z.extractall(parent)
-        print("Download complete.")
+        dll = dll_path
+        parent = dll.parent
+        if not dll.exists():
+            parent.mkdir(exist_ok=True, parents=True)
+            if platform.system() == "Windows":
+                url = f"https://github.com/sapien-sim/physx-precompiled/releases/download/{physx_version}/windows-dll.zip"
+            elif platform.system() == "Linux" and platform.machine() in ("x86_64", "AMD64"):
+                url = f"https://github.com/sapien-sim/physx-precompiled/releases/download/{physx_version}/linux-so.zip"
+            elif platform.system() == "Linux" and platform.machine() in ("aarch64", "arm64"):
+                url = f"https://github.com/sapien-sim/physx-precompiled/releases/download/{physx_version}/linux-aarch64-so.zip"
+            else:
+                raise RuntimeError("Unsupported platform")
+            print(
+                f"Downloading PhysX GPU library to {parent} from Github. This can take several minutes."
+                f" If it fails to download, please manually download {url} and unzip at {parent}."
+            )
+            res = requests.get(url)
+            z = ZipFile(io.BytesIO(res.content))
+            z.extractall(parent)
+            print("Download complete.")
 
     import ctypes
 

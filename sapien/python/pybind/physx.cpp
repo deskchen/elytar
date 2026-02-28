@@ -1276,6 +1276,13 @@ Example:
            py::arg("config"))
       .def("get_sdf_config", &PhysxDefault::getSDFShapeConfig)
 
+      .def("set_stage_profiler_enabled", &setStageProfilerEnabled, py::arg("enabled"))
+      .def("is_stage_profiler_enabled", &isStageProfilerEnabled)
+      .def("stage_profiler_begin_frame", &stageProfilerBeginFrame)
+      .def("stage_profiler_end_frame", &stageProfilerEndFrame)
+      .def("get_stage_profiler_last_frame_stage_ms", &getStageProfilerLastFrameStageMs)
+      .def("get_stage_profiler_last_frame_zone_ms", &getStageProfilerLastFrameZoneMs)
+
       .def("version", []() { return PhysxDefault::getPhysxVersion(); });
 
   ////////// end global //////////
