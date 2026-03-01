@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
 #ifndef PX_COOKING_INTERNAL_H
 #define PX_COOKING_INTERNAL_H
+/** \addtogroup cooking
+@{
+*/
 
 #include "cooking/PxCooking.h"
 
@@ -49,4 +52,5 @@ namespace physx
 
 	PX_C_EXPORT PX_PHYSX_COOKING_API physx::PxBVH* PX_CALL_CONV PxCreateBVHInternal(const physx::PxBVHInternalData& data);
 
+/** @} */
 #endif

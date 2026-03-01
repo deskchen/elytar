@@ -22,12 +22,11 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 // ****************************************************************************
-// NOTE: Particle cloth has been DEPRECATED. Please use PxDeformableSurface instead.
 // This snippet illustrates inflatable simulation using position-based dynamics
 // particle simulation. It creates an inflatable body that drops to the ground.
 // ****************************************************************************
@@ -40,7 +39,6 @@
 #include "extensions/PxRemeshingExt.h"
 #include "extensions/PxParticleExt.h"
 #include "extensions/PxParticleClothCooker.h"
-#include "extensions/PxCudaHelpersExt.h"
 
 using namespace physx;
 using namespace ExtGpu;
@@ -50,12 +48,11 @@ static PxDefaultErrorCallback		gErrorCallback;
 static PxFoundation*				gFoundation			= NULL;
 static PxPhysics*					gPhysics			= NULL;
 static PxDefaultCpuDispatcher*		gDispatcher			= NULL;
-static PxCudaContextManager*		gCudaContextManager	= NULL;
 static PxScene*						gScene				= NULL;
 static PxMaterial*					gMaterial			= NULL;
 static PxPvd*						gPvd				= NULL;
 static PxPBDParticleSystem*			gParticleSystem		= NULL;
-static PxParticleClothBuffer*		gUserClothBuffer	= NULL;
+static PxParticleClothBuffer*	gUserClothBuffer	= NULL;
 static bool							gIsRunning			= true;
 
 
@@ -79,12 +76,29 @@ static void initObstacles()
 // -----------------------------------------------------------------------------------------------------------------
 static void initScene()
 {
+	PxCudaContextManager* cudaContextManager = NULL;
+	if (PxGetSuggestedCudaDeviceOrdinal(gFoundation->getErrorCallback()) >= 0)
+	{
+		// initialize CUDA
+		PxCudaContextManagerDesc cudaContextManagerDesc;
+		cudaContextManager = PxCreateCudaContextManager(*gFoundation, cudaContextManagerDesc, PxGetProfilerCallback());
+		if (cudaContextManager && !cudaContextManager->contextIsValid())
+		{
+			cudaContextManager->release();
+			cudaContextManager = NULL;
+		}
+	}
+	if (cudaContextManager == NULL)
+	{
+		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "Failed to initialize CUDA!\n");
+	}
+
 	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
 	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
 	gDispatcher = PxDefaultCpuDispatcherCreate(2);
 	sceneDesc.cpuDispatcher = gDispatcher;
 	sceneDesc.filterShader = PxDefaultSimulationFilterShader;
-	sceneDesc.cudaContextManager = gCudaContextManager;
+	sceneDesc.cudaContextManager = cudaContextManager;
 	sceneDesc.staticStructure = PxPruningStructureType::eDYNAMIC_AABB_TREE;
 	sceneDesc.flags |= PxSceneFlag::eENABLE_PCM;
 	sceneDesc.flags |= PxSceneFlag::eENABLE_GPU_DYNAMICS;
@@ -206,10 +220,9 @@ static void initInflatable(PxArray<PxVec3>& verts, PxArray<PxU32>& indices, cons
 
 	// Create particles and add them to the particle system
 	const PxU32 particlePhase = particleSystem->createPhase(defaultMat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseSelfCollideFilter | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
-
-	PxU32* phases = PX_EXT_PINNED_MEMORY_ALLOC(PxU32, *cudaContextManager, numParticles);
-	PxVec4* positionInvMass = PX_EXT_PINNED_MEMORY_ALLOC(PxVec4, *cudaContextManager, numParticles);
-	PxVec4* velocity = PX_EXT_PINNED_MEMORY_ALLOC(PxVec4, *cudaContextManager, numParticles);
+	PxU32* phases = cudaContextManager->allocPinnedHostBuffer<PxU32>(numParticles);
+	PxVec4* positionInvMass = cudaContextManager->allocPinnedHostBuffer<PxVec4>(numParticles);
+	PxVec4* velocity = cudaContextManager->allocPinnedHostBuffer<PxVec4>(numParticles);
 
 	
 	for (PxU32 v = 0; v < numParticles; v++)
@@ -249,9 +262,9 @@ static void initInflatable(PxArray<PxVec3>& verts, PxArray<PxU32>& indices, cons
 	clothBuffers->release();
 	volumeBuffers->release();
 
-	PX_EXT_PINNED_MEMORY_FREE(*cudaContextManager, positionInvMass);
-	PX_EXT_PINNED_MEMORY_FREE(*cudaContextManager, velocity);
-	PX_EXT_PINNED_MEMORY_FREE(*cudaContextManager, phases);
+	cudaContextManager->freePinnedHostBuffer(positionInvMass);
+	cudaContextManager->freePinnedHostBuffer(velocity);
+	cudaContextManager->freePinnedHostBuffer(phases);
 }
 
 PxPBDParticleSystem* getParticleSystem()
@@ -274,16 +287,6 @@ void initPhysics(bool /*interactive*/)
 	gPvd->connect(*transport, PxPvdInstrumentationFlag::eALL);
 
 	gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale(), true, gPvd);
-
-	// initialize cuda
-	PxCudaContextManagerDesc cudaContextManagerDesc;
-	gCudaContextManager = PxCreateCudaContextManager(*gFoundation, cudaContextManagerDesc, PxGetProfilerCallback());
-	if (gCudaContextManager && !gCudaContextManager->contextIsValid())
-	{
-		PX_RELEASE(gCudaContextManager);
-		printf("Failed to initialize cuda context.\n");
-		printf("The particle cloth feature is currently only supported on GPU.\n");
-	}
 
 	initScene();
 
@@ -342,11 +345,10 @@ void cleanupPhysics(bool /*interactive*/)
 	PX_RELEASE(gScene);
 	PX_RELEASE(gDispatcher);
 	PX_RELEASE(gPhysics);
-	PX_RELEASE(gCudaContextManager);
 	if(gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
-		PX_RELEASE(gPvd);
+		gPvd->release();	gPvd = NULL;
 		PX_RELEASE(transport);
 	}
 	PX_RELEASE(gFoundation);

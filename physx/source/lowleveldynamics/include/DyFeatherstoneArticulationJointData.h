@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -48,11 +48,11 @@ namespace physx
 		{
 		public:
 
-			ArticulationJointCoreData() : jointOffset(0xffffffff)
+			ArticulationJointCoreData() : jointOffset(0xffffffff), dofInternalConstraintMask(0)
 			{
 			}
 
-			PX_CUDA_CALLABLE PX_FORCE_INLINE PxU8 countJointDofs(ArticulationJointCore* joint) const
+			PX_CUDA_CALLABLE PX_FORCE_INLINE PxU8 computeJointDofs(ArticulationJointCore* joint) const
 			{
 				PxU8 tDof = 0;
 
@@ -67,10 +67,27 @@ namespace physx
 				return tDof;
 			}
 
-			PX_FORCE_INLINE PxU8 configureJointDofs(ArticulationJointCore* joint, Cm::UnAlignedSpatialVector* jointAxis)
+			PX_CUDA_CALLABLE PX_FORCE_INLINE void computeJointAxis(const ArticulationJointCore* joint, Cm::UnAlignedSpatialVector* jointAxis)
 			{
-					nbDof = 0;
-					dofLimitMask = 0;
+				for (PxU32 i = 0; i < dof; ++i)
+				{
+					PxU32 ind = joint->dofIds[i];
+
+					Cm::UnAlignedSpatialVector axis = Cm::UnAlignedSpatialVector::Zero();
+					//axis is in the local space of joint
+					axis[ind] = 1.f;
+
+					jointAxis[i] = axis;
+				}
+			}
+
+			PX_FORCE_INLINE PxU32 computeJointDof(ArticulationJointCore* joint, Cm::UnAlignedSpatialVector* jointAxis)
+			{
+				if (joint->jointDirtyFlag & ArticulationJointCoreDirtyFlag::eMOTION)
+				{
+
+					dof = 0;
+					limitMask = 0;
 
 					//KS - no need to zero memory here.
 					//PxMemZero(jointAxis, sizeof(jointAxis));
@@ -83,25 +100,44 @@ namespace physx
 							//axis is in the local space of joint
 							axis[i] = 1.f;
 
-							jointAxis[nbDof] = axis;
+							jointAxis[dof] = axis;
 
-							joint->invDofIds[i] = nbDof;
-							joint->dofIds[nbDof] = i;
+							joint->invDofIds[i] = dof;
+							joint->dofIds[dof] = i;
 
 							if (joint->motion[i] == PxArticulationMotion::eLIMITED)
-								dofLimitMask |= 1 << nbDof;
+								limitMask |= 1 << dof;
 
-							nbDof++;
+							dof++;
 						}
 					}
-			
-				return nbDof;
+				}
+
+				return dof;
+
 			}
 
-			PxU32	jointOffset;				//4
+			PX_FORCE_INLINE void setArmature(ArticulationJointCore* joint)
+			{
+				if (joint->jointDirtyFlag & ArticulationJointCoreDirtyFlag::eARMATURE)
+				{
+
+					for (PxU32 i = 0; i < dof; ++i)
+					{
+						PxU32 ind = joint->dofIds[i];
+						armature[i] = joint->armature[ind];
+					}
+
+					joint->jointDirtyFlag &= ~ArticulationJointCoreDirtyFlag::eARMATURE;
+				}
+			}
+
+			PxU32								jointOffset;					//4
+			PxReal								armature[3];					// indexed by internal dof id.
 			//degree of freedom
-			PxU8	nbDof;						//1
-			PxU8	dofLimitMask;					//1	
+			PxU8								dof;							//1
+			PxU8								dofInternalConstraintMask;		//1
+			PxU8								limitMask;						//1	
 
 		};
 

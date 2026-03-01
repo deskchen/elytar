@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_SCENE_QUERY_DESC_H
 #define PX_SCENE_QUERY_DESC_H
+/** \addtogroup physics
+@{
+*/
 
 #include "PxPhysXConfig.h"
 #include "geometry/PxBVHBuildStrategy.h"
@@ -153,7 +156,7 @@ public:
 
 	\note Only PxPruningStructureType::eSTATIC_AABB_TREE and PxPruningStructureType::eDYNAMIC_AABB_TREE are allowed here.
 
-	\see PxPruningStructureType PxSceneSQSystem.getStaticStructure()
+	@see PxPruningStructureType PxSceneSQSystem.getStaticStructure()
 	*/
 	PxPruningStructureType::Enum	staticStructure;
 
@@ -162,7 +165,7 @@ public:
 
 	<b>Default:</b> PxPruningStructureType::eDYNAMIC_AABB_TREE
 
-	\see PxPruningStructureType PxSceneSQSystem.getDynamicStructure()
+	@see PxPruningStructureType PxSceneSQSystem.getDynamicStructure()
 	*/
 	PxPruningStructureType::Enum	dynamicStructure;
 
@@ -186,7 +189,7 @@ public:
 	<b>Range:</b> [4, PX_MAX_U32)<br>
 	<b>Default:</b> 100
 
-	\see PxSceneQuerySystemBase.setDynamicTreeRebuildRateHint() PxSceneQuerySystemBase.getDynamicTreeRebuildRateHint()
+	@see PxSceneQuerySystemBase.setDynamicTreeRebuildRateHint() PxSceneQuerySystemBase.getDynamicTreeRebuildRateHint()
 	*/
 	PxU32	dynamicTreeRebuildRateHint;
 
@@ -201,7 +204,7 @@ public:
 
 	<b>Default:</b> PxDynamicTreeSecondaryPruner::eINCREMENTAL
 
-	\see PxDynamicTreeSecondaryPruner
+	@see PxDynamicTreeSecondaryPruner
 	*/
 	PxDynamicTreeSecondaryPruner::Enum dynamicTreeSecondaryPruner;
 
@@ -213,7 +216,7 @@ public:
 
 	<b>Default:</b> PxBVHBuildStrategy::eFAST
 
-	\see PxBVHBuildStrategy PxSceneQueryDesc::staticStructure
+	@see PxBVHBuildStrategy PxSceneQueryDesc::staticStructure
 	*/
 	PxBVHBuildStrategy::Enum	staticBVHBuildStrategy;
 
@@ -225,7 +228,7 @@ public:
 
 	<b>Default:</b> PxBVHBuildStrategy::eFAST
 
-	\see PxBVHBuildStrategy PxSceneQueryDesc::dynamicStructure
+	@see PxBVHBuildStrategy PxSceneQueryDesc::dynamicStructure
 	*/
 	PxBVHBuildStrategy::Enum	dynamicBVHBuildStrategy;
 
@@ -241,7 +244,7 @@ public:
 
 	<b>Default:</b> 4
 
-	\see PxSceneQueryDesc::staticStructure
+	@see PxSceneQueryDesc::staticStructure
 	*/
 	PxU32	staticNbObjectsPerNode;
 
@@ -257,7 +260,7 @@ public:
 
 	<b>Default:</b> 4
 
-	\see PxSceneQueryDesc::dynamicStructure
+	@see PxSceneQueryDesc::dynamicStructure
 	*/
 	PxU32	dynamicNbObjectsPerNode;
 
@@ -266,7 +269,7 @@ public:
 
 	<b>Default:</b> PxSceneQueryUpdateMode::eBUILD_ENABLED_COMMIT_ENABLED
 
-	\see PxSceneQuerySystemBase.setUpdateMode() PxSceneQuerySystemBase.getUpdateMode()
+	@see PxSceneQuerySystemBase.setUpdateMode() PxSceneQuerySystemBase.getUpdateMode()
 	*/
 	PxSceneQueryUpdateMode::Enum sceneQueryUpdateMode;
 
@@ -321,4 +324,5 @@ PX_INLINE bool PxSceneQueryDesc::isValid() const
 } // namespace physx
 #endif
 
+/** @} */
 #endif

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -168,10 +168,6 @@ namespace Gu
 	PX_PHYSX_COMMON_API void sweepConvex_MeshGeom_BV4(const TriangleMesh* mesh, const Gu::Box& hullBox, const PxVec3& localDir, PxReal distance, SweepConvexMeshHitCallback& callback, bool anyHit);
 	PX_PHYSX_COMMON_API	void pointMeshDistance_BV4(const TriangleMesh* mesh, const PxTriangleMeshGeometry& meshGeom, const PxTransform& pose, const PxVec3& point, float maxDist, PxU32& index, float& dist, PxVec3& closestPt);
 	PX_PHYSX_COMMON_API bool intersectMeshVsMesh_BV4(	PxReportCallback<PxGeomIndexPair>& callback,
-														const TriangleMesh& triMesh0, const PxTransform& meshPose0, const PxMeshScale& meshScale0,
-														const TriangleMesh& triMesh1, const PxTransform& meshPose1, const PxMeshScale& meshScale1,
-														PxMeshMeshQueryFlags meshMeshFlags, float tolerance);
-	PX_PHYSX_COMMON_API bool distanceMeshVsMesh_BV4(	PxReportCallback<PxGeomIndexClosePair>& callback,
 														const TriangleMesh& triMesh0, const PxTransform& meshPose0, const PxMeshScale& meshScale0,
 														const TriangleMesh& triMesh1, const PxTransform& meshPose1, const PxMeshScale& meshScale1,
 														PxMeshMeshQueryFlags meshMeshFlags, float tolerance);
@@ -365,7 +361,7 @@ namespace Midphase
 	// \param[in]	localDir		sweep's unit dir, in local/mesh space
 	// \param[in]	distance		sweep's length/max distance
 	// \param[in]	callback		callback object, called each time a hit is found
-	// \param[in]	anyHit			true for PxHitFlag::eANY_HIT queries
+	// \param[in]	anyHit			true for PxHitFlag::eMESH_ANY queries
 	PX_FORCE_INLINE void sweepConvexVsMesh(const TriangleMesh* mesh, const Gu::Box& hullBox, const PxVec3& localDir, PxReal distance, SweepConvexMeshHitCallback& callback, bool anyHit)
 	{
 		const PxU32 index = PxU32(mesh->getConcreteType() - PxConcreteType::eTRIANGLE_MESH_BVH33);

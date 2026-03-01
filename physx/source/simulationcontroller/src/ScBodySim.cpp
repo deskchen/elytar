@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -36,7 +36,7 @@
 #include "ScSimStateData.h"
 
 using namespace physx;
-using namespace Dy;
+using namespace physx::Dy;
 using namespace Sc;
 
 #define PX_FREEZE_INTERVAL 1.5f
@@ -86,7 +86,7 @@ BodySim::BodySim(Scene& scene, BodyCore& core, bool compound) :
 	IG::SimpleIslandManager* simpleIslandManager = scene.getSimpleIslandManager();
 	if(!isArticulationLink())
 	{
-		mNodeIndex = simpleIslandManager->addNode(isAwake, isKine, IG::Node::eRIGID_BODY_TYPE, &mLLBody);
+		mNodeIndex = simpleIslandManager->addRigidBody(&mLLBody, isKine, isAwake);
 	}
 	else
 	{
@@ -141,7 +141,7 @@ BodySim::~BodySim()
 
 	// PX-4603. AD: assuming that the articulation code cleans up the dirty state in case this is an articulation link.
 	if (!isArticulationLink())
-		mScene.getVelocityModifyMap().boundedReset(mNodeIndex.index()); 
+		scene.getVelocityModifyMap().boundedReset(mNodeIndex.index()); 
 
 	PX_ASSERT(!readInternalFlag(BF_ON_DEATHROW)); // Before 3.0 it could happen that destroy could get called twice. Assert to make sure this is fixed.
 	raiseInternalFlag(BF_ON_DEATHROW);
@@ -301,37 +301,33 @@ void BodySim::setKinematicTarget(const PxTransform& p)
 
 void BodySim::addSpatialAcceleration(const PxVec3* linAcc, const PxVec3* angAcc)
 {
-	notifyDirtySpatialAcceleration();
+	notifyAddSpatialAcceleration();
 
 	if (!mSimStateData || !mSimStateData->isVelMod())
 		setupSimStateData(false);
 
 	VelocityMod* velmod = mSimStateData->getVelocityModData();
-	if (linAcc)
-		velmod->accumulateLinearVelModPerSec(*linAcc);
-	if (angAcc)
-		velmod->accumulateAngularVelModPerSec(*angAcc);
+	if (linAcc) velmod->accumulateLinearVelModPerSec(*linAcc);
+	if (angAcc) velmod->accumulateAngularVelModPerSec(*angAcc);
 }
 
 void BodySim::setSpatialAcceleration(const PxVec3* linAcc, const PxVec3* angAcc)
 {
-	notifyDirtySpatialAcceleration();
+	notifyAddSpatialAcceleration();
 
 	if (!mSimStateData || !mSimStateData->isVelMod())
 		setupSimStateData(false);
 
 	VelocityMod* velmod = mSimStateData->getVelocityModData();
-	if (linAcc)
-		velmod->setLinearVelModPerSec(*linAcc);
-	if (angAcc)
-		velmod->setAngularVelModPerSec(*angAcc);
+	if (linAcc) velmod->setLinearVelModPerSec(*linAcc);
+	if (angAcc) velmod->setAngularVelModPerSec(*angAcc);
 }
 
 void BodySim::clearSpatialAcceleration(bool force, bool torque)
 {
 	PX_ASSERT(force || torque);
 
-	notifyDirtySpatialAcceleration();
+	notifyClearSpatialAcceleration();
 
 	if (mSimStateData)
 	{
@@ -346,7 +342,7 @@ void BodySim::clearSpatialAcceleration(bool force, bool torque)
 
 void BodySim::addSpatialVelocity(const PxVec3* linVelDelta, const PxVec3* angVelDelta)
 {
-	notifyDirtySpatialVelocity();
+	notifyAddSpatialVelocity();
 
 	if (!mSimStateData || !mSimStateData->isVelMod())
 		setupSimStateData(false);
@@ -362,7 +358,7 @@ void BodySim::clearSpatialVelocity(bool force, bool torque)
 {
 	PX_ASSERT(force || torque);
 
-	notifyDirtySpatialVelocity();
+	notifyClearSpatialVelocity();
 
 	if (mSimStateData)
 	{
@@ -399,9 +395,6 @@ void BodySim::postActorFlagChange(PxU32 oldFlags, PxU32 newFlags)
 			raiseVelocityModFlag(VMF_GRAVITY_DIRTY);
 
 		getBodyCore().getCore().disableGravity = isWeightless!=0;
-
-		if(mArticulation)
-			mArticulation->setArticulationDirty(ArticulationDirtyFlag::eDIRTY_LINKS); // forces an update in PxgSimulationController::updateGpuArticulationSim
 	}
 }
 
@@ -516,8 +509,8 @@ void BodySim::putToSleep()
 	PX_ASSERT(getBodyCore().getLinearVelocity().isZero());
 	PX_ASSERT(getBodyCore().getAngularVelocity().isZero());
 
-	notifyDirtySpatialAcceleration();
-	notifyDirtySpatialVelocity();
+	notifyClearSpatialAcceleration();
+	notifyClearSpatialVelocity();
 	simStateClearVelMod(getSimStateData_Unchecked());
 
 	setActive(false);
@@ -588,8 +581,8 @@ PxReal BodySim::updateWakeCounter(PxReal dt, PxReal energyThreshold, const Cm::S
 	PxReal wc = core.getWakeCounter();
 	
 	{
-		PxVec3 bcSleepLinVelAcc = mLLBody.mSleepLinVelAcc;
-		PxVec3 bcSleepAngVelAcc = mLLBody.mSleepAngVelAcc;
+		PxVec3 bcSleepLinVelAcc = mLLBody.sleepLinVelAcc;
+		PxVec3 bcSleepAngVelAcc = mLLBody.sleepAngVelAcc;
 
 		if(wc < wakeCounterResetTime * 0.5f || wc < dt)
 		{
@@ -632,8 +625,8 @@ PxReal BodySim::updateWakeCounter(PxReal dt, PxReal energyThreshold, const Cm::S
 			}
 		}
 
-		mLLBody.mSleepLinVelAcc = bcSleepLinVelAcc;
-		mLLBody.mSleepAngVelAcc = bcSleepAngVelAcc;
+		mLLBody.sleepLinVelAcc = bcSleepLinVelAcc;
+		mLLBody.sleepAngVelAcc = bcSleepAngVelAcc;
 	}
 
 	wc = PxMax(wc-dt, 0.0f);
@@ -653,8 +646,7 @@ PX_FORCE_INLINE void BodySim::initKinematicStateBase(BodyCore&, bool asPartOfCre
 	// Need to be before setting setRigidBodyFlag::KINEMATIC
 }
 
-bool BodySim::updateForces(PxReal dt, PxsRigidBody** updatedBodySims, PxU32* updatedBodyNodeIndices, PxU32& index, Cm::SpatialVector* acceleration, 
-	PxsExternalAccelerationProvider* externalAccelerations, PxU32 maxNumExternalAccelerations)
+bool BodySim::updateForces(PxReal dt, PxsRigidBody** updatedBodySims, PxU32* updatedBodyNodeIndices, PxU32& index, Cm::SpatialVector* acceleration)
 {
 	PxVec3 linVelDt(0.0f), angVelDt(0.0f);
 
@@ -665,7 +657,7 @@ bool BodySim::updateForces(PxReal dt, PxsRigidBody** updatedBodySims, PxU32* upd
 
 	bool forceChangeApplied = false;
 
-	//if we change the logic like this, which means we don't need to have two separate variables in the pxgbodysim to represent linAcc and angAcc. However, this
+	//if we change the logic like this, which means we don't need to have two seperate variables in the pxgbodysim to represent linAcc and angAcc. However, this
 	//means angAcc will be always 0
 	if( (accDirty || velDirty) && ((simStateData = getSimStateData(false)) != NULL) )
 	{
@@ -698,17 +690,7 @@ bool BodySim::updateForces(PxReal dt, PxsRigidBody** updatedBodySims, PxU32* upd
 		}
 		else
 		{
-			if (mScene.getFlags() & PxSceneFlag::eENABLE_EXTERNAL_FORCES_EVERY_ITERATION_TGS)
-			{
-				if (linVelDt != PxVec3(0.0f) || angVelDt != PxVec3(0.0f)) 
-				{
-					const PxReal invDt = 1.f / dt;
-					PxsRigidBodyExternalAcceleration acc(linVelDt * invDt, angVelDt * invDt);
-					externalAccelerations->setValue(acc, getNodeIndex().index(), maxNumExternalAccelerations);
-				}
-			}
-			else
-				getBodyCore().updateVelocities(linVelDt, angVelDt);
+			getBodyCore().updateVelocities(linVelDt, angVelDt);
 		}
 
 		forceChangeApplied = true;
@@ -751,32 +733,17 @@ void BodySim::setArticulation(ArticulationSim* a, PxReal wakeCounter, bool aslee
 
 		//Articulations defer registering their shapes with the nphaseContext until the IG node index is known.
 		{
-			// PT: TODO: skip this on CPU
-			PxvNphaseImplementationContext*	ctx = mScene.getLowLevelContext()->getNphaseImplementationContext();
 			ElementSim** current = getElements();
 			PxU32 nbElements = getNbElements();
 			while (nbElements--)
 			{
 				ShapeSim* sim = static_cast<ShapeSim*>(*current++);
-				ctx->registerShape(mNodeIndex, sim->getCore().getCore(), sim->getElementID(), sim->getActor().getPxActor());
+				mScene.getLowLevelContext()->getNphaseImplementationContext()->registerShape(mNodeIndex, sim->getCore().getCore(), sim->getElementID(), sim->getActor().getPxActor());
 			}
 		}
 
 		//Force node index into LL shapes
-		{
-			PxsSimulationController* sc = getScene().getSimulationController();
-			if(sc->mGPU)
-			{
-				const PxNodeIndex nodeIndex = mNodeIndex;
-				PxU32 nbElems = getNbElements();
-				ElementSim** elems = getElements();
-				while (nbElems--)
-				{
-					ShapeSim* sim = static_cast<ShapeSim*>(*elems++);
-					sc->setPxgShapeBodyNodeIndex(nodeIndex, sim->getElementID());
-				}
-			}
-		}
+		setBodyNodeIndex(mNodeIndex);
 
 		if (a->getCore().getArticulationFlags() & PxArticulationFlag::eDISABLE_SELF_COLLISION)
 		{

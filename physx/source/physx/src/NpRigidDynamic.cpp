@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -109,7 +109,8 @@ void NpRigidDynamic::setGlobalPose(const PxTransform& pose, bool autowake)
 	scSetBody2World(body2World);
 
 	OMNI_PVD_WRITE_SCOPE_BEGIN(pvdWriter, pvdRegData)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidActor, globalPose, *static_cast<PxRigidActor*>(this), newPose);
+	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidActor, translation, *static_cast<PxRigidActor*>(this), newPose.p);
+	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxRigidActor, rotation, *static_cast<PxRigidActor*>(this), newPose.q);
 	OMNI_PVD_WRITE_SCOPE_END
 
 	if(npScene)
@@ -199,31 +200,6 @@ void NpRigidDynamic::setCMassLocalPose(const PxTransform& pose)
 	}
 }
 
-template<const bool linear>
-static PX_FORCE_INLINE PxVec3 getAcceleration(const NpRigidDynamic& dynamic)
-{
-	NpScene* npScene = dynamic.getNpScene();
-	if(!npScene || !(npScene->getFlagsFast() & PxSceneFlag::eENABLE_BODY_ACCELERATIONS))
-		return PxVec3(0.0f);
-
-	const PxU32 index = dynamic.getRigidActorArrayIndex();
-	if(index>=npScene->mRigidDynamicsAccelerations.size())
-		return PxVec3(0.0f);
-
-	return linear ?	npScene->mRigidDynamicsAccelerations[index].mLinAccel
-				:	npScene->mRigidDynamicsAccelerations[index].mAngAccel;
-}
-
-PxVec3 NpRigidDynamic::getLinearAcceleration() const
-{
-	return getAcceleration<true>(*this);
-}
-
-PxVec3 NpRigidDynamic::getAngularAcceleration() const
-{
-	return getAcceleration<false>(*this);
-}
-
 void NpRigidDynamic::setLinearVelocity(const PxVec3& velocity, bool autowake)
 {
 	NpScene* npScene = getNpScene();
@@ -242,16 +218,6 @@ void NpRigidDynamic::setLinearVelocity(const PxVec3& velocity, bool autowake)
 
 	scSetLinearVelocity(velocity);
 
-	if(npScene && npScene->getFlagsFast() & PxSceneFlag::eENABLE_BODY_ACCELERATIONS)
-	{
-		const PxU32 index = getRigidActorArrayIndex();
-
-		if(index>=npScene->mRigidDynamicsAccelerations.size())
-			npScene->mRigidDynamicsAccelerations.resize(index+1);
-
-		npScene->mRigidDynamicsAccelerations[index].mPrevLinVel = velocity;
-	}
-
 	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxRigidBody, linearVelocity, *static_cast<PxRigidBody*>(this), velocity);
 
 	if(npScene)
@@ -269,16 +235,6 @@ void NpRigidDynamic::setAngularVelocity(const PxVec3& velocity, bool autowake)
 	PX_CHECK_SCENE_API_WRITE_FORBIDDEN_EXCEPT_SPLIT_SIM(npScene, "PxRigidDynamic::setAngularVelocity() not allowed while simulation is running. Call will be ignored.")
 
 	scSetAngularVelocity(velocity);
-
-	if(npScene && npScene->getFlagsFast() & PxSceneFlag::eENABLE_BODY_ACCELERATIONS)
-	{
-		const PxU32 index = getRigidActorArrayIndex();
-
-		if(index>=npScene->mRigidDynamicsAccelerations.size())
-			npScene->mRigidDynamicsAccelerations.resize(index+1);
-
-		npScene->mRigidDynamicsAccelerations[index].mPrevAngVel = velocity;
-	}
 
 	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxRigidBody, angularVelocity, *static_cast<PxRigidBody*>(this), velocity);
 
@@ -642,12 +598,3 @@ void NpRigidDynamic::setRigidDynamicLockFlag(PxRigidDynamicLockFlag::Enum flag, 
 	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxRigidDynamic, rigidDynamicLockFlags, static_cast<PxRigidDynamic&>(*this), flags); // @@@
 }
 
-PxRigidDynamicGPUIndex NpRigidDynamic::getGPUIndex() const
-{
-	NP_READ_CHECK(getNpScene());
-	if(getNpScene())
-	{
-		return mCore.getInternalIslandNodeIndex().index();
-	}
-	return PX_INVALID_NODE;
-}

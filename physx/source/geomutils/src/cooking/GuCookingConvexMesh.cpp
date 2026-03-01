@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -100,7 +100,7 @@ static bool cookConvexMeshInternal(const PxCookingParams& params, const PxConvex
 	if(desc.polygons.count >= 256)
 		return outputError<PxErrorCode::eINTERNAL_ERROR>(__LINE__, "Cooking::cookConvexMesh: user-provided hull must have less than 256 faces!");
 
-	if (params.buildGPUData)
+	if ((desc.flags & PxConvexFlag::eGPU_COMPATIBLE) || params.buildGPUData)
 	{
 		if (desc.points.count > 64)
 			return outputError<PxErrorCode::eINTERNAL_ERROR>(__LINE__, "Cooking::cookConvexMesh: GPU-compatible user-provided hull must have less than 65 vertices!");
@@ -118,7 +118,7 @@ static bool cookConvexMeshInternal(const PxCookingParams& params, const PxConvex
 
 	// AD: we check this outside of the actual convex cooking because we can still cook a valid convex hull
 	// but we won't be able to use it on GPU.
-	if (params.buildGPUData && !meshBuilder.checkExtentRadiusRatio())
+	if (((desc.flags & PxConvexFlag::eGPU_COMPATIBLE) || params.buildGPUData) && !meshBuilder.checkExtentRadiusRatio())
 	{
 		result = PxConvexMeshCookingResult::eNON_GPU_COMPATIBLE;
 		outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "Cooking::cookConvexMesh: GPU-compatible convex hull could not be built because of oblong shape. Will fall back to CPU collision, particles and deformables will not collide with this mesh!");
@@ -138,7 +138,7 @@ static ConvexHullLib* createHullLib(PxConvexMeshDesc& desc, const PxCookingParam
 		const PxU16 gpuMaxFacesLimit = 64;
 
 		// GRB supports 64 verts max
-		if(params.buildGPUData)
+		if((desc.flags & PxConvexFlag::eGPU_COMPATIBLE) || params.buildGPUData)
 		{
 			desc.vertexLimit = PxMin(desc.vertexLimit, gpuMaxVertsLimit);
 			desc.polygonLimit = PxMin(desc.polygonLimit, gpuMaxFacesLimit);

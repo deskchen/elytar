@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_MASS_PROPERTIES_H
 #define PX_MASS_PROPERTIES_H
+/** \addtogroup extensions
+  @{
+*/
 
 #include "PxPhysXConfig.h"
 #include "foundation/PxMath.h"
@@ -43,10 +46,8 @@
 #include "geometry/PxConvexMeshGeometry.h"
 #include "geometry/PxConvexMesh.h"
 #include "geometry/PxCustomGeometry.h"
-#include "geometry/PxConvexCoreGeometry.h"
 #include "geometry/PxTriangleMeshGeometry.h"
 #include "geometry/PxTriangleMesh.h"
-#include "PxConvexCoreExt.h"
 
 #if !PX_DOXYGEN
 namespace physx
@@ -113,13 +114,6 @@ public:
 				PxReal b = r*r*r * (8.0f / 15.0f) + h*r*r;
 				inertiaTensor = PxMat33::createDiagonal(PxVec3(b, a, a) * PxPi * r * r);
 				centerOfMass = PxVec3(0.0f);
-			}
-			break;
-
-			case PxGeometryType::eCONVEXCORE:
-			{
-				const PxConvexCoreGeometry& g = static_cast<const PxConvexCoreGeometry&>(geometry);
-				PxConvexCoreExt::computeMassInfo(g, mass, inertiaTensor, centerOfMass);
 			}
 			break;
 
@@ -367,4 +361,5 @@ public:
 } // namespace physx
 #endif
 
+/** @} */
 #endif

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -41,7 +41,7 @@ ConstraintInteraction::ConstraintInteraction(ConstraintSim* constraint, RigidSim
 	mConstraint	(constraint)
 {
 	{
-		onActivate();
+		onActivate(NULL);
 		registerInActors();
 	}
 
@@ -110,11 +110,11 @@ void ConstraintInteraction::updateState()
 	// and thus there is no need to consider that case here.
 	//
 
-	onActivate();	// note: this will not activate if the necessary conditions are not met, so it can be called even if the pair has been deactivated again before the
-					//       simulation step started
+	onActivate(NULL);	// note: this will not activate if the necessary conditions are not met, so it can be called even if the pair has been deactivated again before the
+						//       simulation step started
 }
 
-bool ConstraintInteraction::onActivate()
+bool ConstraintInteraction::onActivate(void*)
 {
 	PX_ASSERT(!mConstraint->isBroken());
 

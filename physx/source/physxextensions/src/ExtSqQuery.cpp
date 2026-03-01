@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -428,7 +428,7 @@ struct ExtMultiQueryCallback : public PrunerRaycastCallback, public PrunerOverla
 			mFilterData			(filterData),
 			mFilterCall			(filterCall),
 			mShrunkDistance		(shrunkDistance),
-			mMeshAnyHitFlags	((hitFlags.isSet(PxHitFlag::eANY_HIT) || anyHit) ? PxHitFlag::eANY_HIT : PxHitFlag::Enum(0)),
+			mMeshAnyHitFlags	((hitFlags.isSet(PxHitFlag::eMESH_ANY) || anyHit) ? PxHitFlag::eMESH_ANY : PxHitFlag::Enum(0)),
 			mReportTouchesAgain	(true),
 			mFarBlockFound		(filterData.flags & PxQueryFlag::eNO_BLOCK),
 			mNoBlock			(filterData.flags & PxQueryFlag::eNO_BLOCK),
@@ -645,23 +645,23 @@ struct ExtMultiQueryCallback : public PrunerRaycastCallback, public PrunerOverla
 		return true;
 	}
 
-	virtual bool	invoke(PxReal& aDist, PxU32 primIndex, const PrunerPayload* payloads, const PxTransform* transforms)	PX_OVERRIDE PX_FINAL
+	virtual bool	invoke(PxReal& aDist, PxU32 primIndex, const PrunerPayload* payloads, const PxTransform* transforms)
 	{
 		return _invoke<false>(aDist, primIndex, payloads, transforms, NULL);
 	}
 
-	virtual bool	invoke(PxU32 primIndex, const PrunerPayload* payloads, const PxTransform* transforms)	PX_OVERRIDE PX_FINAL
+	virtual bool	invoke(PxU32 primIndex, const PrunerPayload* payloads, const PxTransform* transforms)
 	{
 		float unused = 0.0f;
 		return _invoke<false>(unused, primIndex, payloads, transforms, NULL);
 	}
 
-	virtual bool	invoke(PxReal& aDist, PxU32 primIndex, const PrunerPayload* payloads, const PxTransform* transforms, const PxTransform* compoundPose)	PX_OVERRIDE PX_FINAL
+	virtual bool	invoke(PxReal& aDist, PxU32 primIndex, const PrunerPayload* payloads, const PxTransform* transforms, const PxTransform* compoundPose)
 	{
 		return _invoke<false>(aDist, primIndex, payloads, transforms, compoundPose);
 	}
 
-	virtual bool	invoke(PxU32 primIndex, const PrunerPayload* payloads, const PxTransform* transforms, const PxTransform* compoundPose)	PX_OVERRIDE PX_FINAL
+	virtual bool	invoke(PxU32 primIndex, const PrunerPayload* payloads, const PxTransform* transforms, const PxTransform* compoundPose)
 	{
 		float unused = 0.0f;
 		return _invoke<false>(unused, primIndex, payloads, transforms, compoundPose);
@@ -825,7 +825,7 @@ struct LocalBaseCallback
 };
 
 template<typename HitType>
-struct LocalRaycastCallback : LocalBaseCallback<HitType>, PxBVH::RaycastCallback
+struct LocalRaycastCallback : LocalBaseCallback<HitType>,  PxBVH::RaycastCallback
 {
 	LocalRaycastCallback(const ExtMultiQueryInput& input, ExtMultiQueryCallback<HitType>& pcb, const Sq::ExtPrunerManager& manager, const ExtQueryAdapter& adapter, PxHitCallback<HitType>& hits, const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) :
 		LocalBaseCallback<HitType>(pcb, manager, adapter, hits, filterData, filterCall), mInput(input)	{}
@@ -844,7 +844,7 @@ struct LocalRaycastCallback : LocalBaseCallback<HitType>, PxBVH::RaycastCallback
 };
 
 template<typename HitType>
-struct LocalOverlapCallback : LocalBaseCallback<HitType>, PxBVH::OverlapCallback
+struct LocalOverlapCallback : LocalBaseCallback<HitType>,  PxBVH::OverlapCallback
 {
 	LocalOverlapCallback(const ShapeData& shapeData, ExtMultiQueryCallback<HitType>& pcb, const Sq::ExtPrunerManager& manager, const ExtQueryAdapter& adapter, PxHitCallback<HitType>& hits, const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) :
 		LocalBaseCallback<HitType>(pcb, manager, adapter, hits, filterData, filterCall), mShapeData(shapeData)	{}
@@ -863,7 +863,7 @@ struct LocalOverlapCallback : LocalBaseCallback<HitType>, PxBVH::OverlapCallback
 };
 
 template<typename HitType>
-struct LocalSweepCallback : LocalBaseCallback<HitType>, PxBVH::RaycastCallback
+struct LocalSweepCallback : LocalBaseCallback<HitType>,  PxBVH::RaycastCallback
 {
 	LocalSweepCallback(const ShapeData& shapeData, const PxVec3& dir, ExtMultiQueryCallback<HitType>& pcb, const Sq::ExtPrunerManager& manager, const ExtQueryAdapter& adapter, PxHitCallback<HitType>& hits, const PxQueryFilterData& filterData, PxQueryFilterCallback* filterCall) :
 		LocalBaseCallback<HitType>(pcb, manager, adapter, hits, filterData, filterCall), mShapeData(shapeData), mDir(dir)	{}

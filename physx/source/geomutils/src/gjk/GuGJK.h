@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -151,7 +151,7 @@ namespace Gu
 			
 			if(FAllGrtr(signDist, separatingDist))
 			{
-				//ML:gjk found a separating axis for these two objects and the distance is large than the seperating distance, gjk might not converge so that
+				//ML:gjk found a separating axis for these two objects and the distance is large than the seperating distance, gjk might not converage so that
 				//we won't generate contact information
 #if	GJK_SEPERATING_AXIS_VALIDATE
 					validateSeparatingAxis(a, b, v);
@@ -163,7 +163,7 @@ namespace Gu
 
 			if(BAllEqTTTT(con))
 			{
-				//ML:: gjk converge and we get the closest point information
+				//ML:: gjk converage and we get the closest point information
 				Vec3V closA, closB;
 				//normal point from A to B
 				const Vec3V n = V3Neg(v);
@@ -184,7 +184,7 @@ namespace Gu
 			closest = GJKCPairDoSimplex(Q, A, B, support, size);
 			
 			dist = V3Length(closest);
-			v = V3ScaleInv(closest, FMax(dist, FEps()));
+			v = V3ScaleInv(closest, dist);
 			bNotDegenerated = FIsGrtr(prevDist, dist);
 			bNotTerminated = BAnd(FIsGrtr(dist, eps), bNotDegenerated);
 		}while(BAllEqTTTT(bNotTerminated));

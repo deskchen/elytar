@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_CONTROLLER_MANAGER_H
 #define PX_CONTROLLER_MANAGER_H
+/** \addtogroup character
+  @{
+*/
 
 #include "PxPhysXConfig.h"
 #include "foundation/PxFlags.h"
@@ -65,7 +68,7 @@ struct PxControllerDebugRenderFlag
 /**
 \brief Bitfield that contains a set of raised flags defined in PxControllerDebugRenderFlag.
 
-\see PxControllerDebugRenderFlag
+@see PxControllerDebugRenderFlag
 */
 typedef PxFlags<PxControllerDebugRenderFlag::Enum, PxU32> PxControllerDebugRenderFlags;
 PX_FLAGS_OPERATORS(PxControllerDebugRenderFlag::Enum, PxU32)
@@ -74,7 +77,7 @@ PX_FLAGS_OPERATORS(PxControllerDebugRenderFlag::Enum, PxU32)
 /**
 \brief Manages an array of character controllers.
 
-\see PxController PxBoxController PxCapsuleController
+@see PxController PxBoxController PxCapsuleController
 */
 class PxControllerManager
 {
@@ -117,7 +120,7 @@ public:
 	\param[in] desc The controllers descriptor
 	\return The new controller
 
-	\see PxController PxController.release() PxControllerDesc
+	@see PxController PxController.release() PxControllerDesc
 	*/
 	virtual PxController*		createController(const PxControllerDesc& desc) = 0;
 
@@ -131,7 +134,7 @@ public:
 
 	\return The render buffer filled with debug-render data
 
-	\see PxControllerManager.setDebugRenderingFlags()
+	@see PxControllerManager.setDebugRenderingFlags()
 	*/
 	virtual	PxRenderBuffer&		getRenderBuffer()		= 0;
 
@@ -140,7 +143,7 @@ public:
 
 	\param[in] flags The debug rendering flags (combination of PxControllerDebugRenderFlags)
 
-	\see PxControllerManager.getRenderBuffer() PxControllerDebugRenderFlags
+	@see PxControllerManager.getRenderBuffer() PxControllerDebugRenderFlags
 	*/
 	virtual	void				setDebugRenderingFlags(PxControllerDebugRenderFlags flags)	= 0;
 
@@ -164,7 +167,7 @@ public:
 
 	\return New obstacle context
 
-	\see PxObstacleContext
+	@see PxObstacleContext
 	*/
 	virtual	PxObstacleContext*	createObstacleContext()	= 0;
 
@@ -257,7 +260,7 @@ public:
 
 	\note It is the user's responsibility to keep track of the summed total origin shift and adjust all input/output to/from PhysXCharacterKinematic accordingly.
 
-	\note This call will not automatically shift the PhysX scene and its objects. You need to call PxScene::shiftOrigin() separately to keep the systems in sync.
+	\note This call will not automatically shift the PhysX scene and its objects. You need to call PxScene::shiftOrigin() seperately to keep the systems in sync.
 
 	\param[in] shift Translation vector to shift the origin by.
 	*/
@@ -292,5 +295,6 @@ protected:
 	*/
 PX_C_EXPORT physx::PxControllerManager* PX_CALL_CONV PxCreateControllerManager(physx::PxScene& scene, bool lockingEnabled = false);
 
+/** @} */
 #endif
 

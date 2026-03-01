@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -81,7 +81,7 @@ static PX_FORCE_INLINE uint32_t PxComputeHash(const AggPair& p)
 	return PxU32(physx::PxComputeHash( (p.mIndex0&0xffff)|(p.mIndex1<<16)) );
 }
 
-static PX_FORCE_INLINE bool shouldPairBeDeleted(const GroupsArrayPinnedSafe& groups, ShapeHandle h0, ShapeHandle h1)
+static PX_FORCE_INLINE bool shouldPairBeDeleted(const PxPinnedArray<Bp::FilterGroup::Enum>& groups, ShapeHandle h0, ShapeHandle h1)
 {
 	PX_ASSERT(h0<groups.size());
 	PX_ASSERT(h1<groups.size());
@@ -100,7 +100,7 @@ static PX_FORCE_INLINE bool shouldPairBeDeleted(const GroupsArrayPinnedSafe& gro
 														Aggregate(BoundsIndex index, PxAggregateFilterHint filterHint);
 														~Aggregate();
 
-						const BoundsIndex				mIndex;
+						BoundsIndex						mIndex;
 		private:
 						PxArray<BoundsIndex>			mAggregated;	// PT: TODO: replace with linked list?
 		public:
@@ -1029,7 +1029,7 @@ static void buildFreeBitmap(PxBitMap& bitmap, PxU32 currentFree, const PxArray<A
 #pragma warning(disable: 4355 )	// "this" used in base member initializer list
 #endif
 
-AABBManager::AABBManager(	BroadPhase& bp, BoundsArray& boundsArray, PxFloatArrayPinnedSafe& contactDistance,
+AABBManager::AABBManager(	BroadPhase& bp, BoundsArray& boundsArray, PxFloatArrayPinned& contactDistance,
 							PxU32 maxNbAggregates, PxU32 maxNbShapes, PxVirtualAllocator& allocator, PxU64 contextID,
 							PxPairFilteringMode::Enum kineKineFilteringMode, PxPairFilteringMode::Enum staticKineFilteringMode) :
 	AABBManagerBase			(bp, boundsArray, contactDistance, maxNbAggregates, maxNbShapes, allocator, contextID, kineKineFilteringMode, staticKineFilteringMode),
@@ -1099,14 +1099,8 @@ static void removeAggregateFromDirtyArray(Aggregate* aggregate, PxArray<Aggregat
 }
 
 // PT: userData = Sc::ElementSim
-bool AABBManager::addBounds(BoundsIndex index, PxReal contactDistance, Bp::FilterGroup::Enum group, void* userData, AggregateHandle aggregateHandle, ElementType::Enum volumeType, PxU32 envID)
+bool AABBManager::addBounds(BoundsIndex index, PxReal contactDistance, Bp::FilterGroup::Enum group, void* userData, AggregateHandle aggregateHandle, ElementType::Enum volumeType)
 {
-	if(envID!=PX_INVALID_U32)
-	{
-		envID = PX_INVALID_U32;
-		PxGetFoundation().error(PxErrorCode::eINVALID_PARAMETER, PX_FL, "AABBManager::addBounds - environment ID is not supported in CPU broadphases\n");
-	}
-
 //	PX_ASSERT(checkID(index));
 
 	initEntry(index, contactDistance, group, userData, volumeType);
@@ -1152,6 +1146,7 @@ bool AABBManager::addBounds(BoundsIndex index, PxReal contactDistance, Bp::Filte
 		}
 	}
 
+	// PT: TODO: remove or use this return value. Currently useless since always true. Gives birth to unreachable code in callers.
 	return true;
 }
 
@@ -1190,15 +1185,9 @@ bool AABBManager::removeBounds(BoundsIndex index)
 }
 
 // PT: TODO: the userData is actually a PxAggregate pointer. Maybe we could expose/use that.
-AggregateHandle AABBManager::createAggregate(BoundsIndex index, Bp::FilterGroup::Enum group, void* userData, PxU32 /*maxNumShapes*/, PxAggregateFilterHint filterHint, PxU32 envID)
+AggregateHandle AABBManager::createAggregate(BoundsIndex index, Bp::FilterGroup::Enum group, void* userData, PxU32 /*maxNumShapes*/, PxAggregateFilterHint filterHint)
 {
 //	PX_ASSERT(checkID(index));
-
-	if(envID!=PX_INVALID_U32)
-	{
-		envID = PX_INVALID_U32;
-		PxGetFoundation().error(PxErrorCode::eINVALID_PARAMETER, PX_FL, "AABBManager::createAggregate - environment ID is not supported in CPU broadphases\n");
-	}
 
 	Aggregate* aggregate = PX_NEW(Aggregate)(index, filterHint);
 
@@ -1215,7 +1204,7 @@ AggregateHandle AABBManager::createAggregate(BoundsIndex index, Bp::FilterGroup:
 		mAggregates[handle] = aggregate;
 	}
 
-#if BP_USE_AGGREGATE_GROUP_TAIL
+#ifdef BP_USE_AGGREGATE_GROUP_TAIL
 /*		PxU32 id = index;
 		id<<=2;
 		id|=FilterType::AGGREGATE;
@@ -1229,8 +1218,6 @@ AggregateHandle AABBManager::createAggregate(BoundsIndex index, Bp::FilterGroup:
 
 	mVolumeData[index].setAggregate(handle);
 
-	//creates an extra empty bound explicitly. Corresponding entry in the transform cache is guaranteed by resizing and advancing the index for next transforms, although explicitly setTransform is not called
-	//bounds and transforms are in sync and this change is reflected in changes array for GPU transfer
 	mBoundsArray.setBounds(PxBounds3::empty(), index);
 
 	mNbAggregates++;
@@ -1282,7 +1269,7 @@ bool AABBManager::destroyAggregate(BoundsIndex& index_, Bp::FilterGroup::Enum& g
 	index_ = index;
 	group_ = mGroups[index];
 
-#if BP_USE_AGGREGATE_GROUP_TAIL
+#ifdef BP_USE_AGGREGATE_GROUP_TAIL
 	releaseAggregateGroup(mGroups[index]);
 #endif
 	resetEntry(index);
@@ -1558,7 +1545,7 @@ void AABBManager::updateBPSecondPass(PxcScratchAllocator* scratchAllocator, PxBa
 	const BroadPhaseUpdateData updateData(mAddedHandles.begin(), mAddedHandles.size(),
 		mUpdatedHandles.begin(), mUpdatedHandles.size(),
 		mRemovedHandles.begin(), mRemovedHandles.size(),
-		mBoundsArray.begin(), mGroups.begin(), mContactDistance.begin(), mBoundsArray.size(),
+		mBoundsArray.begin(), mGroups.begin(), mContactDistance.begin(), mBoundsArray.getCapacity(),
 		mFilters,
 		// PT: TODO: this could also be removed now. The key to understanding the refactorings is that none of the two bools below are actualy used by the CPU versions.
 		mBoundsArray.hasChanged(),

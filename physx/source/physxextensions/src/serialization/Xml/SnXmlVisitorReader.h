@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -170,7 +170,7 @@ namespace physx { namespace Sn {
 	{	
 		PxAllocatorCallback& inAllocator = reader.mAllocator.getAllocator();
 		
-		TGeomType* shape = PX_PLACEMENT_NEW((inAllocator.allocate(sizeof(TGeomType), "parseGeometry", PX_FL)), TGeomType);
+		TGeomType* shape = PX_PLACEMENT_NEW((inAllocator.allocate(sizeof(TGeomType), "parseGeometry",  PX_FL)), TGeomType);
 		PxClassInfoTraits<TGeomType> info;
 		readComplexObj( reader, shape);
 		return shape;
@@ -292,9 +292,6 @@ namespace physx { namespace Sn {
 					case PxGeometryType::eBOX :
 						static_cast<PxBoxGeometry*>(geometry)->~PxBoxGeometry();
 						break;
-					case PxGeometryType::eCONVEXCORE:
-						static_cast<PxConvexCoreGeometry*>(geometry)->~PxConvexCoreGeometry();
-						break;
 					case PxGeometryType::eCONVEXMESH :
 						static_cast<PxConvexMeshGeometry*>(geometry)->~PxConvexMeshGeometry();
 						break;
@@ -309,6 +306,9 @@ namespace physx { namespace Sn {
 						break;
 					case PxGeometryType::ePARTICLESYSTEM:
 						static_cast<PxParticleSystemGeometry*>(geometry)->~PxParticleSystemGeometry();
+						break;
+					case PxGeometryType::eHAIRSYSTEM:
+						static_cast<PxHairSystemGeometry*>(geometry)->~PxHairSystemGeometry();
 						break;
 					case PxGeometryType::eCUSTOM :
 						static_cast<PxCustomGeometry*>(geometry)->~PxCustomGeometry();
@@ -391,7 +391,7 @@ namespace physx { namespace Sn {
 					mReader.leaveChild();
 				mNames.popBack();
 			}
-			mValid = true;
+			mValid =true;
 			if ( mNames.size() && mNames.back().mValid == false )
 				mValid = false;
 		}
@@ -586,32 +586,6 @@ namespace physx { namespace Sn {
 				TPropertyType propVal = inProp.get( mObj );
 				readComplexObj( *this, &propVal, inInfo );
 				inProp.set( mObj, propVal );
-			}
-		}
-
-		//
-		// The D6 joint has been changed such that it is necessary to specify what kind of angular drive model to apply.
-		// Depending on that choice, it is not legal anymore to set/get drive parameters for certain angular drive types.
-		// In theory, only the expected entries should have been stored and no custom check should be needed, however,
-		// when dumping from a PVD file to RepX, the system just blindly dumps all drive types. Hence, it is necessary
-		// to filter out the invalid drive types still.
-		//
-		// Note: using partial template specialization because the compiler for aarch64 did not yet support in-class
-		//       explicit specialization
-		//
-		typedef Vd::PxPvdIndexedPropertyAccessor<PxExtensionsPropertyInfoName::PxD6Joint_Drive, PxD6Joint, PxD6Drive::Enum, PxD6JointDrive> PxD6JointDriveAccessor;
-		template<typename TInfoType>
-		void complexProperty( PxU32* /*key*/, const PxD6JointDriveAccessor& inProp, TInfoType& inInfo )
-		{
-			typedef typename PxD6JointDriveAccessor::prop_type TPropertyType;
-			if ( gotoTopName() )
-			{
-				if (isD6JointDriveAccessAllowed(inProp.mIndex, mObj->getAngularDriveConfig()))
-				{
-					TPropertyType propVal = inProp.get( mObj );
-					readComplexObj( *this, &propVal, inInfo );
-					inProp.set( mObj, propVal );
-				}
 			}
 		}
 		
@@ -886,42 +860,6 @@ namespace physx { namespace Sn {
 		RepXPropertyFilter<RepXVisitorReader<TObjType> > theOp( theReader );
 		info.visitBaseProperties( theOp );
 		info.visitInstanceProperties( theOp );
-		return !hadError;
-	}
-
-	//
-	// Setting the angular drive config has to happen before setting any drive (because it resets drive parameters
-	// for angular drives). However, when the angular drive config feature got introduced, binary compatibility
-	// requirements did not allow to place the corresponding setter/getter in front of the drive param setter/getter.
-	// Thus this ugly temporary workaround to hardcode the desired order of operations. With the next major release,
-	// the public API methods can be re-arranged and then it should be possible to undo this sad workaround.
-	//
-	template<>
-	inline bool readAllProperties( PxRepXInstantiationArgs args, TReaderNameStack& names, PxProfileArray<PxU32>& contexts, XmlReader& reader, PxD6Joint* obj, XmlMemoryAllocator& alloc, PxCollection& collection, PxD6JointGeneratedInfo& info )
-	{
-		bool hadError = false;
-		RepXVisitorReader<PxD6Joint> theReader( names, contexts, args, reader, obj, alloc, collection, hadError);
-		RepXPropertyFilter<RepXVisitorReader<PxD6Joint> > theOp( theReader );
-		info.visitBaseProperties( theOp );
-
-		{
-			PxU32 inStartIndex = 0;
-			theOp( info.Motion, inStartIndex + 0 );
-			theOp( info.TwistAngle, inStartIndex + 1 );
-			theOp( info.Twist, inStartIndex + 2 );
-			theOp( info.SwingYAngle, inStartIndex + 3 );
-			theOp( info.SwingZAngle, inStartIndex + 4 );
-			theOp( info.DistanceLimit, inStartIndex + 5 );
-			theOp( info.LinearLimit, inStartIndex + 6 );
-			theOp( info.TwistLimit, inStartIndex + 7 );
-			theOp( info.SwingLimit, inStartIndex + 8 );
-			theOp( info.PyramidSwingLimit, inStartIndex + 9 );
-			theOp( info.AngularDriveConfig, inStartIndex + 10 );
-			theOp( info.Drive, inStartIndex + 11 );
-			theOp( info.DrivePosition, inStartIndex + 12 );
-			theOp( info.ConcreteTypeName, inStartIndex + 13 );
-		}
-
 		return !hadError;
 	}
 

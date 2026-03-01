@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved. 
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved. 
 
 #ifndef SC_SHAPESIM_BASE_H
 #define SC_SHAPESIM_BASE_H
@@ -30,6 +30,7 @@
 #include "ScElementSim.h"
 #include "ScShapeCore.h"
 #include "ScRigidSim.h"
+#include "PxsShapeSim.h"
 
 namespace physx
 {
@@ -39,6 +40,16 @@ namespace physx
 
 		class ShapeCore;
 
+		// PT: TODO: ShapeSimBase is bonkers:
+		//	PxU32			ElementSim::mElementID
+		//	PxU32			ElementSim::mShapeArrayIndex;
+		//	IG::NodeIndex	mLLShape::mBodySimIndex;		*** GPU only
+		//	PxU32			mLLShape::mElementIndex;		*** GPU only, looks like a copy of ElementSim::mElementID
+		//	PxU32			mLLShape::mShapeIndex;			*** GPU only, looks like a copy of ElementSim::mElementID
+		//	PxU32			ShapeSimBase::mId;
+		//	PxU32			ShapeSimBase::mSqBoundsId;
+		// => do we really need 7 different IDs per shape?
+
 		class ShapeSimBase : public ElementSim
 		{
 			PX_NOCOPY(ShapeSimBase)
@@ -47,12 +58,12 @@ namespace physx
 														ElementSim	(owner),
 														mSqBoundsId	(PX_INVALID_U32),
 														mPrunerIndex(PX_INVALID_U32)
-																							{ setCore(core);	}
+																							{	setCore(core);	}
 													~ShapeSimBase()							{					}
 
 			PX_FORCE_INLINE void					setCore(const ShapeCore* core);
 			PX_FORCE_INLINE const ShapeCore&		getCore()						const;
-			PX_FORCE_INLINE	bool					isPxsCoreValid()				const	{ return mShapeCore != NULL; }
+	        PX_FORCE_INLINE bool                    isPxsCoreValid()                const   { return mLLShape.mShapeCore != NULL; }
 
 			PX_INLINE		PxGeometryType::Enum	getGeometryType()				const	{ return getCore().getGeometryType();	}
 
@@ -74,19 +85,19 @@ namespace physx
 			PX_FORCE_INLINE PxU32					getSqPrunerIndex()				const	{ return mPrunerIndex;		}
 			PX_FORCE_INLINE void					setSqPrunerIndex(PxU32 index)			{ mPrunerIndex = index;		}
 
-			PX_FORCE_INLINE PxsShapeCore*			getPxsShapeCore()						{ return mShapeCore;		}
+			PX_FORCE_INLINE PxsShapeSim&			getLLShapeSim()							{ return mLLShape;			}
 
 							void					onFilterDataChange();
 							void					onRestOffsetChange();
 							void					onFlagChange(PxShapeFlags oldFlags);
 							void					onResetFiltering();
 							void					onVolumeOrTransformChange();
+							void					onMaterialChange();  // remove when material properties are gone from PxcNpWorkUnit
 							void					onContactOffsetChange();
 							void					markBoundsForUpdate();
 							void					reinsertBroadPhase();
 							void					removeFromBroadPhase(bool wakeOnLostTouch);
 							void					getAbsPoseAligned(PxTransform* PX_RESTRICT globalPose)	const;
-							PxNodeIndex				getActorNodeIndex()		const;
 
 			PX_FORCE_INLINE	RigidSim&				getRbSim()				const { return static_cast<RigidSim&>(getActor()); }
 							BodySim*				getBodySim()			const;
@@ -103,21 +114,28 @@ namespace physx
 
 			PX_FORCE_INLINE	void					internalAddToBroadPhase();
 			PX_FORCE_INLINE	bool					internalRemoveFromBroadPhase(bool wakeOnLostTouch = true);
-							void					initSubsystemsDependingOnElementID(PxU32 indexFrom);
+							void					initSubsystemsDependingOnElementID();
 							
-							PxsShapeCore*			mShapeCore;
+							PxsShapeSim				mLLShape;
 							PxU32					mSqBoundsId;
 							PxU32					mPrunerIndex;
 		};
 
+#if PX_P64_FAMILY
+		// PT: to compensate for the padding I removed in PxsShapeSim
+		PX_COMPILE_TIME_ASSERT((sizeof(ShapeSimBase) - sizeof(PxsShapeSim))>=12);
+#else
+		//	PX_COMPILE_TIME_ASSERT(32==sizeof(Sc::ShapeSim)); // after removing bounds from shapes
+		//	PX_COMPILE_TIME_ASSERT((sizeof(Sc::ShapeSim) % 16) == 0); // aligned mem bounds are better for prefetching
+#endif
+
 		PX_FORCE_INLINE void ShapeSimBase::setCore(const ShapeCore* core)
 		{
-			mShapeCore = core ? const_cast<PxsShapeCore*>(&core->getCore()) : NULL;
+			mLLShape.mShapeCore = core ? const_cast<PxsShapeCore*>(&core->getCore()) : NULL;
 		}
-
 		PX_FORCE_INLINE const ShapeCore& ShapeSimBase::getCore() const
 		{
-			return Sc::ShapeCore::getCore(*mShapeCore);
+			return Sc::ShapeCore::getCore(*mLLShape.mShapeCore);
 		}
 
 	} // namespace Sc

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -50,6 +50,7 @@
 // ****************************************************************************
 
 #include <ctype.h>
+#include <vector>
 #include "PxPhysicsAPI.h"
 #include "foundation/PxArray.h"
 #include "foundation/PxTime.h"
@@ -618,7 +619,7 @@ void renderScene()
 		if(nbActors)
 		{
 			//printf("Rendering %d actors\n", nbActors);
-			PxArray<PxRigidActor*> actors(nbActors);
+			std::vector<PxRigidActor*> actors(nbActors);
 			scene->getActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC, reinterpret_cast<PxActor**>(&actors[0]), nbActors);
 			Snippets::renderActors(&actors[0], static_cast<PxU32>(actors.size()), false, PxVec3(0.1f, 0.2f, 0.3f), NULL, true, false);
 		}
@@ -841,7 +842,7 @@ void cleanupPhysics(bool /*interactive*/)
 	if(gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
-		PX_RELEASE(gPvd);
+		gPvd->release();	gPvd = NULL;
 		PX_RELEASE(transport);
 	}
 	PX_RELEASE(gFoundation);

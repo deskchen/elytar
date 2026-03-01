@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -31,7 +31,8 @@
 OmniPvdFileReadStreamImpl::OmniPvdFileReadStreamImpl()
 {
 	mFileName = 0;
-	resetFileParams();
+	mFileWasOpened = false;
+	mPFile = 0;
 }
 
 OmniPvdFileReadStreamImpl::~OmniPvdFileReadStreamImpl()
@@ -39,12 +40,6 @@ OmniPvdFileReadStreamImpl::~OmniPvdFileReadStreamImpl()
 	closeFile();
 	delete[] mFileName;
 	mFileName = 0;
-}
-
-void OmniPvdFileReadStreamImpl::resetFileParams()
-{
-	mFileOpenAttempted = false;
-	mPFile = 0;
 }
 
 void OMNI_PVD_CALL OmniPvdFileReadStreamImpl::setFileName(const char* fileName)
@@ -64,21 +59,21 @@ void OMNI_PVD_CALL OmniPvdFileReadStreamImpl::setFileName(const char* fileName)
 
 bool OMNI_PVD_CALL OmniPvdFileReadStreamImpl::openFile()
 {
-	if (mFileOpenAttempted)
+	if (mFileWasOpened)
 	{
-		return (mPFile!=0);
+		return true;
 	}
 	if (!mFileName)
 	{
 		return false;
 	}
 	mPFile = 0;
-	mFileOpenAttempted = true;
+	mFileWasOpened = true;
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 	errno_t err = fopen_s(&mPFile, mFileName, "rb");
 	if (err != 0)
 	{
-		mPFile = 0;
+		mFileWasOpened = false;
 	}
 	else
 	{
@@ -90,47 +85,46 @@ bool OMNI_PVD_CALL OmniPvdFileReadStreamImpl::openFile()
 	{
 		fseek(mPFile, 0, SEEK_SET);
 	}
+	else
+	{
+		mFileWasOpened = false;
+	}
 #endif
-	return (mPFile!=0);
+	return mFileWasOpened;
 }
 
 bool OMNI_PVD_CALL OmniPvdFileReadStreamImpl::closeFile()
-{	
-	bool returnOK = true;
-	if (mFileOpenAttempted && (mPFile!=0))
+{
+	if (mFileWasOpened)
 	{
 		fclose(mPFile);
 		mPFile = 0;
-	}	
-	else
-	{
-		returnOK = false;
+		mFileWasOpened = false;
 	}
-	resetFileParams();
-	return returnOK;
+	return true;
 }
 
 uint64_t OMNI_PVD_CALL OmniPvdFileReadStreamImpl::readBytes(uint8_t* bytes, uint64_t nbrBytes)
 {
-	size_t result = 0;
-	if (mPFile!=0)
+	if (mFileWasOpened)
 	{
-		result = fread(bytes, 1, nbrBytes, mPFile);
+		size_t result = fread(bytes, 1, nbrBytes, mPFile);
+		return (int)result;
+	} else {
+		return 0;
 	}
-	return result;
 }
 
 uint64_t OMNI_PVD_CALL OmniPvdFileReadStreamImpl::skipBytes(uint64_t nbrBytes)
 {
-	if (mPFile==0)
+	if (mFileWasOpened)
 	{
+		fseek(mPFile, (long)nbrBytes, SEEK_CUR);
 		return 0;
 	}
-	if (fseek(mPFile, (long)nbrBytes, SEEK_CUR)==0)
-	{
-		return nbrBytes;
+	else {
+		return 0;
 	}
-	return 0;
 }
 
 bool OMNI_PVD_CALL OmniPvdFileReadStreamImpl::openStream()

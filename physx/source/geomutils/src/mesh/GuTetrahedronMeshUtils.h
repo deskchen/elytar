@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
 #ifndef GU_TETRAHEDRONMESHUTILS_H
 #define GU_TETRAHEDRONMESHUTILS_H
@@ -35,8 +35,10 @@ namespace Gu
 {
 
 PX_PHYSX_COMMON_API
-void convertDeformableVolumeCollisionToSimMeshTets(const PxTetrahedronMesh& simMesh, const DeformableVolumeAuxData& simState, const BVTetrahedronMesh& collisionMesh,
-												   PxU32 inTetId, const PxVec4& inTetBarycentric, PxU32& outTetId, PxVec4& outTetBarycentric, bool bClampToClosestPoint = true);
+void convertSoftbodyCollisionToSimMeshTets(const PxTetrahedronMesh& simMesh, const SoftBodyAuxData& simState,
+                                           const BVTetrahedronMesh& collisionMesh, PxU32 inTetId,
+                                           const PxVec4& inTetBarycentric, PxU32& outTetId,
+                                           PxVec4& outTetBarycentric);
 
 PX_PHYSX_COMMON_API
 PxVec4 addAxisToSimMeshBarycentric(const PxTetrahedronMesh& simMesh, const PxU32 simTetId,

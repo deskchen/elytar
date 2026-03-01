@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -32,13 +32,13 @@
 #include "foundation/PxAssert.h"
 #include "foundation/PxMemory.h"
 #include "foundation/PxHash.h"
-#include "foundation/PxUserAllocated.h"
 #include "common/PxSerialFramework.h"
 #include "extensions/PxDefaultStreams.h"
 
+#include "foundation/PxUserAllocated.h"
 #include "CmCollection.h"
 #include "CmUtils.h"
-#include "../SnSerialUtils.h"
+#include "SnConvX_Align.h"
 
 namespace physx
 {

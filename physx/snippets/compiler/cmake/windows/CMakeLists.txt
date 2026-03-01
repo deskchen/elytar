@@ -22,7 +22,7 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
-## Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+## Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
 IF(NOT DEFINED PHYSX_WINDOWS_COMPILE_DEFS)
 	MESSAGE(FATAL ERROR "Snippets uses the PhysX compile defs, and they're not defined when they need to be.")
@@ -30,6 +30,10 @@ ENDIF()
 
 IF (NOT DEFINED PHYSX_CXX_FLAGS)
 	MESSAGE(FATAL ERROR "Snippets uses the PhysX CXX flags, and they're not defined when they need to be.")
+ENDIF()
+
+IF(NOT DEFINED TINYXML2_PATH)
+    SET(TINYXML2_PATH $ENV{PM_tinyxml2_PATH} CACHE INTERNAL "Path to tinyxml2")
 ENDIF()
 
 IF(MSVC_VERSION LESS_EQUAL 1900)
@@ -58,12 +62,12 @@ SET(CMAKE_SHARED_LINKER_FLAGS "/DEBUG")
 SET(SLN_PHYSXDEVICE_PATH "$ENV{PM_PhysXDevice_PATH}/bin/x86/")
 
 # Include ConfigureFileMT to expose that function
-INCLUDE(ConfigureFileMT)
+INCLUDE(ConfigureFileMt)
 	
 SET(SNIPPET_RENDER_ENABLED 1)
 
 # Include all of the projects
-SET(PLATFORM_SNIPPETS_LIST LoadCollection DelayLoadHook)
+SET(PLATFORM_SNIPPETS_LIST Convert LoadCollection DelayLoadHook)
 
 IF(PX_BUILDVHACD)
 	LIST(APPEND PLATFORM_SNIPPETS_LIST ConvexDecomposition)

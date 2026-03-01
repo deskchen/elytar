@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -88,6 +88,7 @@ namespace Cm
 // PX_SERIALIZATION
 		RefCountable(const PxEMPTY) { PX_ASSERT(mRefCount == 1); }
 				void	preExportDataReset() { mRefCount = 1; }
+		static	void	getBinaryMetaData(PxOutputStream& stream);
 //~PX_SERIALIZATION
 		explicit RefCountable(PxU32 initialCount = 1)
 			: mRefCount(PxI32(initialCount))

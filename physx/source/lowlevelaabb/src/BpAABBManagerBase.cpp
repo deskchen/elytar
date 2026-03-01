@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -32,32 +32,24 @@
 using namespace physx;
 using namespace Bp;
 
-AABBManagerBase::AABBManagerBase(	BroadPhase& bp, BoundsArray& boundsArray, PxFloatArrayPinnedSafe& contactDistance,
+AABBManagerBase::AABBManagerBase(	BroadPhase& bp, BoundsArray& boundsArray, PxFloatArrayPinned& contactDistance,
 									PxU32 maxNbAggregates, PxU32 maxNbShapes, PxVirtualAllocator& allocator, PxU64 contextID,
 									PxPairFilteringMode::Enum kineKineFilteringMode, PxPairFilteringMode::Enum staticKineFilteringMode) :
-	mAddedHandleMap			(allocator.getCallback()),
-	mRemovedHandleMap		(allocator.getCallback()),
-	mChangedHandleMap		(allocator.getCallback()),
-	mGroups					(allocator.getCallback()),
-	mEnvIDs					(allocator.getCallback()),
+	mAddedHandleMap			(allocator),
+	mRemovedHandleMap		(allocator),
+	mChangedHandleMap		(allocator),
+	mGroups					(allocator),
 	mContactDistance		(contactDistance),
-	mVolumeData				(allocator.getCallback()),
+	mVolumeData				(allocator),
 	mFilters				(kineKineFilteringMode == PxPairFilteringMode::eKILL, staticKineFilteringMode == PxPairFilteringMode::eKILL),
-	mAddedHandles			(allocator.getCallback()),
-	mUpdatedHandles			(allocator.getCallback()),
-	mRemovedHandles			(allocator.getCallback()),
+	mAddedHandles			(allocator),
+	mUpdatedHandles			(allocator),
+	mRemovedHandles			(allocator),
 	mBroadPhase				(bp),
 	mBoundsArray			(boundsArray),
 	mUsedSize				(0),
 	mNbAggregates			(0),
-#if PX_ENABLE_SIM_STATS
-	mGpuDynamicsLostFoundPairsStats(0),
-	mGpuDynamicsTotalAggregatePairsStats(0),
-	mGpuDynamicsLostFoundAggregatePairsStats(0),
-#else
-	PX_CATCH_UNDEFINED_ENABLE_SIM_STATS
-#endif
-#if BP_USE_AGGREGATE_GROUP_TAIL
+#ifdef BP_USE_AGGREGATE_GROUP_TAIL
 	mAggregateGroupTide		(PxU32(Bp::FilterGroup::eAGGREGATE_BASE)),
 #endif
 	mContextID				(contextID),

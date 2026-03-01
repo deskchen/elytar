@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -32,9 +32,17 @@
 namespace physx
 {
 class PxsContactManager;
+namespace Dy
+{
+	struct Constraint;
+}
 
 typedef PxU32 NodeType;
 typedef PxU32 EdgeType;
+typedef PxU32 IslandType;
+#define INVALID_NODE 0xffffffff
+#define INVALID_EDGE 0xffffffff
+#define INVALID_ISLAND 0xffffffff
 
 class PxsIslandIndices
 {
@@ -49,7 +57,6 @@ public:
 	EdgeType	constraints;
 };
 
-// PT: it needs to be a PxU64 because we store a PxNodeIndex there for articulations (and we do use all the data)
 typedef PxU64 PxsNodeType;
 
 /**
@@ -57,7 +64,7 @@ typedef PxU64 PxsNodeType;
 a body can be a dynamic rigid body, a kinematic rigid body, an articulation or a static.
 The struct PxsIndexedInteraction describes the bodies that make up the pair.
 */
-struct PxsIndexedInteraction	// 24
+struct PxsIndexedInteraction
 {
 	/**
 	\brief An enumerated list of all possible body types.
@@ -81,7 +88,7 @@ struct PxsIndexedInteraction	// 24
 
 	\note If body0 is an articulation then the articulation is found directly from Dy::getArticulation(articulation0)
 
-	\note If body0 is an deformable volume then the deformable volume is found directly from Dy::getDeformableVolume(deformableVolume0)
+	\note If body0 is an soft body then the soft body is found directly from Dy::getSoftBody(softBody0)
 	*/
 	union
 	{
@@ -99,7 +106,7 @@ struct PxsIndexedInteraction	// 24
 
 	\note If body1 is an articulation then the articulation is found directly from Dy::getArticulation(articulation1)
 	
-	\note If body0 is an deformable volume then the deformable volume is found directly from Dy::getDeformableVolume(deformableVolume1)
+	\note If body0 is an soft body then the soft body is found directly from Dy::getSoftBody(softBody1)
 	*/
 	union
 	{
@@ -120,11 +127,10 @@ struct PxsIndexedInteraction	// 24
 	PxU8 pad[2];
 };
 
-// PT: TODO: this is the only type left, merge it with base class and stop wasting padding bytes
 /**
-\see PxsIslandObjects, PxsIndexedInteraction
+@see PxsIslandObjects, PxsIndexedInteraction
 */
-struct PxsIndexedContactManager : public PxsIndexedInteraction	// 32
+struct PxsIndexedContactManager : public PxsIndexedInteraction
 {
 	/**
 	\brief The contact manager corresponds to the value set in PxsIslandManager::setEdgeRigidCM
@@ -135,6 +141,22 @@ struct PxsIndexedContactManager : public PxsIndexedInteraction	// 32
 };
 #if !PX_X64
 PX_COMPILE_TIME_ASSERT(0==(sizeof(PxsIndexedContactManager) & 0x0f));
+#endif
+
+/**
+@see PxsIslandObjects, PxsIndexedInteraction
+*/
+struct PxsIndexedConstraint : public PxsIndexedInteraction
+{
+	/**
+	\brief The constraint corresponds to the value set in PxsIslandManager::setEdgeConstraint
+	*/
+	Dy::Constraint* constraint;
+
+	PxsIndexedConstraint(Dy::Constraint* c) : constraint(c) {}
+};
+#if !PX_P64_FAMILY
+PX_COMPILE_TIME_ASSERT(0==(sizeof(PxsIndexedConstraint) & 0x0f));
 #endif
 
 } //namespace physx

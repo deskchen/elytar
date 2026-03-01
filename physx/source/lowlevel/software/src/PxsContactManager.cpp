@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -30,21 +30,19 @@
 
 using namespace physx;
 
-PxsContactManager::PxsContactManager(PxU32 index) : mFlags(0), mCmIndex(index)
+PxsContactManager::PxsContactManager(PxsContext*, PxU32 index)
 {
-	// PT: TODO: any reason why we don't initialize all members here, e.g. shapeCore pointers?
-	// PT: it might be because of the way we preallocate contact managers in the pipeline, and release the ones
-	// we filtered out. Maybe properly initializing everything "for no reason" in that case is costly.
-	// Still, it is unclear why we initialize *some* of the members there then.
-	mNpUnit.mRigidCore0			= NULL;
-	mNpUnit.mRigidCore1			= NULL;
-	mNpUnit.mRestDistance		= 0;
-	mNpUnit.mFrictionDataPtr	= NULL;
-	mNpUnit.mFrictionPatchCount	= 0;
+	mFlags = 0;
 
-	mNpUnit.mFlags = 0;
-	mNpUnit.setDominance0(1u);
-	mNpUnit.setDominance1(1u);
+	// PT: TODO: any reason why we don't initialize all members here, e.g. shapeCore pointers?
+	mNpUnit.index				= index;
+	mNpUnit.rigidCore0			= NULL;
+	mNpUnit.rigidCore1			= NULL;
+	mNpUnit.restDistance		= 0;
+	mNpUnit.dominance0			= 1u;
+	mNpUnit.dominance1			= 1u;
+	mNpUnit.frictionDataPtr		= NULL;
+	mNpUnit.frictionPatchCount	= 0;
 }
 
 PxsContactManager::~PxsContactManager()

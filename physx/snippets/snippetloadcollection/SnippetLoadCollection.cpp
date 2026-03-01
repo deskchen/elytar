@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -33,7 +33,7 @@
 // The snippet supports connecting to PVD in order to display the scene.
 //
 // It is a simple command-line tool supporting the following options::
-// SnippetLoadCollection [--pvdhost=<ip address> ] [--pvdport=<ip port> ] [--pvdtimeout=<time ms> ] [--generateExampleFiles] <filename>...
+// SnippetLoadCollection [--pvdhost=<ip address> ] [--pvdport=<ip port> ] [--pvdtimeout=<time ms> ] [--generateExampleFiles] <filename>...		   
 //
 // --pvdhost=<ip address>              Defines ip address of PVD, default is 127.0.0.1
 // --pvdport=<ip port>                 Defines ip port of PVD, default is 5425
@@ -283,7 +283,7 @@ void cleanupPhysics()
 	if(gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
-		PX_RELEASE(gPvd);
+		gPvd->release();	gPvd = NULL;
 		PX_RELEASE(transport);
 	}
 

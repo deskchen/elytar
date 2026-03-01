@@ -22,9 +22,9 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
-## Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+## Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.7)
 
 IF(NOT DEFINED PHYSX_CMAKE_MODULES_PATH OR PHYSX_CMAKE_MODULES_PATH STREQUAL "")
 	IF(DEFINED ENV{PM_cmake_PATH} AND NOT "$ENV{PM_cmake_PATH}" STREQUAL "")
@@ -41,25 +41,8 @@ OPTION(PX_BUILDSNIPPETS "Generate the snippets" OFF)
 OPTION(PX_BUILDPVDRUNTIME "Generate the OmniPVD project" OFF)
 OPTION(PX_CMAKE_SUPPRESS_REGENERATION "Disable zero_check projects" OFF)
 
-SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-IF(NOT CMAKE_CROSSCOMPILING AND (TARGET_BUILD_PLATFORM STREQUAL "windows" OR TARGET_BUILD_PLATFORM STREQUAL "linux"))
-	OPTION(PX_GENERATE_GPU_PROJECTS "Generate the GPU projects, if possible." OFF)
-	OPTION(PX_GENERATE_GPU_PROJECTS_ONLY "Generate ONLY the GPU projects, if possible." OFF)
-
-	IF(PX_GENERATE_GPU_PROJECTS OR PX_GENERATE_GPU_PROJECTS_ONLY)
-		# Will enable building CUDA files ( .cu )
-		ENABLE_LANGUAGE(CUDA)
-		# The FIND_PACKAGE(CUDAToolkit) makes it easier if you have CUDA language enabled to link to
-		# CTK libraries by providing nice targets like CUDA::cudart
-		FIND_PACKAGE(CUDAToolkit REQUIRED)
-
-		# We need to set CMAKE_CUDA_ARCHITECTURES with a default value
-		# see policy CMP0104
-		IF(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-			SET(CMAKE_CUDA_ARCHITECTURES 75)
-		ENDIF()
-	ENDIF()
+IF(PX_CMAKE_SUPPRESS_REGENERATION)
+	SET(CMAKE_SUPPRESS_REGENERATION true)
 ENDIF()
 
 # This is required to be defined by external callers!
@@ -83,14 +66,8 @@ ENDIF()
 
 # Add PhysX SDK Source code to solution
 ADD_SUBDIRECTORY(${PHYSX_ROOT_DIR}/source/compiler/cmake ${CMAKE_CURRENT_BINARY_DIR}/sdk_source_bin)
+
 MESSAGE("Added PhysX")
-
-IF(PX_GENERATE_GPU_PROJECTS OR PX_GENERATE_GPU_PROJECTS_ONLY)
-	# Add PhysX SDK Gpu Source code to solution
-	ADD_SUBDIRECTORY(${PHYSX_ROOT_DIR}/source/compiler/cmakegpu ${CMAKE_CURRENT_BINARY_DIR}/sdk_gpu_source_bin)
-	MESSAGE("Added PhysX GPU")
-ENDIF()
-
 
 IF(PX_BUILDPVDRUNTIME)
 	IF(TARGET_BUILD_PLATFORM STREQUAL "windows" OR TARGET_BUILD_PLATFORM STREQUAL "linux")
@@ -106,3 +83,8 @@ IF(PX_BUILDSNIPPETS)
 	MESSAGE("Added Snippets")
 ENDIF()
 
+
+IF(TARGET_BUILD_PLATFORM STREQUAL "switch")
+	FILE(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ALL_BUILD.vcxproj.user" INPUT  "${PHYSX_ROOT_DIR}/source/compiler/cmake/modules/switch/Microsoft.Cpp.${NX_TARGET_DEVKIT}.user.props" CONDITION  1)
+	FILE(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/INSTALL.vcxproj.user" INPUT  "${PHYSX_ROOT_DIR}/source/compiler/cmake/modules/switch/Microsoft.Cpp.${NX_TARGET_DEVKIT}.user.props" CONDITION  1)
+ENDIF()

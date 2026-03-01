@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
 #include "ScShapeSimBase.h"
 #include "ScSqBoundsManager.h"
@@ -48,8 +48,9 @@ void resetElementID(Scene& scene, ShapeSimBase& shapeSim)
 		shapeSim.destroySqBounds();
 }
 
-static PX_INLINE Bp::FilterGroup::Enum getBPGroup(const ShapeSimBase& shapeSim)
+PX_INLINE Bp::FilterGroup::Enum getBPGroup(const ShapeSimBase& shapeSim)
 {
+
 	const BodySim* bs = shapeSim.getBodySim();
 
 	const RigidSim& rbSim = shapeSim.getRbSim();
@@ -86,6 +87,11 @@ void ShapeSimBase::onResetFiltering()
 		reinsertBroadPhase();
 }
 
+void ShapeSimBase::onMaterialChange()
+{
+	setElementInteractionsDirty(*this, InteractionDirtyFlag::eMATERIAL, InteractionFlag::eRB_ELEMENT);
+}
+
 void ShapeSimBase::onRestOffsetChange()
 {
 	setElementInteractionsDirty(*this, InteractionDirtyFlag::eREST_OFFSET, InteractionFlag::eRB_ELEMENT);
@@ -118,11 +124,11 @@ void ShapeSimBase::reinsertBroadPhase()
 	{
 		//unregisterShapeFromNphase(shape.getCore());
 
-		scene.getSimulationController()->removePxgShape(getElementID());
+		// PT: "getID" is const but the addShape call used LLShape, which uses elementID, so....
+		scene.getSimulationController()->removeShape(getElementID());
 
 		scene.unregisterShapeFromNphase(getCore(), getElementID());
 	}
-	PxU32 indexFrom = getElementID();
 
 	// Call ShapeSim dtor
 	{
@@ -144,15 +150,15 @@ void ShapeSimBase::reinsertBroadPhase()
 
 	// Call ShapeSim ctor
 	{
-		initSubsystemsDependingOnElementID(indexFrom);
+		initSubsystemsDependingOnElementID();
 	}
 
 	// Scene::addShape
 	{
-		scene.getSimulationController()->addPxgShape(this, getPxsShapeCore(), getActorNodeIndex(), getElementID());
+		scene.getSimulationController()->addShape(&getLLShapeSim(), getElementID());
 
 		// PT: TODO: anything else needed here?
-		scene.registerShapeInNphase(&getRbSim().getRigidCore(), getCore(), getElementID()); //  register in narrowphase  getElementID() - transformcacheID. so I guess we must know at this point the definite index 
+		scene.registerShapeInNphase(&getRbSim().getRigidCore(), getCore(), getElementID());
 	}
 }
 
@@ -174,7 +180,7 @@ PX_FORCE_INLINE bool ShapeSimBase::internalRemoveFromBroadPhase(bool wakeOnLostT
 	return res;
 }
 
-void ShapeSimBase::initSubsystemsDependingOnElementID(PxU32 indexFrom)
+void ShapeSimBase::initSubsystemsDependingOnElementID()
 {
 	Scene& scScene = getScene();
 
@@ -186,9 +192,9 @@ void ShapeSimBase::initSubsystemsDependingOnElementID(PxU32 indexFrom)
 
 	PxsTransformCache& cache = scScene.getLowLevelContext()->getTransformCache();
 	cache.initEntry(index);
-	cache.setTransformCache(absPos, 0, index, indexFrom);
+	cache.setTransformCache(absPos, 0, index);
 
-	boundsArray.updateBounds(absPos, getCore().getGeometryUnion().getGeometry(), index, indexFrom);
+	boundsArray.updateBounds(absPos, getCore().getGeometryUnion().getGeometry(), index);
 
 	{
 		PX_PROFILE_ZONE("API.simAddShapeToBroadPhase", scScene.getContextId());
@@ -202,16 +208,26 @@ void ShapeSimBase::initSubsystemsDependingOnElementID(PxU32 indexFrom)
 	//	if(scScene.getDirtyShapeSimMap().size() <= index)
 	//		scScene.getDirtyShapeSimMap().resize(PxMax(index+1, (scScene.getDirtyShapeSimMap().size()+1) * 2u));
 
-	ActorSim& owner = mActor;
-
+	RigidSim& owner = getRbSim();
 	if (owner.isDynamicRigid() && static_cast<BodySim&>(owner).isActive())
 		createSqBounds();
-}
 
-PxNodeIndex ShapeSimBase::getActorNodeIndex() const
-{
-	ActorSim& owner = mActor;
-	return owner.getActorType() == PxActorType::eRIGID_STATIC ? PxNodeIndex(PX_INVALID_NODE) : static_cast<BodySim&>(owner).getNodeIndex();
+	// Init LL shape
+	{
+		mLLShape.mElementIndex_GPU = index;
+		mLLShape.mShapeCore = const_cast<PxsShapeCore*>(&getCore().getCore());
+
+		if (owner.getActorType() == PxActorType::eRIGID_STATIC)
+		{
+			mLLShape.mBodySimIndex_GPU = PxNodeIndex(PX_INVALID_NODE);
+		}
+		else
+		{
+			BodySim& bodySim = static_cast<BodySim&>(getActor());
+			mLLShape.mBodySimIndex_GPU = bodySim.getNodeIndex();
+			//mLLShape.mLocalBound = computeBounds(mCore.getGeometry(), PxTransform(PxIdentity));
+		}
+	}
 }
 
 void ShapeSimBase::getAbsPoseAligned(PxTransform* PX_RESTRICT globalPose) const
@@ -288,7 +304,7 @@ void ShapeSimBase::onFlagChange(PxShapeFlags oldFlags)
 	else if (hadSq && !hasSq)
 		destroySqBounds();
 
-	getScene().getSimulationController()->addPxgShape(this, getPxsShapeCore(), getActorNodeIndex(), getElementID());
+	getScene().getSimulationController()->reinsertShape(&getLLShapeSim(), getElementID());
 }
 
 BodySim* ShapeSimBase::getBodySim() const
@@ -312,8 +328,8 @@ void ShapeSimBase::updateCached(PxU32 transformCacheFlags, PxBitMapPinned* shape
 	Scene& scene = getScene();
 	const PxU32 index = getElementID();
 
-	scene.getLowLevelContext()->getTransformCache().setTransformCache(absPose, transformCacheFlags, index, index);
-	scene.getBoundsArray().updateBounds(absPose, getCore().getGeometryUnion().getGeometry(), index, index);
+	scene.getLowLevelContext()->getTransformCache().setTransformCache(absPose, transformCacheFlags, index);
+	scene.getBoundsArray().updateBounds(absPose, getCore().getGeometryUnion().getGeometry(), index);
 	if (shapeChangedMap && isInBroadPhase())
 		shapeChangedMap->growAndSet(index);
 }
@@ -383,7 +399,7 @@ void ShapeSimBase::onVolumeOrTransformChange()
 	}
 
 	markBoundsForUpdate();
-	getScene().getSimulationController()->addPxgShape(this, getPxsShapeCore(), getActorNodeIndex(), getElementID());
+	getScene().getSimulationController()->reinsertShape(&getLLShapeSim(), getElementID());
 }
 
 void notifyActorInteractionsOfTransformChange(ActorSim& actor)

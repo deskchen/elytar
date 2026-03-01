@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -30,6 +30,7 @@
 #define SC_ARTICULATION_JOINT_CORE_H
 
 #include "foundation/PxTransform.h"
+#include "common/PxMetaData.h"
 #include "DyVArticulation.h"
 
 namespace physx
@@ -54,7 +55,8 @@ namespace Sc
 	public:
 // PX_SERIALIZATION
 															ArticulationJointCore(const PxEMPTY) : mCore(PxEmpty), mSim(NULL) {}
-						void								preExportDataReset() { mCore.jCalcUpdateFrames = true; }
+						void								preExportDataReset() { mCore.jointDirtyFlag = Dy::ArticulationJointCoreDirtyFlag::eALL; }
+		static			void								getBinaryMetaData(PxOutputStream& stream);
 //~PX_SERIALIZATION
 															ArticulationJointCore(const PxTransform& parentFrame, const PxTransform& childFrame);
 															~ArticulationJointCore();
@@ -88,23 +90,18 @@ namespace Sc
 						void								setJointVelocity(PxArticulationAxis::Enum axis, const PxReal jointVel);
 						PxReal								getJointVelocity(PxArticulationAxis::Enum axis)	const;
 
-						void								setMaxJointVelocity(PxReal maxJointV);
-		PX_FORCE_INLINE	PxReal								getMaxJointVelocity()	const	{ return mCore.maxJointVelocity[0];	}
-
-						void								setMaxJointVelocity(PxArticulationAxis::Enum axis, PxReal maxJointV);
-		PX_FORCE_INLINE	PxReal								getMaxJointVelocity(PxArticulationAxis::Enum axis)	const	{ return mCore.maxJointVelocity[axis];	}
-
+		// PT: TODO: don't we need to set ArticulationJointCoreDirtyFlag::eMOTION here?
 		PX_FORCE_INLINE	void								setMotion(PxArticulationAxis::Enum axis, PxArticulationMotion::Enum motion)	{ mCore.motion[axis] = PxU8(motion);						}
 		PX_FORCE_INLINE	PxArticulationMotion::Enum			getMotion(PxArticulationAxis::Enum axis)							const	{ return PxArticulationMotion::Enum(mCore.motion[axis]);	}
 
-		PX_FORCE_INLINE	void								setJointType(PxArticulationJointType::Enum type)	{ mCore.setJointType(type);								}
+		PX_FORCE_INLINE	void								setJointType(PxArticulationJointType::Enum type)	{ mCore.initJointType(type);								}
 		PX_FORCE_INLINE	PxArticulationJointType::Enum		getJointType()								const	{ return PxArticulationJointType::Enum(mCore.jointType);	}
 						
-						void								setFrictionCoefficient(const PxReal coefficient);
+		PX_FORCE_INLINE	void								setFrictionCoefficient(const PxReal coefficient)	{ mCore.initFrictionCoefficient(coefficient);	}
 		PX_FORCE_INLINE	PxReal								getFrictionCoefficient()					const	{ return mCore.frictionCoefficient;				}
 
-						void								setFrictionParams(PxArticulationAxis::Enum axis, const PxJointFrictionParams& jointFrictionParams);
-		PX_FORCE_INLINE PxJointFrictionParams				getFrictionParams(PxArticulationAxis::Enum axis) const	{ return mCore.frictionParams[axis];				}
+		PX_FORCE_INLINE	void								setMaxJointVelocity(const PxReal maxJointV)			{ mCore.initMaxJointVelocity(maxJointV);		}
+		PX_FORCE_INLINE	PxReal								getMaxJointVelocity()						const	{ return mCore.maxJointVelocity;				}
 
 		PX_FORCE_INLINE	ArticulationJointSim*					getSim()									const	{ return mSim;	}
 		PX_FORCE_INLINE	void									setSim(ArticulationJointSim* sim)
@@ -124,9 +121,9 @@ namespace Sc
 		PX_FORCE_INLINE void									setLLIndex(const PxU32 llLinkIndex)					{ mLLLinkIndex = llLinkIndex;	}
 	private:
 						void									setSimDirty();
-		PX_FORCE_INLINE	void									setDirty()
+		PX_FORCE_INLINE	void									setDirty(Dy::ArticulationJointCoreDirtyFlag::Enum dirtyFlag)
 																{
-																	mCore.jCalcUpdateFrames = true;
+																	mCore.jointDirtyFlag |= dirtyFlag;
 																	setSimDirty();
 																}
 

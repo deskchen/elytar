@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -38,10 +38,8 @@
 #include "DyVArticulation.h"
 
 using namespace physx;
-using namespace IG;
-using namespace Sc;
 
-void SimulationController::updateScBodyAndShapeSim(PxsTransformCache& /*cache*/, Bp::BoundsArray& /*boundArray*/, PxBaseTask* continuation)
+void Sc::SimulationController::updateScBodyAndShapeSim(PxsTransformCache& /*cache*/, Bp::BoundsArray& /*boundArray*/, PxBaseTask* continuation)
 {
 	mCallback->updateScBodyAndShapeSim(continuation);
 }
@@ -50,7 +48,7 @@ namespace
 {
 class UpdateArticulationAfterIntegrationTask : public Cm::Task
 {
-	IslandSim&								mIslandSim;
+	IG::IslandSim&							mIslandSim;
 	const PxNodeIndex* const PX_RESTRICT	mNodeIndices;
 	const PxU32								mNbArticulations;
 	const PxReal							mDt;
@@ -59,7 +57,7 @@ class UpdateArticulationAfterIntegrationTask : public Cm::Task
 public:
 	static const PxU32 NbArticulationsPerTask = 64;
 
-	UpdateArticulationAfterIntegrationTask(PxU64 contextId, PxU32 nbArticulations, PxReal dt, const PxNodeIndex* nodeIndices, IslandSim& islandSim) :
+	UpdateArticulationAfterIntegrationTask(PxU64 contextId, PxU32 nbArticulations, PxReal dt, const PxNodeIndex* nodeIndices, IG::IslandSim& islandSim) :
 		Cm::Task(contextId),
 		mIslandSim(islandSim),
 		mNodeIndices(nodeIndices),
@@ -73,7 +71,8 @@ public:
 		for (PxU32 i = 0; i < mNbArticulations; ++i)
 		{
 			PxNodeIndex nodeIndex = mNodeIndices[i];
-			ArticulationSim* articSim = getArticulationSim(mIslandSim, nodeIndex);
+			//Sc::ArticulationSim* articSim = getArticulationSim(mIslandSim, nodeIndex);
+			Sc::ArticulationSim* articSim = mIslandSim.getArticulationSim(nodeIndex);
 			articSim->sleepCheck(mDt);
 			articSim->updateCached(NULL);
 		}
@@ -84,20 +83,20 @@ public:
 }
 
 //KS - TODO - parallelize this bit!!!!!
-void SimulationController::updateArticulationAfterIntegration(
+void Sc::SimulationController::updateArticulationAfterIntegration(
 	PxsContext*	llContext,
 	Bp::AABBManagerBase* aabbManager,
-	PxArray<BodySim*>& ccdBodies,
+	PxArray<Sc::BodySim*>& ccdBodies,
 	PxBaseTask* continuation,
-	IslandSim& islandSim,
+	IG::IslandSim& islandSim,
 	float dt
 	)
 {
-	const PxU32 nbActiveArticulations = islandSim.getNbActiveNodes(Node::eARTICULATION_TYPE);
+	const PxU32 nbActiveArticulations = islandSim.getNbActiveNodes(IG::Node::eARTICULATION_TYPE);
 
 	Cm::FlushPool& flushPool = llContext->getTaskPool();
 
-	const PxNodeIndex* activeArticulations = islandSim.getActiveNodes(Node::eARTICULATION_TYPE);
+	const PxNodeIndex* activeArticulations = islandSim.getActiveNodes(IG::Node::eARTICULATION_TYPE);
 
 	for (PxU32 i = 0; i < nbActiveArticulations; i += UpdateArticulationAfterIntegrationTask::NbArticulationsPerTask)
 	{
@@ -110,13 +109,13 @@ void SimulationController::updateArticulationAfterIntegration(
 
 	llContext->getLock().lock();
 
-	//const NodeIndex* activeArticulations = islandSim.getActiveNodes(Node::eARTICULATION_TYPE);
+	//const IG::NodeIndex* activeArticulations = islandSim.getActiveNodes(IG::Node::eARTICULATION_TYPE);
 
 	PxBitMapPinned& changedAABBMgrActorHandles = aabbManager->getChangedAABBMgActorHandleMap();
 
 	for (PxU32 i = 0; i < nbActiveArticulations; i++)
 	{
-		ArticulationSim* articSim = getArticulationSim(islandSim, activeArticulations[i]);
+		Sc::ArticulationSim* articSim = islandSim.getArticulationSim(activeArticulations[i]);
 
 		//KS - check links for CCD flags and add to mCcdBodies list if required....
 		articSim->updateCCDLinks(ccdBodies);

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -660,7 +660,6 @@ namespace local
 
 		// degenerate face found
 		PX_ASSERT(numv > 2);
-		PX_UNUSED(numv);
 
 		numv = 0;
 		hedge = edge;
@@ -1934,7 +1933,7 @@ PxConvexMeshCookingResult::Enum QuickHullConvexHullLib::createConvexHull()
 	// check if we need to build GRB compatible mesh
 	// if hull was cropped we already have a compatible mesh, if not check 
 	// the max verts per face
-	if(mCookingParams.buildGPUData && !mCropedConvexHull &&
+	if(((mConvexMeshDesc.flags & PxConvexFlag::eGPU_COMPATIBLE) || mCookingParams.buildGPUData) && !mCropedConvexHull &&
 		(res == PxConvexMeshCookingResult::eSUCCESS || res == PxConvexMeshCookingResult::ePOLYGONS_LIMIT_REACHED))
 	{
 		PX_ASSERT(mQuickHull);
@@ -2292,7 +2291,7 @@ PxConvexMeshCookingResult::Enum QuickHullConvexHullLib::expandHullOBB()
 			break;
 		}
 		// check for vertex limit per face if necessary, GRB supports max 32 verts per face
-		if (mCookingParams.buildGPUData && c->maxNumVertsPerFace() > gpuMaxVertsPerFace)
+		if (((mConvexMeshDesc.flags & PxConvexFlag::eGPU_COMPATIBLE) || mCookingParams.buildGPUData) && c->maxNumVertsPerFace() > gpuMaxVertsPerFace)
 		{ 
 			PX_DELETE(c);
 			c = tmp;

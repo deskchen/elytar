@@ -5,8 +5,8 @@ ROOT_DIR="${ROOT_DIR:-/workspace}"
 PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx}"
 SAPIEN_DIR="${SAPIEN_DIR:-${ROOT_DIR}/sapien}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-PHYSX_PRESET="${PHYSX_PRESET:-linux-clang}"
-PHYSX_CONFIG="${PHYSX_CONFIG:-checked}"
+PHYSX_PRESET="${PHYSX_PRESET:-linux}"
+PHYSX_CONFIG="${PHYSX_CONFIG:-profile}"
 SAPIEN_BUILD_MODE="${SAPIEN_BUILD_MODE:---profile}"
 SAPIEN_BUILD_DIR="${SAPIEN_BUILD_DIR:-docker_sapien_build}"
 SAPIEN_LOCAL_BUILD_MARKER="${SAPIEN_LOCAL_BUILD_MARKER:-elytar}"
@@ -63,27 +63,14 @@ case "${PHYSX_CONFIG}" in
     ;;
 esac
 
-prune_physx_other_configs() {
-  local cfg
-  for cfg in debug checked profile release; do
-    if [[ "${cfg}" != "${PHYSX_CONFIG}" ]]; then
-      rm -rf "${PHYSX_DIR}/compiler/${PHYSX_PRESET}-${cfg}"
-      rm -rf "${PHYSX_DIR}/bin/linux.x86_64/${cfg}"
-    fi
-  done
-}
-
 if [[ ! -f "${PHYSX_BUILD_DIR}/CMakeCache.txt" ]]; then
   echo "[1/4] Generate PhysX build files (${PHYSX_PRESET})"
   (
     cd "${PHYSX_DIR}"
     ./generate_projects.sh "${PHYSX_PRESET}"
   )
-  # PhysX generator creates all configs by design; keep only the selected one.
-  prune_physx_other_configs
 else
   echo "[1/4] Reusing existing PhysX build files (${PHYSX_PRESET}-${PHYSX_CONFIG})"
-  prune_physx_other_configs
 fi
 
 if [[ ! -d "${PHYSX_BUILD_DIR}" ]]; then
@@ -99,15 +86,34 @@ cmake -S "${PHYSX_DIR}/compiler/public" -B "${PHYSX_BUILD_DIR}" \
 echo "[3/4] Build PhysX (${PHYSX_CONFIG})"
 cmake --build "${PHYSX_BUILD_DIR}" -- -j"$(nproc)"
 
-PHYSX_LIB_DIR="${PHYSX_DIR}/bin/linux.x86_64/${PHYSX_CONFIG}"
-if [[ ! -f "${PHYSX_LIB_DIR}/libPhysX_static_64.a" ]]; then
-  echo "PhysX static library not found at ${PHYSX_LIB_DIR}/libPhysX_static_64.a"
+PHYSX_LIB_DIR=""
+for _arch in linux.clang linux.x86_64; do
+  _candidate="${PHYSX_DIR}/bin/${_arch}/${PHYSX_CONFIG}"
+  if [[ -f "${_candidate}/libPhysX_static_64.a" ]]; then
+    PHYSX_LIB_DIR="${_candidate}"
+    break
+  fi
+done
+if [[ -z "${PHYSX_LIB_DIR}" ]]; then
+  echo "PhysX static library not found under ${PHYSX_DIR}/bin/*/${PHYSX_CONFIG}/"
   exit 1
 fi
+echo "  PhysX libs at: ${PHYSX_LIB_DIR}"
 
 echo "[4/4] Build SAPIEN wheel using local PhysX"
 (
   cd "${SAPIEN_DIR}"
+
+  # Force CMake reconfigure so it picks up the (potentially changed) PhysX tree.
+  SAPIEN_CMAKE_BUILD="${SAPIEN_BUILD_DIR}/_sapien_build"
+  if [[ -f "${SAPIEN_CMAKE_BUILD}/CMakeCache.txt" ]]; then
+    cached_dir=$(sed -n 's/^SAPIEN_PHYSX5_DIR:STRING=//p' "${SAPIEN_CMAKE_BUILD}/CMakeCache.txt")
+    if [[ "${cached_dir}" != "${SAPIEN_PHYSX5_DIR}" ]]; then
+      echo "  PhysX dir changed (${cached_dir} → ${SAPIEN_PHYSX5_DIR}), cleaning SAPIEN build cache"
+      rm -rf "${SAPIEN_CMAKE_BUILD}"
+    fi
+  fi
+
   "${PYTHON_BIN}" -m pip install -U pip setuptools wheel
   rm -f dist/sapien-*.whl
   "${PYTHON_BIN}" setup.py bdist_wheel "${SAPIEN_BUILD_MODE}" --build-dir="${SAPIEN_BUILD_DIR}"

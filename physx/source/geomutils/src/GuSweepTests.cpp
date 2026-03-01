@@ -22,14 +22,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #include "geometry/PxSphereGeometry.h"
 #include "geometry/PxCustomGeometry.h"
-#include "geometry/PxConvexCoreGeometry.h"
-#include "geometry/PxHeightFieldGeometry.h"
 #include "GuSweepTests.h"
 #include "GuVecCapsule.h"
 #include "GuVecBox.h"
@@ -37,18 +35,11 @@
 #include "GuSweepTriangleUtils.h"
 #include "GuInternal.h"
 #include "GuGJKRaycast.h"
-#include "GuConvexGeometry.h"
-#include "GuConvexSupport.h"
-#include "GuMidphaseInterface.h"
-#include "geometry/PxGjkQuery.h"
-#include "GuHeightField.h"
-#include "GuEntityReport.h"
-#include "GuHeightFieldUtil.h"
 
 using namespace physx;
 using namespace Gu;
 using namespace Cm;
-using namespace aos;
+using namespace physx::aos;  
 
 //#define USE_VIRTUAL_GJK
 #ifdef USE_VIRTUAL_GJK
@@ -482,7 +473,7 @@ bool Gu::sweepBoxTriangles(GU_SWEEP_TRIANGLES_FUNC_PARAMS(PxBoxGeometry))
 			minTriangleIndex = triangleIndex;
 			V3StoreU(triNormal, bestTriNormal);
 			status = true;
-			if(hitFlags & PxHitFlag::eANY_HIT)
+			if(hitFlags & PxHitFlag::eMESH_ANY)
 				break;
 		}
 	}
@@ -530,7 +521,6 @@ bool sweepConvex_SphereGeom			(GU_CONVEX_SWEEP_FUNC_PARAMS);
 bool sweepConvex_PlaneGeom			(GU_CONVEX_SWEEP_FUNC_PARAMS);
 bool sweepConvex_CapsuleGeom		(GU_CONVEX_SWEEP_FUNC_PARAMS);
 bool sweepConvex_BoxGeom			(GU_CONVEX_SWEEP_FUNC_PARAMS);
-bool sweepConvex_ConvexCoreGeom		(GU_CONVEX_SWEEP_FUNC_PARAMS);
 bool sweepConvex_ConvexGeom			(GU_CONVEX_SWEEP_FUNC_PARAMS);
 bool sweepConvex_MeshGeom			(GU_CONVEX_SWEEP_FUNC_PARAMS);
 bool sweepConvex_HeightFieldGeom	(GU_CONVEX_SWEEP_FUNC_PARAMS);
@@ -559,21 +549,6 @@ static bool sweepBox_InvalidGeom(GU_BOX_SWEEP_FUNC_PARAMS)
 	PX_UNUSED(geom);
 	PX_UNUSED(pose);
 	PX_UNUSED(box);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-	return false;
-}
-
-static bool sweepConvexCore_InvalidGeom(GU_CONVEXCORE_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(convexGeom);
-	PX_UNUSED(convexPose);
 	PX_UNUSED(unitDir);
 	PX_UNUSED(distance);
 	PX_UNUSED(sweepHit);
@@ -613,603 +588,10 @@ static bool sweepBox_CustomGeom(GU_BOX_SWEEP_FUNC_PARAMS)
 	return false;
 }
 
-static bool sweepConvexCore_CustomGeom(GU_CONVEXCORE_SWEEP_FUNC_PARAMS)
-{
-	if (geom.getType() == PxGeometryType::eCUSTOM)
-		return static_cast<const PxCustomGeometry&>(geom).callbacks->sweep(unitDir, distance, geom, pose, convexGeom, convexPose, sweepHit, hitFlags, inflation, threadContext);
-	return false;
-}
-
 static bool sweepConvex_CustomGeom(GU_CONVEX_SWEEP_FUNC_PARAMS)
 {
 	if(geom.getType() == PxGeometryType::eCUSTOM)
 		return static_cast<const PxCustomGeometry&>(geom).callbacks->sweep(unitDir, distance, geom, pose, convexGeom, convexPose, sweepHit, hitFlags, inflation, threadContext);
-	return false;
-}
-
-static bool sweepCapsule_ConvexCoreGeom(GU_CAPSULE_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(capsuleGeom_);
-	PX_UNUSED(capsulePose_);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(lss);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-
-	struct CapsuleSupport : PxGjkQuery::Support
-	{
-		PxCapsuleGeometry capsule;
-		CapsuleSupport(const PxCapsuleGeometry& c)
-			: capsule(c) {}
-		virtual PxReal getMargin() const
-			{ return capsule.radius; }
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ return PxVec3(PxSign(dir.x) * capsule.halfHeight, 0, 0); }
-	};
-
-	struct ConvexCoreSupport : PxGjkQuery::Support
-	{
-		Gu::ConvexShape shape;
-		ConvexCoreSupport(const PxConvexCoreGeometry& g)
-			{ Gu::makeConvexShape(g, PxTransform(PxIdentity), shape); }
-		virtual PxReal getMargin() const
-			{ return shape.margin; }
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ return shape.supportLocal(dir); }
-	};
-
-	const PxConvexCoreGeometry& convex = static_cast<const PxConvexCoreGeometry&>(geom);
-	if (convex.isValid())
-	{
-		PxBounds3 bounds = Gu::computeBounds(convex, pose);
-		bounds.include(Gu::computeBounds(capsuleGeom_, capsulePose_));
-		PxReal wiseDist = PxMin(distance, bounds.getDimensions().magnitude());
-		PxReal t;
-		PxVec3 n, p;
-		if (PxGjkQuery::sweep(ConvexCoreSupport(convex), CapsuleSupport(capsuleGeom_), pose, capsulePose_, unitDir, wiseDist, t, n, p))
-		{
-			PxGeomSweepHit& hit = sweepHit;
-			hit.distance = t;
-			hit.position = p;
-			hit.normal = n;
-			hit.flags |= PxHitFlag::ePOSITION | PxHitFlag::eNORMAL;
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-static bool sweepBox_ConvexCoreGeom(GU_BOX_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(boxPose_);
-	PX_UNUSED(boxGeom_);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(box);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-
-	struct BoxSupport : PxGjkQuery::Support
-	{
-		PxBoxGeometry box;
-		BoxSupport(const PxBoxGeometry& b)
-			: box(b) {}
-		virtual PxReal getMargin() const
-			{ return 0; }
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ return PxVec3(PxSign(dir.x) * box.halfExtents.x,
-				PxSign(dir.y) * box.halfExtents.y, PxSign(dir.z) * box.halfExtents.z); }
-	};
-
-	struct ConvexCoreSupport : PxGjkQuery::Support
-	{
-		Gu::ConvexShape shape;
-		ConvexCoreSupport(const PxConvexCoreGeometry& g)
-			{ Gu::makeConvexShape(g, PxTransform(PxIdentity), shape); }
-		virtual PxReal getMargin() const
-			{ return shape.margin; }
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ return shape.supportLocal(dir); }
-	};
-
-	const PxConvexCoreGeometry& convex = static_cast<const PxConvexCoreGeometry&>(geom);
-	if (convex.isValid())
-	{
-		PxBounds3 bounds = Gu::computeBounds(convex, pose);
-		bounds.include(Gu::computeBounds(boxGeom_, boxPose_));
-		PxReal wiseDist = PxMin(distance, bounds.getDimensions().magnitude());
-		PxReal t;
-		PxVec3 n, p;
-		if (PxGjkQuery::sweep(ConvexCoreSupport(convex), BoxSupport(boxGeom_), pose, boxPose_, unitDir, wiseDist, t, n, p))
-		{
-			PxGeomSweepHit& hit = sweepHit;
-			hit.distance = t;
-			hit.position = p;
-			hit.normal = n;
-			hit.flags |= PxHitFlag::ePOSITION | PxHitFlag::eNORMAL;
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-static bool sweepConvexCore_Plane(GU_CONVEXCORE_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(convexGeom);
-	PX_UNUSED(convexPose);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-
-	PxPlane plane = getPlane(pose);
-
-	Gu::ConvexShape shape;
-	Gu::makeConvexShape(convexGeom, convexPose, shape);
-	shape.margin += inflation;
-
-	PxVec3 closestPoint = shape.support(-plane.n);
-	PxReal closestDist = plane.distance(closestPoint);
-
-	sweepHit.faceIndex = 0xffffffff;
-
-	if (closestDist <= 0)
-	{
-		if (hitFlags & PxHitFlag::eMTD)
-		{
-			sweepHit.flags = PxHitFlag::eNORMAL | PxHitFlag::ePOSITION;
-			sweepHit.distance = closestDist;
-			sweepHit.normal = plane.n;
-			sweepHit.position = closestPoint + plane.n * closestDist;
-			return true;
-		}
-		else if (!(hitFlags & PxHitFlag::eASSUME_NO_INITIAL_OVERLAP))
-		{
-			sweepHit.flags = PxHitFlag::eNORMAL;
-			sweepHit.distance = 0.0f;
-			sweepHit.normal = -unitDir;
-			return true;
-		}
-	}
-
-	PxReal dirDotNorm = unitDir.dot(plane.n);
-
-	const PxReal dotEps = 1e-5f;
-	if (dirDotNorm < -dotEps)
-	{
-		PxReal hitDistance = closestDist / -dirDotNorm;
-		if (hitDistance < distance)
-		{
-			sweepHit.flags = PxHitFlag::eNORMAL | PxHitFlag::ePOSITION;
-			sweepHit.distance = hitDistance;
-			sweepHit.normal = plane.n;
-			sweepHit.position = closestPoint + unitDir * hitDistance;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static bool sweepConvexCore_Convex(GU_CONVEXCORE_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(convexGeom);
-	PX_UNUSED(convexPose);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-
-	bool res = false;
-	switch (geom.getType())
-	{
-		case PxGeometryType::eSPHERE:
-			res = sweepCapsule_ConvexCoreGeom(convexGeom, convexPose, PxCapsuleGeometry(static_cast<const PxSphereGeometry&>(geom).radius, 0),
-				pose, Gu::Capsule(), -unitDir, distance, sweepHit, hitFlags, inflation, threadContext);
-			break;
-		case PxGeometryType::eCAPSULE:
-			res = sweepCapsule_ConvexCoreGeom(convexGeom, convexPose, static_cast<const PxCapsuleGeometry&>(geom), pose,
-				Gu::Capsule(), -unitDir, distance, sweepHit, hitFlags, inflation, threadContext);
-			break;
-		case PxGeometryType::eBOX:
-			res = sweepBox_ConvexCoreGeom(convexGeom, convexPose, static_cast<const PxBoxGeometry&>(geom), pose,
-				Gu::Box(), -unitDir, distance, sweepHit, hitFlags, inflation, threadContext);
-			break;
-		case PxGeometryType::eCONVEXMESH:
-			res = sweepConvex_ConvexCoreGeom(convexGeom, convexPose, static_cast<const PxConvexMeshGeometry&>(geom), pose,
-				-unitDir, distance, sweepHit, hitFlags, inflation, threadContext);
-			break;
-		default:
-			PX_ASSERT(0);
-	}
-
-	if (res)
-	{
-		if (sweepHit.flags & PxHitFlag::eNORMAL)
-			sweepHit.normal = -sweepHit.normal;
-
-		if (sweepHit.flags & PxHitFlag::ePOSITION)
-			sweepHit.position += unitDir * sweepHit.distance;
-	}
-
-	return res;
-}
-
-static bool sweepConvexCore_ConvexCore(GU_CONVEXCORE_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(convexGeom);
-	PX_UNUSED(convexPose);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-
-	struct ConvexCoreSupport : PxGjkQuery::Support
-	{
-		Gu::ConvexShape shape;
-		ConvexCoreSupport(const PxConvexCoreGeometry& g)
-			{ Gu::makeConvexShape(g, PxTransform(PxIdentity), shape); }
-		virtual PxReal getMargin() const
-			{ return shape.margin; }
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ return shape.supportLocal(dir); }
-	};
-
-	const PxConvexCoreGeometry& convex = static_cast<const PxConvexCoreGeometry&>(geom);
-	if (convex.isValid())
-	{
-		PxBounds3 bounds = Gu::computeBounds(convex, pose);
-		bounds.include(Gu::computeBounds(convexGeom, convexPose));
-		PxReal wiseDist = PxMin(distance, bounds.getDimensions().magnitude());
-		PxReal t;
-		PxVec3 n, p;
-		if (PxGjkQuery::sweep(ConvexCoreSupport(convex), ConvexCoreSupport(convexGeom), pose, convexPose, unitDir, wiseDist, t, n, p))
-		{
-			PxGeomSweepHit& hit = sweepHit;
-			hit.distance = t;
-			hit.position = p;
-			hit.normal = n;
-			hit.flags |= PxHitFlag::ePOSITION | PxHitFlag::eNORMAL;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static bool sweepConvexCore_MeshGeom(GU_CONVEXCORE_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(convexGeom);
-	PX_UNUSED(convexPose);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-
-	struct TriSupport : PxGjkQuery::Support
-	{
-		PxVec3 v0, v1, v2;
-
-		TriSupport(const PxVec3& _v0, const PxVec3& _v1, const PxVec3& _v2)
-			: v0(_v0), v1(_v1), v2(_v2) {}
-
-		virtual PxReal getMargin() const
-			{ return 0; }
-
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ PxReal d0 = dir.dot(v0), d1 = dir.dot(v1), d2 = dir.dot(v2);
-			  return (d0 > d1 && d0 > d2) ? v0 : (d1 > d2) ? v1 : v2; }
-	};
-
-	struct ConvexCoreSupport : PxGjkQuery::Support
-	{
-		Gu::ConvexShape shape;
-		PxReal inflation;
-
-		ConvexCoreSupport(const PxConvexCoreGeometry& g, PxReal inf)
-			: inflation(inf)
-			{ Gu::makeConvexShape(g, PxTransform(PxIdentity), shape); }
-
-		virtual PxReal getMargin() const
-			{ return shape.margin + inflation; }
-
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ return shape.supportLocal(dir); }
-	};
-
-	struct Callback : MeshHitCallback<PxGeomRaycastHit>
-	{
-		ConvexCoreSupport convexSupport;
-		PxTransform convexPose;
-		PxVec3 unitDir;
-		PxReal maxDist;
-
-		PxGeomSweepHit closestHit;
-
-		Callback(const PxConvexCoreGeometry& geom, const PxTransform& pose, const PxVec3& dir, PxReal dist, PxReal inf)
-			:
-			MeshHitCallback<PxGeomRaycastHit>(CallbackMode::eMULTIPLE),
-			convexSupport(geom, inf), convexPose(pose), unitDir(dir), maxDist(dist)
-		{
-			closestHit.distance = FLT_MAX;
-		}
-
-		virtual PxAgain processHit(const PxGeomRaycastHit& hit, const PxVec3& v0, const PxVec3& v1, const PxVec3& v2, PxReal&, const PxU32*)
-		{
-			PxReal t; PxVec3 n, p;
-			TriSupport triSupport(v0, v1, v2);
-			if (PxGjkQuery::sweep(triSupport, convexSupport, PxTransform(PxIdentity), convexPose, unitDir, maxDist, t, n, p))
-			{
-				if (t < closestHit.distance)
-				{
-					closestHit.distance = t;
-					closestHit.position = p;
-					closestHit.normal = n;
-					closestHit.faceIndex = hit.faceIndex;
-				}
-			}
-			return true;
-		}
-	};
-
-	const PxTriangleMeshGeometry& meshGeom = static_cast<const PxTriangleMeshGeometry&>(geom);
-	const TriangleMesh* meshData = _getMeshData(meshGeom);
-	const bool doubleSided = (meshGeom.meshFlags & PxMeshGeometryFlag::eDOUBLE_SIDED) || (hitFlags & PxHitFlag::eMESH_BOTH_SIDES);
-
-	PxTransform localPose = pose.transformInv(convexPose);
-	PxVec3 localDir = pose.transformInv(unitDir);
-	PxBounds3 bounds = Gu::computeBounds(convexGeom, localPose);
-	bounds.include(Gu::computeBounds(convexGeom, PxTransform(localPose.p + localDir * distance, localPose.q)));
-
-	Box queryBox;
-	queryBox.extents = bounds.getExtents() + PxVec3(inflation);
-	queryBox.center = bounds.getCenter();
-	queryBox.rot = PxMat33(PxIdentity);
-
-	Callback callback(convexGeom, localPose, localDir, distance, inflation);
-	Midphase::intersectOBB(meshData, queryBox, callback, doubleSided);
-
-	if (callback.closestHit.distance <= distance)
-	{
-		PxGeomSweepHit& hit = sweepHit;
-		hit.distance = callback.closestHit.distance;
-		hit.position = pose.transform(callback.closestHit.position);
-		hit.normal = pose.rotate(callback.closestHit.normal);
-		hit.faceIndex = callback.closestHit.faceIndex;
-		hit.flags |= PxHitFlag::ePOSITION | PxHitFlag::eNORMAL | PxHitFlag::eFACE_INDEX;
-		return true;
-	}
-
-	return false;
-}
-
-bool sweepConvexCore_HeightFieldGeom(GU_CONVEXCORE_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(convexGeom);
-	PX_UNUSED(convexPose);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-
-	struct TriSupport : PxGjkQuery::Support
-	{
-		PxVec3 v0, v1, v2;
-
-		TriSupport(const PxVec3& _v0, const PxVec3& _v1, const PxVec3& _v2)
-			: v0(_v0), v1(_v1), v2(_v2) {}
-
-		virtual PxReal getMargin() const
-			{ return 0; }
-
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ PxReal d0 = dir.dot(v0), d1 = dir.dot(v1), d2 = dir.dot(v2);
-			  return (d0 > d1 && d0 > d2) ? v0 : (d1 > d2) ? v1 : v2; }
-	};
-
-	struct ConvexCoreSupport : PxGjkQuery::Support
-	{
-		Gu::ConvexShape shape;
-		PxReal inflation;
-
-		ConvexCoreSupport(const PxConvexCoreGeometry& g, PxReal inf)
-			: inflation(inf)
-			{ Gu::makeConvexShape(g, PxTransform(PxIdentity), shape); }
-
-		virtual PxReal getMargin() const
-			{ return shape.margin + inflation; }
-
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ return shape.supportLocal(dir); }
-	};
-
-	struct Callback : Gu::OverlapReport
-	{
-		ConvexCoreSupport convexSupport;
-		PxTransform convexPose;
-		PxVec3 unitDir;
-		PxReal maxDist;
-		const Gu::HeightFieldUtil mHfUtil;
-		const PxTransform& mHFPose;
-
-		PxGeomSweepHit closestHit;
-
-		Callback(const PxConvexCoreGeometry& geom, const PxTransform& pose, const PxVec3& dir, PxReal dist, PxReal inf, const PxHeightFieldGeometry& hfGeom, const PxTransform& hfPose)
-			: convexSupport(geom, inf), convexPose(pose), unitDir(dir), maxDist(dist), mHfUtil(hfGeom), mHFPose(hfPose)
-		{
-			closestHit.distance = FLT_MAX;
-		}
-
-		virtual bool reportTouchedTris(PxU32 nb, const PxU32* indices)
-		{
-			while(nb--)
-			{
-				const PxU32 triangleIndex = *indices++;
-
-				PxTrianglePadded currentTriangle;
-				mHfUtil.getTriangle(mHFPose, currentTriangle, NULL, NULL, triangleIndex, false, false);
-
-				const PxVec3& v0 = currentTriangle.verts[0];
-				const PxVec3& v1 = currentTriangle.verts[1];
-				const PxVec3& v2 = currentTriangle.verts[2];
-
-				PxReal t; PxVec3 n, p;
-				TriSupport triSupport(v0, v1, v2);
-				if (PxGjkQuery::sweep(triSupport, convexSupport, PxTransform(PxIdentity), convexPose, unitDir, maxDist, t, n, p))
-				{
-					if (t < closestHit.distance)
-					{
-						closestHit.distance = t;
-						closestHit.position = p;
-						closestHit.normal = n;
-						closestHit.faceIndex = triangleIndex;
-					}
-				}
-			}
-			return true;
-		}
-	};
-
-	const PxHeightFieldGeometry& hfGeom = static_cast<const PxHeightFieldGeometry&>(geom);
-	const HeightField* hf = static_cast<const HeightField*>(hfGeom.heightField);
-	if(!hf)
-		return false;
-
-	PxTransform localPose = pose.transformInv(convexPose);
-	PxVec3 localDir = pose.rotateInv(unitDir);
-	PxBounds3 bounds = Gu::computeBounds(convexGeom, localPose);
-	bounds.include(Gu::computeBounds(convexGeom, PxTransform(localPose.p + localDir * distance, localPose.q)));
-
-	Callback callback(convexGeom, localPose, localDir, distance, inflation, hfGeom, pose);
-	callback.mHfUtil.overlapAABBTriangles(bounds, callback, 4);
-
-	if (callback.closestHit.distance <= distance)
-	{
-		PxGeomSweepHit& hit = sweepHit;
-		hit.distance = callback.closestHit.distance;
-		hit.position = pose.transform(callback.closestHit.position);
-		hit.normal = pose.rotate(callback.closestHit.normal);
-		hit.faceIndex = callback.closestHit.faceIndex;
-		hit.flags |= PxHitFlag::ePOSITION | PxHitFlag::eNORMAL | PxHitFlag::eFACE_INDEX;
-		return true;
-	}
-
-	return false;
-}
-
-bool sweepConvex_ConvexCoreGeom(GU_CONVEX_SWEEP_FUNC_PARAMS)
-{
-	PX_UNUSED(threadContext);
-	PX_UNUSED(geom);
-	PX_UNUSED(pose);
-	PX_UNUSED(convexGeom);
-	PX_UNUSED(convexPose);
-	PX_UNUSED(unitDir);
-	PX_UNUSED(distance);
-	PX_UNUSED(sweepHit);
-	PX_UNUSED(hitFlags);
-	PX_UNUSED(inflation);
-
-	struct ConvexSupport : PxGjkQuery::Support
-	{
-		PxConvexMeshGeometry convex;
-		PxReal inflation;
-
-		ConvexSupport(const PxConvexMeshGeometry& c, PxReal inf)
-			: convex(c), inflation(inf) {}
-
-		virtual PxReal getMargin() const
-			{ return inflation; }
-
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-		{
-			PxVec3 d = convex.scale.rotation.rotateInv(convex.scale.rotation.rotate(dir)
-				.multiply(convex.scale.scale));
-
-			const PxVec3* verts = convex.convexMesh->getVertices();
-			int count = int(convex.convexMesh->getNbVertices());
-			float maxDot = -FLT_MAX;
-			int index = -1;
-			for (int i = 0; i < count; ++i)
-			{
-				float dot = verts[i].dot(d);
-				if (dot > maxDot)
-				{
-					maxDot = dot;
-					index = i;
-				}
-			}
-
-			if (index == -1)
-				return PxVec3(0);
-
-			return convex.scale.rotation.rotateInv(convex.scale.rotation.rotate(verts[index])
-				.multiply(convex.scale.scale));
-		}
-	};
-
-	struct ConvexCoreSupport : PxGjkQuery::Support
-	{
-		Gu::ConvexShape shape;
-		ConvexCoreSupport(const PxConvexCoreGeometry& g)
-			{ Gu::makeConvexShape(g, PxTransform(PxIdentity), shape); }
-		virtual PxReal getMargin() const
-			{ return shape.margin; }
-		virtual PxVec3 supportLocal(const PxVec3& dir) const
-			{ return shape.supportLocal(dir); }
-	};
-
-	const PxConvexCoreGeometry& convex = static_cast<const PxConvexCoreGeometry&>(geom);
-	if (convex.isValid())
-	{
-		PxBounds3 bounds = Gu::computeBounds(convex, pose);
-		bounds.include(Gu::computeBounds(convexGeom, convexPose));
-		PxReal wiseDist = PxMin(distance, bounds.getDimensions().magnitude());
-		PxReal t;
-		PxVec3 n, p;
-		if (PxGjkQuery::sweep(ConvexCoreSupport(convex), ConvexSupport(convexGeom, inflation), pose,
-			convexPose, unitDir, wiseDist, t, n, p))
-		{
-			PxGeomSweepHit& hit = sweepHit;
-			hit.distance = t;
-			hit.position = p;
-			hit.normal = n;
-			hit.flags |= PxHitFlag::ePOSITION | PxHitFlag::eNORMAL;
-			return true;
-		}
-	}
-
 	return false;
 }
 
@@ -1220,12 +602,12 @@ Gu::GeomSweepFuncs gGeomSweepFuncs =
 		sweepCapsule_PlaneGeom,
 		sweepCapsule_CapsuleGeom,
 		sweepCapsule_BoxGeom,
-		sweepCapsule_ConvexCoreGeom,
 		sweepCapsule_ConvexGeom,
 		sweepCapsule_InvalidGeom,
 		sweepCapsule_InvalidGeom,
 		sweepCapsule_MeshGeom,
 		sweepCapsule_HeightFieldGeom,
+		sweepCapsule_InvalidGeom,
 		sweepCapsule_CustomGeom
 	},
 	{
@@ -1233,12 +615,12 @@ Gu::GeomSweepFuncs gGeomSweepFuncs =
 		sweepCapsule_PlaneGeom,
 		sweepCapsule_CapsuleGeom,
 		sweepCapsule_BoxGeom_Precise,
-		sweepCapsule_ConvexCoreGeom,
 		sweepCapsule_ConvexGeom,
 		sweepCapsule_InvalidGeom,
 		sweepCapsule_InvalidGeom,
 		sweepCapsule_MeshGeom ,
 		sweepCapsule_HeightFieldGeom,
+		sweepCapsule_InvalidGeom,
 		sweepCapsule_CustomGeom
 	},
 	{
@@ -1246,12 +628,12 @@ Gu::GeomSweepFuncs gGeomSweepFuncs =
 		sweepBox_PlaneGeom,
 		sweepBox_CapsuleGeom,
 		sweepBox_BoxGeom,
-		sweepBox_ConvexCoreGeom,
 		sweepBox_ConvexGeom,
 		sweepBox_InvalidGeom,
 		sweepBox_InvalidGeom,
 		sweepBox_MeshGeom,		
 		sweepBox_HeightFieldGeom,
+		sweepBox_InvalidGeom,
 		sweepBox_CustomGeom
 	},
 	{
@@ -1259,38 +641,25 @@ Gu::GeomSweepFuncs gGeomSweepFuncs =
 		sweepBox_PlaneGeom,
 		sweepBox_CapsuleGeom_Precise,
 		sweepBox_BoxGeom_Precise,
-		sweepBox_ConvexCoreGeom,
 		sweepBox_ConvexGeom,
 		sweepBox_InvalidGeom,
 		sweepBox_InvalidGeom,
 		sweepBox_MeshGeom,		
 		sweepBox_HeightFieldGeom_Precise,
+		sweepBox_InvalidGeom,
 		sweepBox_CustomGeom
-	},
-	{
-		sweepConvexCore_Convex,			// 0
-		sweepConvexCore_Plane,			// 1
-		sweepConvexCore_Convex,			// 2
-		sweepConvexCore_Convex,			// 3
-		sweepConvexCore_ConvexCore,		// 4
-		sweepConvexCore_Convex,			// 5
-		sweepConvexCore_InvalidGeom,	// 6
-		sweepConvexCore_InvalidGeom,	// 7
-		sweepConvexCore_MeshGeom,		// 8
-		sweepConvexCore_HeightFieldGeom,// 9
-		sweepConvexCore_CustomGeom		// 10
 	},
 	{
 		sweepConvex_SphereGeom,		// 0
 		sweepConvex_PlaneGeom,		// 1
 		sweepConvex_CapsuleGeom,	// 2
 		sweepConvex_BoxGeom,		// 3
-		sweepConvex_ConvexCoreGeom,	// 4
-		sweepConvex_ConvexGeom,		// 5
+		sweepConvex_ConvexGeom,		// 4
+		sweepConvex_InvalidGeom,	// 5
 		sweepConvex_InvalidGeom,	// 6
-		sweepConvex_InvalidGeom,	// 7
-		sweepConvex_MeshGeom,		// 8			
-		sweepConvex_HeightFieldGeom,// 9
+		sweepConvex_MeshGeom,		// 7			
+		sweepConvex_HeightFieldGeom,// 8
+		sweepConvex_InvalidGeom,	// 9
 		sweepConvex_CustomGeom		// 10
 	}
 };

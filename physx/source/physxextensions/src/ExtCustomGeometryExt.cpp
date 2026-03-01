@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -216,7 +216,6 @@ bool PxCustomGeometryExt::BaseConvexCallbacks::generateContacts(const PxGeometry
 	case PxGeometryType::eSPHERE:
 	case PxGeometryType::eCAPSULE:
 	case PxGeometryType::eBOX:
-	case PxGeometryType::eCONVEXCORE:
 	case PxGeometryType::eCONVEXMESH:
 	{
 		PxGjkQueryExt::ConvexGeomSupport geomSupport(geom1);
@@ -376,7 +375,6 @@ PxU32 PxCustomGeometryExt::BaseConvexCallbacks::raycast(const PxVec3& origin, co
 		hit.distance = t;
 		hit.position = p;
 		hit.normal = n;
-		hit.flags |= PxHitFlag::ePOSITION | PxHitFlag::eNORMAL;
 		return 1;
 	}
 
@@ -441,10 +439,7 @@ bool PxCustomGeometryExt::BaseConvexCallbacks::sweep(const PxVec3& unitDir, cons
 		PxReal radius = getLocalBounds(geom0).getExtents().magnitude();
 		PxGeometryHolder sweepGeom = PxSphereGeometry(radius + inflation);
 		PxTransform sweepGeomPose = pose0;
-		// for some reason, capsule can't have near zero height
-		// [assert @ source\geomutils\src\intersection\GuIntersectionCapsuleTriangle.cpp(37)]
-		// so I use capsule only if height is larger than 0.1% of radius
-		if (maxDist > radius * 0.001f)
+		if (maxDist > FLT_EPSILON)
 		{
 			sweepGeom = PxCapsuleGeometry(radius + inflation, maxDist * 0.5f);
 			sweepGeomPose = PxTransform(pose0.p - unitDir * maxDist * 0.5f, PxShortestRotation(PxVec3(1, 0, 0), unitDir));

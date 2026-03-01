@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -48,7 +48,26 @@ namespace physx
 			PxReal					freezeThreshold;
 			PxReal					wakeCounter;
 			PxU32					gpuRemapIndex;
+			PxReal					maxLinearVelocity;
+			PxReal					maxAngularVelocity;
 		};
+
+		struct ArticulationJointCoreDirtyFlag
+		{
+			enum Enum
+			{
+				eNONE = 0,
+				eMOTION = 1 << 0,
+				eFRAME = 1 << 1,
+				eTARGETPOSE = 1 << 2,
+				eTARGETVELOCITY = 1 << 3,
+				eARMATURE = 1 << 4,
+				eALL = eMOTION | eFRAME | eTARGETPOSE | eTARGETVELOCITY | eARMATURE
+			};
+		};
+
+		typedef PxFlags<ArticulationJointCoreDirtyFlag::Enum, PxU8> ArticulationJointCoreDirtyFlags;
+		PX_FLAGS_OPERATORS(ArticulationJointCoreDirtyFlag::Enum, PxU8)
 	}
 }
 

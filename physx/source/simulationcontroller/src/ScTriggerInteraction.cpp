@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -48,7 +48,7 @@ TriggerInteraction::TriggerInteraction(	ShapeSimBase& tShape, ShapeSimBase& oSha
 	PX_COMPILE_TIME_ASSERT(LAST < 0xffff);
 
 	{
-		const bool active = onActivate();
+		const bool active = onActivate(NULL);
 		registerInActors();
 		getScene().registerInteraction(this, active);
 	}
@@ -99,7 +99,7 @@ static bool isOneActorActive(TriggerInteraction* trigger)
 // - If the scenario above does not apply, then a trigger pair can only be deactivated, if both actors are sleeping.
 // - If an overlapping actor is activated/deactivated, the trigger interaction gets notified
 //
-bool TriggerInteraction::onActivate()
+bool TriggerInteraction::onActivate(void*)
 {
 	// IMPORTANT: this method can get called concurrently from multiple threads -> make sure shared resources
 	//            are protected (note: there are none at the moment but it might change)

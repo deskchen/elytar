@@ -22,14 +22,16 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
 #ifndef PX_HEIGHTFIELD_H
 #define PX_HEIGHTFIELD_H
+/** \addtogroup geomutils
+  @{
+*/
 
-#include "foundation/PxVec3.h"
 #include "geometry/PxHeightFieldFlag.h"
 #include "geometry/PxHeightFieldSample.h"
 #include "common/PxBase.h"
@@ -75,7 +77,7 @@ once you have released all of its PxHeightFiedShape instances.
 \li #PxVisualizationParameter::eCOLLISION_FNORMALS
 \li #PxVisualizationParameter::eCOLLISION_EDGES
 
-\see PxHeightFieldDesc PxHeightFieldGeometry PxShape PxPhysics.createHeightField() PxCooking.createHeightField()
+@see PxHeightFieldDesc PxHeightFieldGeometry PxShape PxPhysics.createHeightField() PxCooking.createHeightField()
 */
 
 class PxHeightField : public PxRefCounted
@@ -84,7 +86,7 @@ class PxHeightField : public PxRefCounted
 	/**
 	\brief Decrements the reference count of a height field and releases it if the new reference count is zero.
 
-	\see PxPhysics.createHeightField() PxHeightFieldDesc PxHeightFieldGeometry PxShape
+	@see PxPhysics.createHeightField() PxHeightFieldDesc PxHeightFieldGeometry PxShape
 	*/
 	virtual		void	release() = 0;
 
@@ -98,7 +100,7 @@ class PxHeightField : public PxRefCounted
 	\param[in] destBufferSize The size of the destination buffer.
 	\return The number of bytes written.
 
-	\see PxHeightFieldDesc.samples
+	@see PxHeightFieldDesc.samples
 	*/
     virtual		PxU32	saveCells(void* destBuffer, PxU32 destBufferSize) const = 0;
 
@@ -120,7 +122,7 @@ class PxHeightField : public PxRefCounted
 	Call PxShape::setGeometry on each shape which references the height field, to ensure that internal data structures are updated to reflect the new geometry.
 	Please note that PxShape::setGeometry does not guarantee correct/continuous behavior when objects are resting on top of old or new geometry.
 
-	\see PxHeightFieldDesc.samples PxShape.setGeometry
+	@see PxHeightFieldDesc.samples PxShape.setGeometry
 	*/
 	virtual		bool	modifySamples(PxI32 startCol, PxI32 startRow, const PxHeightFieldDesc& subfieldDesc, bool shrinkBounds = false) = 0;
 
@@ -129,7 +131,7 @@ class PxHeightField : public PxRefCounted
 
 	\return The number of sample rows in the samples array.
 
-	\see PxHeightFieldDesc.nbRows
+	@see PxHeightFieldDesc.nbRows
 	*/
 	virtual		PxU32	getNbRows()	const = 0;
 
@@ -138,7 +140,7 @@ class PxHeightField : public PxRefCounted
 
 	\return The number of sample columns in the samples array.
 
-	\see PxHeightFieldDesc.nbColumns
+	@see PxHeightFieldDesc.nbColumns
 	*/
 	virtual		PxU32	getNbColumns()	const = 0;
 
@@ -147,7 +149,7 @@ class PxHeightField : public PxRefCounted
 
 	\return The format of the sample data.
 
-	\see PxHeightFieldDesc.format PxHeightFieldFormat
+	@see PxHeightFieldDesc.format PxHeightFieldFormat
 	*/
 	virtual		PxHeightFieldFormat::Enum	getFormat()	const = 0;
 
@@ -156,7 +158,7 @@ class PxHeightField : public PxRefCounted
 
 	\return The offset in bytes between consecutive samples in the array.
 
-	\see PxHeightFieldDesc.sampleStride
+	@see PxHeightFieldDesc.sampleStride
 	*/
 	virtual		PxU32	getSampleStride()	const = 0;
 
@@ -165,7 +167,7 @@ class PxHeightField : public PxRefCounted
 
 	\return The convex edge threshold.
 
-	\see PxHeightFieldDesc.convexEdgeThreshold
+	@see PxHeightFieldDesc.convexEdgeThreshold
 	*/
 	virtual		PxReal	getConvexEdgeThreshold()	const = 0;
 
@@ -174,7 +176,7 @@ class PxHeightField : public PxRefCounted
 
 	\return The flags bits, combined from values of the enum ::PxHeightFieldFlag.
 
-	\see PxHeightFieldDesc.flags PxHeightFieldFlag
+	@see PxHeightFieldDesc.flags PxHeightFieldFlag
 	*/
 	virtual		PxHeightFieldFlags	getFlags()	const = 0;
 
@@ -224,7 +226,7 @@ class PxHeightField : public PxRefCounted
 	*/
 	virtual		PxU32	getTimestamp()	const	= 0;
 
-	virtual	const char*	getConcreteTypeName() const	PX_OVERRIDE	PX_FINAL	{ return "PxHeightField"; }
+	virtual	const char*	getConcreteTypeName() const { return "PxHeightField"; }
 
 protected:
 	PX_INLINE			PxHeightField(PxType concreteType, PxBaseFlags baseFlags) : PxRefCounted(concreteType, baseFlags) {}
@@ -237,4 +239,5 @@ protected:
 } // namespace physx
 #endif
 
+/** @} */
 #endif

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -46,7 +46,6 @@
 namespace physx
 {
 class PxHeightFieldDesc;
-class PxInputStream;
 
 namespace Gu
 {
@@ -62,6 +61,7 @@ public:
 										void						importExtraData(PxDeserializationContext& context);
 		PX_FORCE_INLINE					void						setMeshFactory(MeshFactory* f)		{ mMeshFactory = f;					}
 		PX_PHYSX_COMMON_API	static		HeightField*				createObject(PxU8*& address, PxDeserializationContext& context);
+		PX_PHYSX_COMMON_API static		void						getBinaryMetaData(PxOutputStream& stream);
 										void						resolveReferences(PxDeserializationContext&) {}
 
 							virtual		void						requiresObjects(PxProcessPxBaseCallback&){}
@@ -227,12 +227,23 @@ public:
 	
 	PX_CUDA_CALLABLE	PX_FORCE_INLINE	void						getTriangleVertices(PxU32 triangleIndex, PxU32 row, PxU32 column, PxVec3& v0, PxVec3& v1, PxVec3& v2) const;
 
+																	// checks if current vertex is solid or not
+										bool						isSolidVertex(PxU32 vertexIndex, PxU32 row, PxU32 coloumn, PxU16 holeMaterialIndex, bool& nbSolid) const;	
+
+																	// PT: TODO: I think we could drop that whole precomputation thing now
+																	// if precomputed bitmap define is used, the collision vertex information
+																	// is precomputed during create height field and stored as a bit in materialIndex1
+	PX_PHYSX_COMMON_API					bool						isCollisionVertexPreca(PxU32 vertexIndex, PxU32 row, PxU32 column, PxU16 holeMaterialIndex) const;
+										void						parseTrianglesForCollisionVertices(PxU16 holeMaterialIndex);					
+
 	PX_CUDA_CALLABLE	PX_FORCE_INLINE	const PxHeightFieldSample&	getSample(PxU32 vertexIndex) const
 																	{
 																		PX_ASSERT(isValidVertex(vertexIndex));
 																		return mData.samples[vertexIndex];
 																	}
-
+#ifdef __CUDACC__
+	PX_CUDA_CALLABLE					void						setSamplePtr(PxHeightFieldSample* s) { mData.samples = s; }
+#endif
 										Gu::HeightFieldData			mData;
 										PxU32						mSampleStride;
 										PxU32						mNbSamples;	// PT: added for platform conversion. Try to remove later.

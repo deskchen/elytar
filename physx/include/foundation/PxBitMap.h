@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -36,31 +36,11 @@
 #include "foundation/PxUserAllocated.h"
 #include "foundation/PxIntrinsics.h"
 #include "foundation/PxBitUtils.h"
-#include "foundation/PxConstructor.h"
-
 
 #if !PX_DOXYGEN
 namespace physx
 {
 #endif
-	/*!
-	Allocation helper with cookie parameter that can be overloaded for pinned memory support
-	*/
-	template <class AllocT>
-	PX_INLINE void* PxBitMapAlloc(AllocT& a, PxU32 bytes, const char* file, int line, uint32_t* /*cookie*/)
-	{
-		return a.allocate(bytes, file, line);
-	}
-
-	/*!
-	Deallocation helper with cookie parameter that can be overloaded for pinned memory support
-	*/
-	template <class AllocT>
-	PX_INLINE void PxBitMapDealloc(AllocT& a, void* ptr, uint32_t* /*cookie*/)
-	{
-		a.deallocate(ptr);
-	}
-
 	/*!
 	Hold a bitmap with operations to set,reset or test given bit.
 
@@ -94,7 +74,7 @@ namespace physx
 		PX_INLINE void release()
 		{
 			if(mMap && !isInUserMemory())
-				PxBitMapDealloc(mAllocator, mMap, NULL);
+				mAllocator.deallocate(mMap);
 			mMap = NULL;
 		}
 
@@ -246,17 +226,6 @@ namespace physx
 					return (i << 5) + PxHighestSetBit(mMap[i]);
 			}
 			return PxU32(0);
-		}
-
-		bool hasAnyBitSet() const
-		{
-			const PxU32 wordCount = getWordCount();
-			for(PxU32 i = 0; i<wordCount; i++)
-			{
-				if (mMap[i])
-					return true;
-			}
-			return false;
 		}
 
 		// the obvious combiners and some used in the SDK
@@ -463,16 +432,15 @@ namespace physx
 			const PxU32 newWordCount = (size + 31) >> 5;
 			if (newWordCount > getWordCount())
 			{
-				uint32_t cookie = 0;
-				void* newMap = PxBitMapAlloc(mAllocator, newWordCount * sizeof(PxU32), PX_FL, &cookie);
+				PxU32* newMap = reinterpret_cast<PxU32*>(mAllocator.allocate(newWordCount * sizeof(PxU32), PX_FL));
 				if (mMap)
 				{
 					PxMemCopy(newMap, mMap, getWordCount() * sizeof(PxU32));
 					if (!isInUserMemory())
-						PxBitMapDealloc(mAllocator, mMap, &cookie);
+						mAllocator.deallocate(mMap);
 				}
-				mMap = reinterpret_cast<PxU32*>(newMap);
-				PxMemSet(mMap + getWordCount(), 0, (newWordCount - getWordCount()) * sizeof(PxU32));
+				PxMemSet(newMap + getWordCount(), 0, (newWordCount - getWordCount()) * sizeof(PxU32));
+				mMap = newMap;
 				// also resets the isInUserMemory bit
 				mWordCount = newWordCount;
 			}
@@ -484,11 +452,10 @@ namespace physx
 			if (newWordCount > getWordCount())
 			{
 				if (mMap && !isInUserMemory())
-					PxBitMapDealloc(mAllocator, mMap, NULL);
+					mAllocator.deallocate(mMap);
 				// also resets the isInUserMemory bit
 				mWordCount = newWordCount;
-				void* newMap = PxBitMapAlloc(mAllocator, mWordCount * sizeof(PxU32), PX_FL, NULL);
-				mMap = reinterpret_cast<PxU32*>(newMap);
+				mMap = reinterpret_cast<PxU32*>(mAllocator.allocate(mWordCount * sizeof(PxU32), PX_FL));
 			}
 		}
 
@@ -523,7 +490,7 @@ namespace physx
 	};
 
 	typedef PxBitMapBase<PxAllocator> PxBitMap;
-
+	typedef PxBitMapBase<PxVirtualAllocator> PxBitMapPinned;
 #if !PX_DOXYGEN
 } // namespace physx
 #endif

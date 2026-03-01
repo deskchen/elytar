@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -70,20 +70,18 @@ public:
 	// PxActor
 	virtual		void				release()	= 0;
 	virtual		PxActorType::Enum	getType()	const = 0;
-	virtual		PxScene*			getScene()	const	PX_OVERRIDE PX_FINAL;
-	virtual		void				setName(const char*)	PX_OVERRIDE PX_FINAL;
-	virtual		const char*			getName()	const	PX_OVERRIDE PX_FINAL;
+	virtual		PxScene*			getScene()	const	PX_OVERRIDE;
+	virtual		void				setName(const char*)	PX_OVERRIDE;
+	virtual		const char*			getName()	const	PX_OVERRIDE;
 	virtual		PxBounds3			getWorldBounds(float inflation=1.01f)	const = 0;
 	virtual		void				setActorFlag(PxActorFlag::Enum flag, bool value)	PX_OVERRIDE;
 	virtual		void				setActorFlags(PxActorFlags inFlags)	PX_OVERRIDE;
-	virtual		PxActorFlags		getActorFlags()	const	PX_OVERRIDE PX_FINAL;
-	virtual		void				setDominanceGroup(PxDominanceGroup dominanceGroup)	PX_OVERRIDE PX_FINAL;
-	virtual		PxDominanceGroup	getDominanceGroup()	const	PX_OVERRIDE PX_FINAL;
-	virtual		void				setOwnerClient( PxClientID inClient )	PX_OVERRIDE PX_FINAL;
-	virtual		PxClientID			getOwnerClient()	const	PX_OVERRIDE PX_FINAL;
-	virtual		PxAggregate*		getAggregate()	const	PX_OVERRIDE PX_FINAL { return NpActor::getAggregate();	}
-	virtual		bool				setEnvironmentID(PxU32 envID)	PX_OVERRIDE PX_FINAL;
-	virtual		PxU32				getEnvironmentID()		const	PX_OVERRIDE PX_FINAL;
+	virtual		PxActorFlags		getActorFlags()	const	PX_OVERRIDE;
+	virtual		void				setDominanceGroup(PxDominanceGroup dominanceGroup)	PX_OVERRIDE;
+	virtual		PxDominanceGroup	getDominanceGroup()	const	PX_OVERRIDE;
+	virtual		void				setOwnerClient( PxClientID inClient )	PX_OVERRIDE;
+	virtual		PxClientID			getOwnerClient()	const	PX_OVERRIDE;
+	virtual		PxAggregate*		getAggregate()	const	PX_OVERRIDE { return NpActor::getAggregate();	}
 	//~PxActor
 
 protected:
@@ -233,39 +231,6 @@ PxActorFlags NpActorTemplate<APIClass>::getActorFlags() const
 {
 	NP_READ_CHECK(getNpScene());
 	return NpActor::getActorFlags();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-template<class APIClass>
-bool NpActorTemplate<APIClass>::setEnvironmentID(PxU32 envID)
-{
-	NpScene* scene = getNpScene();
-	if(scene)
-		return PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxActor::setEnvironmentID: environment ID cannot be set while the actor is in a scene.");
-
-	if(envID>=SC_FILTERING_ID_MAX && envID!=PX_INVALID_U32)
-		return PxGetFoundation().error(PxErrorCode::eINVALID_PARAMETER, PX_FL, "PxActor::setEnvironmentID: environment ID must be smaller than 1<<24.");
-
-	NP_WRITE_CHECK(scene);
-
-	if(NpActor::getAggregate())
-		return PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxActor::setEnvironmentID: environment ID cannot be set on aggregated actors. Set the ID on the aggregate with PxAggregate::setEnvironmentID().");
-
-	Sc::ActorCore& actorCore = NpActor::getActorCore();
-	actorCore.setEnvID(envID);
-
-	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxActor, environmentID, static_cast<PxActor&>(*this), envID)
-
-	return true;
-}
-
-template<class APIClass>
-PxU32 NpActorTemplate<APIClass>::getEnvironmentID()	const
-{
-	NP_READ_CHECK(getNpScene());
-	const Sc::ActorCore& actorCore = NpActor::getActorCore();
-	return actorCore.getEnvID();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

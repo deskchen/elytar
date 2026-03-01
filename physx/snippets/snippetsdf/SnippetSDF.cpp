@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -30,26 +30,26 @@
 // This snippet demonstrates how to setup triangle meshes with SDFs.
 // ****************************************************************************
 
+#include <ctype.h>
+#include "PxPhysicsAPI.h"
+#include "../snippetcommon/SnippetPrint.h"
 #include "../snippetcommon/SnippetPVD.h"
 #include "../snippetutils/SnippetUtils.h"
 #include "../snippetsdf/MeshGenerator.h"
 
+
 using namespace physx;
 using namespace meshgenerator;
 
-static bool gUseGPU = false;
-static bool gRunning = true;
-static bool gSingleStep = false;
 static PxDefaultAllocator		gAllocator;
 static PxDefaultErrorCallback	gErrorCallback;
-static PxFoundation*			gFoundation			= NULL;
-static PxPhysics*				gPhysics			= NULL;
-static PxCudaContextManager*	gCudaContextManager	= NULL;
-static PxDefaultCpuDispatcher*	gDispatcher			= NULL;
-static PxScene*					gScene				= NULL;
-static PxMaterial*				gMaterial			= NULL;
-static PxPvd*					gPvd				= NULL;
-
+static PxFoundation*			gFoundation		= NULL;
+static PxPhysics*				gPhysics		= NULL;
+static PxCudaContextManager*	gCudaContextManager = NULL;
+static PxDefaultCpuDispatcher*	gDispatcher		= NULL;
+static PxScene*					gScene			= NULL;
+static PxMaterial*				gMaterial		= NULL;
+static PxPvd*					gPvd			= NULL;
 
 
 
@@ -110,14 +110,14 @@ static PxTriangleMesh* createMesh(PxCookingParams& params, const PxArray<PxVec3>
 		return PxCreateTriangleMesh(params, meshDesc, gPhysics->getPhysicsInsertionCallback());
 }
 
-static void addInstance(const PxTransform& transform, PxTriangleMesh* mesh, PxReal scale = 1.0)
+static void addInstance(const PxTransform& transform, PxTriangleMesh* mesh)
 {
 	PxRigidDynamic* dyn = gPhysics->createRigidDynamic(transform);
 	dyn->setLinearDamping(0.2f);
 	dyn->setAngularDamping(0.1f);
 	PxTriangleMeshGeometry geom;
 	geom.triangleMesh = mesh;
-	geom.scale = scale * PxVec3(0.1f, 0.1f, 0.1f);
+	geom.scale = PxVec3(0.1f, 0.1f, 0.1f);
 
 	dyn->setRigidBodyFlag(PxRigidBodyFlag::eENABLE_GYROSCOPIC_FORCES, true);
 	dyn->setRigidBodyFlag(PxRigidBodyFlag::eENABLE_SPECULATIVE_CCD, true);
@@ -137,11 +137,6 @@ static void addInstance(const PxTransform& transform, PxTriangleMesh* mesh, PxRe
 
 static void createBowls(PxCookingParams& params)
 {
-	if (gUseGPU && gCudaContextManager == NULL)
-	{
-		printf("Creating a CUDA context manager failed. Set gUseGPU false for CPU dynamics.\n");
-		return;
-	}
 	PxArray<PxVec3> triVerts;
 	PxArray<PxU32> triIndices;
 	
@@ -151,14 +146,12 @@ static void createBowls(PxCookingParams& params)
 	PxTriangleMesh* mesh = createMesh(params, triVerts, triIndices, 0.05f);
 	
 	PxQuat rotate(PxIdentity);
-	const PxU32 numInstances = gUseGPU ? 100 : 8;
-	float s = 1.0;
+	const PxU32 numInstances = 200;
 	for (PxU32 i = 0; i < numInstances; ++i)
 	{
 		PxTransform transform(PxVec3(0, 5.f + i * 0.5f, 0), rotate);
-		addInstance(transform, mesh, s);
+		addInstance(transform, mesh);
 	}
-
 }
 
 void initPhysics(bool /*interactive*/)
@@ -168,16 +161,14 @@ void initPhysics(bool /*interactive*/)
 	PxPvdTransport* transport = PxDefaultPvdSocketTransportCreate(PVD_HOST, 5425, 10);
 	gPvd->connect(*transport,PxPvdInstrumentationFlag::eALL);
 	
-	if (gUseGPU)
+	// initialize cuda
+	PxCudaContextManagerDesc cudaContextManagerDesc;
+	gCudaContextManager = PxCreateCudaContextManager(*gFoundation, cudaContextManagerDesc, PxGetProfilerCallback());
+	if (gCudaContextManager && !gCudaContextManager->contextIsValid())
 	{
-		// initialize cuda
-		PxCudaContextManagerDesc cudaContextManagerDesc;
-		gCudaContextManager = PxCreateCudaContextManager(*gFoundation, cudaContextManagerDesc, PxGetProfilerCallback());
-		if (gCudaContextManager && !gCudaContextManager->contextIsValid())
-		{
-			PX_RELEASE(gCudaContextManager);
-			printf("Failed to initialize cuda context.\n");
-		}
+		gCudaContextManager->release();
+		gCudaContextManager = NULL;
+		printf("Failed to initialize cuda context.\n");
 	}
 
 	PxTolerancesScale scale;
@@ -188,32 +179,23 @@ void initPhysics(bool /*interactive*/)
 	params.meshWeldTolerance = 0.001f;
 	params.meshPreprocessParams = PxMeshPreprocessingFlags(PxMeshPreprocessingFlag::eWELD_VERTICES);
 	params.buildTriangleAdjacencies = false;
-	params.buildGPUData = gUseGPU;
+	params.buildGPUData = true;
 
 	PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
 	sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
-	sceneDesc.flags |= PxSceneFlag::eENABLE_PCM;
 
-	if (gUseGPU)
-	{
-		if (!sceneDesc.cudaContextManager)
-			sceneDesc.cudaContextManager = gCudaContextManager;
-		sceneDesc.flags |= PxSceneFlag::eENABLE_GPU_DYNAMICS;
-	}
-	else
-	{
-		sceneDesc.flags &= ~PxSceneFlag::eENABLE_GPU_DYNAMICS;
-	}
+	if (!sceneDesc.cudaContextManager)
+		sceneDesc.cudaContextManager = gCudaContextManager;
+	
+	sceneDesc.flags |= PxSceneFlag::eENABLE_GPU_DYNAMICS;
+	sceneDesc.flags |= PxSceneFlag::eENABLE_PCM;
 
 	PxU32 numCores = SnippetUtils::getNbPhysicalCores();
 	gDispatcher = PxDefaultCpuDispatcherCreate(numCores == 0 ? 0 : numCores - 1);
 	sceneDesc.cpuDispatcher	= gDispatcher;
 	sceneDesc.filterShader	= PxDefaultSimulationFilterShader;
 
-	if (gUseGPU)
-		sceneDesc.broadPhaseType = PxBroadPhaseType::eGPU;
-	else
-		sceneDesc.broadPhaseType = PxBroadPhaseType::eSAP;
+	sceneDesc.broadPhaseType = PxBroadPhaseType::eGPU;
 	sceneDesc.gpuMaxNumPartitions = 8;
 
 	sceneDesc.solverType = PxSolverType::eTGS;
@@ -239,33 +221,23 @@ void stepPhysics(bool /*interactive*/)
 {
 	const PxReal dt = 1.0f / 60.f;
 
-	if (!gRunning)
-	{
-		if (gSingleStep)
-			gSingleStep = false;
-		else
-			return;
-	}
 	gScene->simulate(dt);
 	gScene->fetchResults(true);
 }
-
+	
 void cleanupPhysics(bool /*interactive*/)
 {
 	PX_RELEASE(gScene);
 	PX_RELEASE(gDispatcher);
 	PX_RELEASE(gPhysics);
-	if (gPvd)
-	{
-		PxPvdTransport* transport = gPvd->getTransport();
-		PX_RELEASE(gPvd);
-		PX_RELEASE(transport);
-	}
+	PxPvdTransport* transport = gPvd->getTransport();
+	gPvd->release();
+	transport->release();
 	PxCloseExtensions();  
-	PX_RELEASE(gCudaContextManager);
+	gCudaContextManager->release();
 	PX_RELEASE(gFoundation);
 
-	printf("SnippetSDF done.\n");
+	printf("Snippet SDF done.\n");
 }
 
 int snippetMain(int, const char*const*)

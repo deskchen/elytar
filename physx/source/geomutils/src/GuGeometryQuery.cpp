@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -34,9 +34,9 @@
 #include "geometry/PxTriangleMeshGeometry.h"
 #include "geometry/PxConvexMeshGeometry.h"
 #include "geometry/PxHeightFieldGeometry.h"
+#include "geometry/PxHairSystemGeometry.h"
 #include "geometry/PxParticleSystemGeometry.h"
 #include "geometry/PxCustomGeometry.h"
-#include "geometry/PxConvexCoreGeometry.h"
 #include "foundation/PxAtomic.h"
 
 #include "GuInternal.h"
@@ -58,8 +58,6 @@
 #include "GuVecConvexHull.h"
 #include "GuPCMShapeConvex.h"
 #include "GuPCMContactConvexCommon.h"
-#include "GuConvexSupport.h"
-#include "GuConvexGeometry.h"
 
 using namespace physx;
 using namespace Gu;
@@ -78,12 +76,12 @@ bool PxGeometryQuery::isValid(const PxGeometry& g)
 		case PxGeometryType::ePLANE:			return static_cast<const PxPlaneGeometry&>(g).isValid();
 		case PxGeometryType::eCAPSULE:			return static_cast<const PxCapsuleGeometry&>(g).isValid();
 		case PxGeometryType::eBOX:				return static_cast<const PxBoxGeometry&>(g).isValid();
-		case PxGeometryType::eCONVEXCORE:		return static_cast<const PxConvexCoreGeometry&>(g).isValid();
 		case PxGeometryType::eCONVEXMESH:		return static_cast<const PxConvexMeshGeometry&>(g).isValid();
 		case PxGeometryType::eTRIANGLEMESH:		return static_cast<const PxTriangleMeshGeometry&>(g).isValid();
 		case PxGeometryType::eHEIGHTFIELD:		return static_cast<const PxHeightFieldGeometry&>(g).isValid();
 		case PxGeometryType::eTETRAHEDRONMESH:	return static_cast<const PxTetrahedronMeshGeometry&>(g).isValid();
 		case PxGeometryType::ePARTICLESYSTEM:	return static_cast<const PxParticleSystemGeometry&>(g).isValid();
+		case PxGeometryType::eHAIRSYSTEM:		return static_cast<const PxHairSystemGeometry&>(g).isValid();
 		case PxGeometryType::eCUSTOM:			return static_cast<const PxCustomGeometry&>(g).isValid();
 	}
 	return false;
@@ -285,30 +283,6 @@ PxReal PxGeometryQuery::pointDistance(const PxVec3& point, const PxGeometry& geo
 				*closestPoint = cp;
 			return sqDistance;
 		}
-		case PxGeometryType::eCONVEXCORE:
-		{
-			const PxConvexCoreGeometry& convexGeom = static_cast<const PxConvexCoreGeometry&>(geom);
-
-			// Create a point support
-			Gu::ConvexShape pointShape;
-			pointShape.coreType = Gu::ConvexCore::Type::ePOINT;
-			pointShape.pose = PxTransform(PxIdentity);
-			pointShape.margin = 0.0f;
-
-			// Create convex core shape
-			Gu::ConvexShape convexShape;
-			Gu::makeConvexShape(convexGeom, pose, convexShape);
-			PX_ASSERT(convexShape.isValid());
-
-			// Compute distance using GJK
-			PxVec3 pointA, pointB, axis;
-			const PxReal distance = Gu::RefGjkEpa::computeGjkDistance(pointShape, convexShape, PxTransform(PxIdentity), pose, FLT_MAX, pointA, pointB, axis);
-
-			if(closestPoint)
-				*closestPoint = pointB;
-
-			return distance * distance;
-		}
 		case PxGeometryType::eTRIANGLEMESH:
 		{
 			const PxTriangleMeshGeometry& meshGeom = static_cast<const PxTriangleMeshGeometry&>(geom);
@@ -442,7 +416,6 @@ bool PxGeometryQuery::generateTriangleContacts(const PxGeometry& geom, const PxT
 
 			Gu::PCMConvexVsMeshContactGeneration contactGeneration(contactDist, replaceBreakingThreshold, boxTransform, meshTransform, multiManifold, contactBuffer0, polyData, &boxMap, &deferredContacts, idtScaling, true, true, NULL);
 			contactGeneration.processTriangle(triangleVertices, triangleIndex, Gu::ETD_CONVEX_EDGE_ALL, triangleIndices);
-			contactGeneration.generateLastContacts();
 			contactGeneration.processContacts(GU_SINGLE_MANIFOLD_CACHE_SIZE, false);
 
 			break;
@@ -473,54 +446,11 @@ bool PxGeometryQuery::generateTriangleContacts(const PxGeometry& geom, const PxT
 
 			Gu::PCMConvexVsMeshContactGeneration contactGeneration(contactDist, replaceBreakingThreshold, convexTransform, meshTransform, multiManifold, contactBuffer0, polyData, &convexMap, &deferredContacts, convexScaling, idtConvexScale, true, NULL);
 			contactGeneration.processTriangle(triangleVertices, triangleIndex, Gu::ETD_CONVEX_EDGE_ALL, triangleIndices);
-			contactGeneration.generateLastContacts();
 			contactGeneration.processContacts(GU_SINGLE_MANIFOLD_CACHE_SIZE, false);
 
 			break;
 		}
-		case PxGeometryType::eCONVEXCORE:
-		{
-			const PxConvexCoreGeometry& convex = static_cast<const PxConvexCoreGeometry&>(geom);
-
-			Gu::ConvexShape convexShape;
-			Gu::makeConvexShape(convex, pose, convexShape);
-			PX_ASSERT(convexShape.isValid());
-
-			// Create the triangle shape as a points-based convex shape
-			Gu::ConvexShape triShape;
-			triShape.coreType = Gu::ConvexCore::Type::ePOINTS;
-			triShape.pose = PxTransform(PxIdentity);
-			triShape.margin = meshContactMargin;
-			// Initialize the points core data
-			Gu::ConvexCore::PointsCore triCore;
-			triCore.points = triangleVertices;
-			triCore.numPoints = 3;
-			triCore.stride = sizeof(PxVec3);
-			triCore.S = PxVec3(1.0f);
-			triCore.R = PxQuat(PxIdentity);
-			// Copy the core data into the shape's core data buffer
-			PX_ASSERT(sizeof(triCore) <= Gu::ConvexCore::MAX_CORE_SIZE);
-			PxMemCopy(triShape.coreData, &triCore, sizeof(triCore));
-
-			PxVec3 normal, points[Gu::MAX_CONVEX_CONTACTS];
-			PxReal dists[Gu::MAX_CONVEX_CONTACTS];
-			if (PxU32 count = Gu::generateContacts(convexShape, triShape, contactDistance + meshContactMargin, normal, points, dists))
-			{
-				for (PxU32 i = 0; i < count; ++i)
-				{
-					PxContactPoint contact;
-					contact.point = points[i];
-					contact.normal = normal;
-					contact.separation = dists[i];
-					contact.internalFaceIndex1 = triangleIndex;
-					contactBuffer.contact(contact);
-				}
-			}
-
-			break;
-		}
 		default:
-			PX_ASSERT(0); // Unsupported geometry type
 			break;
 	}
 

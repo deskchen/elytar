@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -67,19 +67,19 @@ public:
 	// PxActor
 					void					removeShapes(PxSceneQuerySystem* sqManager);
 	virtual			PxActorType::Enum		getType() const = 0;
-	virtual			PxBounds3				getWorldBounds(float inflation=1.01f) const	PX_OVERRIDE PX_FINAL;
-	virtual			void					setActorFlag(PxActorFlag::Enum flag, bool value)	PX_OVERRIDE PX_FINAL;
-	virtual			void					setActorFlags(PxActorFlags inFlags)	PX_OVERRIDE PX_FINAL;
+	virtual			PxBounds3				getWorldBounds(float inflation=1.01f) const	PX_OVERRIDE;
+	virtual			void					setActorFlag(PxActorFlag::Enum flag, bool value)	PX_OVERRIDE;
+	virtual			void					setActorFlags(PxActorFlags inFlags)	PX_OVERRIDE;
 	//~PxActor
 
 	// PxRigidActor
-	virtual			PxU32					getInternalActorIndex() const	PX_OVERRIDE PX_FINAL;
+	virtual			PxU32					getInternalActorIndex() const	PX_OVERRIDE;
 	virtual			bool					attachShape(PxShape& s)	PX_OVERRIDE;
 	virtual			void					detachShape(PxShape& s, bool wakeOnLostTouch)	PX_OVERRIDE;
-	virtual			PxU32					getNbShapes() const	PX_OVERRIDE PX_FINAL;
-	virtual			PxU32					getShapes(PxShape** buffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE PX_FINAL;
-	virtual			PxU32					getNbConstraints() const	PX_OVERRIDE PX_FINAL;
-	virtual			PxU32					getConstraints(PxConstraint** userBuffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE PX_FINAL;
+	virtual			PxU32					getNbShapes() const	PX_OVERRIDE;
+	virtual			PxU32					getShapes(PxShape** buffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE;
+	virtual			PxU32					getNbConstraints() const	PX_OVERRIDE;
+	virtual			PxU32					getConstraints(PxConstraint** userBuffer, PxU32 bufferSize, PxU32 startIndex=0) const	PX_OVERRIDE;
 	//~PxRigidActor
 											NpRigidActorTemplate(PxType concreteType, PxBaseFlags baseFlags, NpType::Enum type);
 
@@ -92,13 +92,14 @@ public:
 
 					void					updateShaderComs();
 
-	// index into the NpScene rigid dynamic (mRigidDynamics) or static array (mRigidStatics)
+	// index for the NpScene rigid dynamic or static array
 	// PT: note that this index changes during the lifetime of the object, e.g. when another object
 	// is removed and swaps happen in the scene's mRigidStatics/mRigidDynamics arrays.
 	PX_FORCE_INLINE PxU32					getRigidActorArrayIndex()			const	{ return NpBase::mFreeSlot;		}
 	PX_FORCE_INLINE void					setRigidActorArrayIndex(PxU32 index)		{ NpBase::mFreeSlot = index;	}
-	// PT: ID from mRigidActorIndexPool. Contrary to getRigidActorArrayIndex(), this index uses the same source for statics/dynamics/links
-	// (yes, it also includes articulation links). On the other hand it is constant for the lifetime of the actor.
+//	PX_FORCE_INLINE PxU32					getRigidActorArrayIndex()			const	{ return mIndex;				}
+//	PX_FORCE_INLINE void					setRigidActorArrayIndex(PxU32 index)		{ mIndex = index;				}
+
 	PX_FORCE_INLINE PxU32					getRigidActorSceneIndex()			const	{ return NpBase::getBaseIndex();	}
 	PX_FORCE_INLINE void					setRigidActorSceneIndex(PxU32 index)		{ NpBase::setBaseIndex(index);		}
 
@@ -114,6 +115,10 @@ protected:
 	PX_FORCE_INLINE void					setActorSimFlag(bool value);
 
 					NpShapeManager			mShapeManager;
+					// PT: note that this index changes during the lifetime of the object, e.g. when another object
+					// is removed and swaps happen in the scene's mRigidStatics/mRigidDynamics arrays.
+//					PxU32					mIndex;    // index for the NpScene rigid dynamic or static array
+					// PT: TODO: reduce padding
 };
 
 // PX_SERIALIZATION
@@ -136,10 +141,8 @@ void NpRigidActorTemplate<APIClass>::preExportDataReset()
 	//Clearing the aggregate ID for serialization so we avoid having a stale 
 	//reference after deserialization. The aggregate ID get's reset on readding to the 
 	//scene anyway.
-	// PT: this happens on a copy of the object so the reset does not break anything.
 	Sc::ActorCore& actorCore = NpActor::getActorCore();
-	if(actorCore.hasAggregateID())
-		actorCore.setAggregateID(PX_INVALID_U32);
+	actorCore.setAggregateID(PX_INVALID_U32);
 	mShapeManager.preExportDataReset();
 	//mIndex = 0xFFFFFFFF;
 	NpBase::mFreeSlot = 0xFFFFFFFF;
@@ -217,12 +220,9 @@ bool NpRigidActorTemplate<APIClass>::attachShape(PxShape& shape)
 	NpScene* npScene = ActorTemplateClass::getNpScene();
 	NP_WRITE_CHECK(npScene);
 	NpShape& npShape = static_cast<NpShape&>(shape);
-	PX_CHECK_AND_RETURN_VAL(!static_cast<NpShape&>(shape).isExclusive() || shape.getActor()==NULL,
-		"PxRigidActor::attachShape: shape must be shared or unowned", false);
-	PX_CHECK_AND_RETURN_VAL(!(npShape.getCore().getCore().mShapeCoreFlags & PxShapeCoreFlag::eDEFORMABLE_VOLUME_SHAPE),
-		"PxRigidActor::attachShape() not allowed to attach a deformable volume shape to a rigid actor", false);
-	PX_CHECK_AND_RETURN_VAL(!(npShape.getCore().getCore().mShapeCoreFlags & PxShapeCoreFlag::eDEFORMABLE_SURFACE_SHAPE),
-		"PxRigidActor::attachShape() not allowed to attach a deformable surface shape to a rigid actor", false);
+	PX_CHECK_AND_RETURN_VAL(!static_cast<NpShape&>(shape).isExclusive() || shape.getActor()==NULL, "PxRigidActor::attachShape: shape must be shared or unowned", false);
+	PX_CHECK_AND_RETURN_VAL(!(npShape.getCore().getCore().mShapeCoreFlags & PxShapeCoreFlag::eSOFT_BODY_SHAPE), "PxRigidActor::attachShape() not allowed to attach a soft body shape to a rigid actor", false);
+	PX_CHECK_AND_RETURN_VAL(!(npShape.getCore().getCore().mShapeCoreFlags & PxShapeCoreFlag::eCLOTH_SHAPE), "PxRigidActor::attachShape() not allowed to attach a cloth shape to a rigid actor", false);
 
 	PX_CHECK_SCENE_API_WRITE_FORBIDDEN_AND_RETURN_VAL(npScene, "PxRigidActor::attachShape() not allowed while simulation is running. Call will be ignored.", false);
 

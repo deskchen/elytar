@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_CAPSULE_GEOMETRY_H
 #define PX_CAPSULE_GEOMETRY_H
+/** \addtogroup geomutils
+@{
+*/
 #include "geometry/PxGeometry.h"
 #include "foundation/PxFoundationConfig.h"
 
@@ -45,7 +48,7 @@ given radius centered at the origin and extending along the x axis, and two hemi
 
 The function PxTransformFromSegment is a helper for generating an appropriate transform for the capsule from the capsule's interior line segment.
 
-\see PxTransformFromSegment
+@see PxTransformFromSegment
 */
 class PxCapsuleGeometry : public PxGeometry      
 {
@@ -78,9 +81,9 @@ public:
 	\return True if the current settings are valid.
 
 	\note A valid capsule has radius > 0, halfHeight >= 0.
-	It is illegal to call PxPhysics::createShape with a capsule that has zero radius or height.
+	It is illegal to call PxRigidActor::createShape and PxPhysics::createShape with a capsule that has zero radius or height.
 
-	\see PxPhysics::createShape
+	@see PxRigidActor::createShape, PxPhysics::createShape
 	*/
 	PX_INLINE bool isValid() const;
 
@@ -112,4 +115,5 @@ PX_INLINE bool PxCapsuleGeometry::isValid() const
 } // namespace physx
 #endif
 
+/** @} */
 #endif

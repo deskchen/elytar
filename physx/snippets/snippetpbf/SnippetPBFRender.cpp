@@ -22,11 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifdef RENDER_SNIPPET
+
+#include <vector>
 
 #include "PxPhysicsAPI.h"
 #include "cudamanager/PxCudaContext.h"
@@ -97,17 +99,15 @@ void renderParticles()
 	Snippets::DrawPoints(sPosBuffer.vbo, sPosBuffer.size / sizeof(PxVec4), color, 2.f);
 
 	PxParticleAndDiffuseBuffer* userBuffer = getParticleBuffer();
-	if (userBuffer)
+
+	const PxU32 numActiveDiffuseParticles = userBuffer->getNbActiveDiffuseParticles();
+
+	//printf("NumActiveDiffuse = %i\n", numActiveDiffuseParticles);
+
+	if (numActiveDiffuseParticles > 0)
 	{
-		const PxU32 numActiveDiffuseParticles = userBuffer->getNbActiveDiffuseParticles();
-
-		//printf("NumActiveDiffuse = %i\n", numActiveDiffuseParticles);
-
-		if (numActiveDiffuseParticles > 0)
-		{
-			PxVec3 colorDiffuseParticles(1, 1, 1);
-			Snippets::DrawPoints(sDiffusePosLifeBuffer.vbo, numActiveDiffuseParticles, colorDiffuseParticles, 2.f);
-		}
+		PxVec3 colorDiffuseParticles(1, 1, 1);
+		Snippets::DrawPoints(sDiffusePosLifeBuffer.vbo, numActiveDiffuseParticles, colorDiffuseParticles, 2.f);
 	}
 	
 	Snippets::DrawFrame(PxVec3(0, 0, 0));
@@ -118,19 +118,17 @@ void allocParticleBuffers()
 	PxScene* scene;
 	PxGetPhysics().getScenes(&scene, 1);
 	PxCudaContextManager* cudaContextManager = scene->getCudaContextManager();
-	if (cudaContextManager)
-	{
-		PxParticleAndDiffuseBuffer* userBuffer = getParticleBuffer();
 
-		const PxU32 maxParticles = userBuffer->getMaxParticles();
-		const PxU32 maxDiffuseParticles = userBuffer->getMaxDiffuseParticles();
+	PxParticleAndDiffuseBuffer* userBuffer = getParticleBuffer();
 
-		sDiffusePosLifeBuffer.initialize(cudaContextManager);
-		sDiffusePosLifeBuffer.allocate(maxDiffuseParticles * sizeof(PxVec4));
+	const PxU32 maxParticles = userBuffer->getMaxParticles();
+	const PxU32 maxDiffuseParticles = userBuffer->getMaxDiffuseParticles();
+
+	sDiffusePosLifeBuffer.initialize(cudaContextManager);
+	sDiffusePosLifeBuffer.allocate(maxDiffuseParticles * sizeof(PxVec4));
 	
-		sPosBuffer.initialize(cudaContextManager);
-		sPosBuffer.allocate(maxParticles * sizeof(PxVec4));
-	}
+	sPosBuffer.initialize(cudaContextManager);
+	sPosBuffer.allocate(maxParticles * sizeof(PxVec4));
 }
 
 void clearupParticleBuffers()
@@ -152,7 +150,7 @@ void renderCallback()
 	PxU32 nbActors = scene->getNbActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC);
 	if(nbActors)
 	{
-		PxArray<PxRigidActor*> actors(nbActors);
+		std::vector<PxRigidActor*> actors(nbActors);
 		scene->getActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC, reinterpret_cast<PxActor**>(&actors[0]), nbActors);
 		Snippets::renderActors(&actors[0], static_cast<PxU32>(actors.size()), true);
 	}
@@ -171,7 +169,7 @@ void cleanup()
 	cleanupPhysics(true);
 }
 
-void exitCallback()
+void exitCallback(void)
 {
 }
 }

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -289,30 +289,13 @@ namespace Ext
 			PxVec3 l0, a0, l1, a1;
 			mPxConstraint->getActors(actor0, actor1);
 
-			const PxTransform actor0ToWorld = getGlobalPose(actor0);
-			const PxTransform actor1ToWorld = getGlobalPose(actor1);
-
-			const PxTransform body0ToActor = getCom(actor0);
-			const PxTransform body1ToActor = getCom(actor1);
-
+			PxTransform t0 = getCom(actor0), t1 = getCom(actor1);
 			getActorVelocity(actor0, l0, a0);
 			getActorVelocity(actor1, l1, a1);
 
-			// the offset from center of mass to joint frame origin (in the
-			// actor frame)
-			const PxVec3 jointFrame0CoMOffsetLocal = mLocalPose[0].p - body0ToActor.p;
-			const PxVec3 jointFrame1CoMOffsetLocal = mLocalPose[1].p - body1ToActor.p;
-
-			const PxVec3 jointFrame0CoMOffsetWorld = actor0ToWorld.rotate(jointFrame0CoMOffsetLocal);
-			const PxVec3 jointFrame1CoMOffsetWorld = actor1ToWorld.rotate(jointFrame1CoMOffsetLocal);
-
-			const PxVec3 relativeVelWorld = (l1 + a1.cross(jointFrame1CoMOffsetWorld)) -
-				(l0 + a0.cross(jointFrame0CoMOffsetWorld));
-
-			const PxQuat jointFrame0ToWorld = actor0ToWorld.q * mLocalPose[0].q;
-			const PxVec3 relativeVelJointFrame0 = jointFrame0ToWorld.rotateInv(relativeVelWorld);
-
-			return relativeVelJointFrame0;
+			PxVec3 p0 = t0.q.rotate(mLocalPose[0].p), 
+				   p1 = t1.q.rotate(mLocalPose[1].p);
+			return t0.transformInv(l1 - a1.cross(p1) - l0 + a0.cross(p0));
 		}
 
 		// PxJoint
@@ -322,17 +305,11 @@ namespace Ext
 			PxVec3 l0, a0, l1, a1;
 			mPxConstraint->getActors(actor0, actor1);
 
-			const PxTransform actor0ToWorld = getGlobalPose(actor0);
-
+			PxTransform t0 = getCom(actor0);
 			getActorVelocity(actor0, l0, a0);
 			getActorVelocity(actor1, l1, a1);
 
-			const PxVec3 relativeVelWorld = a1 - a0;
-
-			const PxQuat jointFrame0ToWorld = actor0ToWorld.q * mLocalPose[0].q;
-			const PxVec3 relativeVelJointFrame0 = jointFrame0ToWorld.rotateInv(relativeVelWorld);
-
-			return relativeVelJointFrame0;
+			return t0.transformInv(a1 - a0);
 		}
 
 		// PxJoint
@@ -715,7 +692,7 @@ namespace Ext
 	};
 
 #if PX_SUPPORT_OMNI_PVD
-	void omniPvdSetBaseJointParams(const PxJoint& joint, PxJointConcreteType::Enum cType);
+	void omniPvdSetBaseJointParams(PxJoint& joint, PxJointConcreteType::Enum cType);
 	template<typename JointType> void omniPvdInitJoint(JointType& joint);
 #endif
 

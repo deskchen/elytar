@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -44,6 +44,7 @@
 // 
 // ****************************************************************************
 
+#include <vector>
 #include "PxPhysicsAPI.h"
 #include "../snippetutils/SnippetUtils.h"
 #include "../snippetcommon/SnippetPrint.h"
@@ -62,10 +63,10 @@ static PxScene*					gScene		= NULL;
 static PxMaterial*				gMaterial	= NULL;
 static PxPvd*					gPvd        = NULL;
 
-PxArray<PxVec3> gContactPositions;
-PxArray<PxVec3> gContactImpulses;
-PxArray<PxVec3> gContactLinearImpulses[2];
-PxArray<PxVec3> gContactAngularImpulses[2];
+std::vector<PxVec3> gContactPositions;
+std::vector<PxVec3> gContactImpulses;
+std::vector<PxVec3> gContactLinearImpulses[2];
+std::vector<PxVec3> gContactAngularImpulses[2];
 
 static PxFilterFlags contactReportFilterShader(	PxFilterObjectAttributes attributes0, PxFilterData filterData0, 
 												PxFilterObjectAttributes attributes1, PxFilterData filterData1,
@@ -207,7 +208,7 @@ class ContactReportCallback: public PxSimulationEventCallback
 	void onContact(const PxContactPairHeader& pairHeader, const PxContactPair* pairs, PxU32 nbPairs) 
 	{
 		PX_UNUSED((pairHeader));
-		PxArray<PxContactPairPoint> contactPoints;
+		std::vector<PxContactPairPoint> contactPoints;
 	
 
 		for(PxU32 i=0;i<nbPairs;i++)
@@ -221,9 +222,9 @@ class ContactReportCallback: public PxSimulationEventCallback
 
 				for(PxU32 j=0;j<contactCount;j++)
 				{
-					gContactPositions.pushBack(contactPoints[j].position);
+					gContactPositions.push_back(contactPoints[j].position);
 					//Push back reported contact impulses
-					gContactImpulses.pushBack(contactPoints[j].impulse);
+					gContactImpulses.push_back(contactPoints[j].impulse);
 
 					//Compute the effective linear/angular impulses for each body.
 					//Note that the local mass scaling permits separate scales for invMass and invInertia.
@@ -236,8 +237,8 @@ class ContactReportCallback: public PxSimulationEventCallback
 							PxRigidBodyExt::computeLinearAngularImpulse(*dynamic, dynamic->getGlobalPose(), contactPoints[j].position, 
 								k == 0 ? contactPoints[j].impulse : -contactPoints[j].impulse, invMassScale[k], invMassScale[k], linImpulse, angImpulse);
 						}
-						gContactLinearImpulses[k].pushBack(linImpulse);
-						gContactAngularImpulses[k].pushBack(angImpulse);
+						gContactLinearImpulses[k].push_back(linImpulse);
+						gContactAngularImpulses[k].push_back(angImpulse);
 					}
 				}
 			}
@@ -306,13 +307,6 @@ void stepPhysics(bool /*interactive*/)
 	
 void cleanupPhysics(bool /*interactive*/)
 {
-    gContactPositions.reset();
-    gContactImpulses.reset();
-    gContactLinearImpulses[0].reset();
-    gContactAngularImpulses[0].reset();
-    gContactLinearImpulses[1].reset();
-    gContactAngularImpulses[1].reset();
-    
 	PX_RELEASE(gScene);
 	PX_RELEASE(gDispatcher);
 	PxCloseExtensions();
@@ -320,7 +314,7 @@ void cleanupPhysics(bool /*interactive*/)
 	if(gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
-		PX_RELEASE(gPvd);
+		gPvd->release();	gPvd = NULL;
 		PX_RELEASE(transport);
 	}
 	PX_RELEASE(gFoundation);

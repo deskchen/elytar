@@ -22,15 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef GU_CONVEX_UTILS_INTERNALS_H
 #define GU_CONVEX_UTILS_INTERNALS_H
 
-#include "foundation/PxMat34.h"
-#include "foundation/PxBounds3.h"
+#include "foundation/Px.h"
 #include "common/PxPhysXCommonConfig.h"
 
 namespace physx

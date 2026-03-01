@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -123,20 +123,17 @@ PxTetrahedronMesh* PxCreateTetrahedronMesh(const PxCookingParams& params, const 
 	return immediateCooking::createTetrahedronMesh(params, meshDesc, insertionCallback);
 }
 
-bool PxCookDeformableVolumeMesh(const PxCookingParams& params, const PxTetrahedronMeshDesc& simulationMeshDesc, const PxTetrahedronMeshDesc& collisionMeshDesc,
-	const PxDeformableVolumeSimulationDataDesc& softbodyDataDesc, PxOutputStream& stream)
+bool PxCookSoftBodyMesh(const PxCookingParams& params, const PxTetrahedronMeshDesc& simulationMeshDesc, const PxTetrahedronMeshDesc& collisionMeshDesc, const PxSoftBodySimulationDataDesc& softbodyDataDesc, PxOutputStream& stream)
 {
-	return immediateCooking::cookDeformableVolumeMesh(params, simulationMeshDesc, collisionMeshDesc, softbodyDataDesc, stream);
+	return immediateCooking::cookSoftBodyMesh(params, simulationMeshDesc, collisionMeshDesc, softbodyDataDesc, stream);
 }
 
-PxDeformableVolumeMesh* PxCreateDeformableVolumeMesh(const PxCookingParams& params, const PxTetrahedronMeshDesc& simulationMeshDesc,
-	const PxTetrahedronMeshDesc& collisionMeshDesc, const PxDeformableVolumeSimulationDataDesc& softbodyDataDesc, PxInsertionCallback& insertionCallback)
+PxSoftBodyMesh* PxCreateSoftBodyMesh(const PxCookingParams& params, const PxTetrahedronMeshDesc& simulationMeshDesc, const PxTetrahedronMeshDesc& collisionMeshDesc, const PxSoftBodySimulationDataDesc& softbodyDataDesc, PxInsertionCallback& insertionCallback)
 {
-	return immediateCooking::createDeformableVolumeMesh(params, simulationMeshDesc, collisionMeshDesc, softbodyDataDesc, insertionCallback);
+	return immediateCooking::createSoftBodyMesh(params, simulationMeshDesc, collisionMeshDesc, softbodyDataDesc, insertionCallback);
 }
 
-PxCollisionMeshMappingData* PxComputeModelsMapping(const PxCookingParams& params, PxTetrahedronMeshData& simulationMesh,
-	const PxTetrahedronMeshData& collisionMesh, const PxDeformableVolumeCollisionData& collisionData, const PxBoundedData* vertexToTet)
+PxCollisionMeshMappingData* PxComputeModelsMapping(const PxCookingParams& params, PxTetrahedronMeshData& simulationMesh, const PxTetrahedronMeshData& collisionMesh, const PxSoftBodyCollisionData& collisionData, const PxBoundedData* vertexToTet)
 {
 	return immediateCooking::computeModelsMapping(params, simulationMesh, collisionMesh, collisionData, vertexToTet);
 }
@@ -151,10 +148,13 @@ PxSimulationTetrahedronMeshData* PxComputeSimulationData(const PxCookingParams& 
 	return immediateCooking::computeSimulationData(params, simulationMeshDesc);
 }
 
-PxDeformableVolumeMesh* PxAssembleDeformableVolumeMesh(PxTetrahedronMeshData& simulationMesh, PxDeformableVolumeSimulationData& simulationData,
-	PxTetrahedronMeshData& collisionMesh, PxDeformableVolumeCollisionData& collisionData, PxCollisionMeshMappingData& mappingData,
-	PxInsertionCallback& insertionCallback)
+PxSoftBodyMesh*	PxAssembleSoftBodyMesh(PxTetrahedronMeshData& simulationMesh, PxSoftBodySimulationData& simulationData, PxTetrahedronMeshData& collisionMesh, PxSoftBodyCollisionData& collisionData, PxCollisionMeshMappingData& mappingData, PxInsertionCallback& insertionCallback)
 {
-	return immediateCooking::assembleDeformableVolumeMesh(simulationMesh, simulationData, collisionMesh, collisionData, mappingData, insertionCallback);
+	return immediateCooking::assembleSoftBodyMesh(simulationMesh, simulationData, collisionMesh, collisionData, mappingData, insertionCallback);
+}
+	
+PxSoftBodyMesh*	PxAssembleSoftBodyMesh_Sim(PxSimulationTetrahedronMeshData& simulationMesh, PxCollisionTetrahedronMeshData& collisionMesh, PxCollisionMeshMappingData& mappingData, PxInsertionCallback& insertionCallback)
+{
+	return immediateCooking::assembleSoftBodyMesh_Sim(simulationMesh, collisionMesh, mappingData, insertionCallback);
 }
 

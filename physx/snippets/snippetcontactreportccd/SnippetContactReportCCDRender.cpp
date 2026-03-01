@@ -22,11 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifdef RENDER_SNIPPET
+
+#include <vector>
 
 #include "PxPhysicsAPI.h"
 #include "../snippetrender/SnippetRender.h"
@@ -38,10 +40,10 @@ extern void initPhysics(bool interactive);
 extern void stepPhysics(bool interactive);	
 extern void cleanupPhysics(bool interactive);
 
-extern PxArray<PxVec3> gContactPositions;
-extern PxArray<PxVec3> gContactImpulses;
-extern PxArray<PxVec3> gContactSphereActorPositions;
-PxArray<PxVec3> gContactVertices;
+extern std::vector<PxVec3> gContactPositions;
+extern std::vector<PxVec3> gContactImpulses;
+extern std::vector<PxVec3> gContactSphereActorPositions;
+std::vector<PxVec3> gContactVertices;
 
 namespace
 {
@@ -58,7 +60,7 @@ void renderCallback()
 	PxU32 nbActors = scene->getNbActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC);
 	if(nbActors)
 	{
-		PxArray<PxRigidActor*> actors(nbActors);
+		std::vector<PxRigidActor*> actors(nbActors);
 		scene->getActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC, reinterpret_cast<PxActor**>(&actors[0]), nbActors);
 		Snippets::renderActors(&actors[0], static_cast<PxU32>(actors.size()), true);
 	}
@@ -68,8 +70,8 @@ void renderCallback()
 		gContactVertices.clear();
 		for(PxU32 i=0; i < gContactPositions.size(); i++)
 		{
-			gContactVertices.pushBack(gContactPositions[i]);
-			gContactVertices.pushBack(gContactPositions[i]-gContactImpulses[i]*0.0001f);
+			gContactVertices.push_back(gContactPositions[i]);
+			gContactVertices.push_back(gContactPositions[i]-gContactImpulses[i]*0.0001f);
 		}
 		glDisable(GL_LIGHTING);
 		glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
@@ -85,8 +87,8 @@ void renderCallback()
 		gContactVertices.clear();
 		for(PxU32 i=0; i < gContactSphereActorPositions.size() - 1; i++)
 		{
-			gContactVertices.pushBack(gContactSphereActorPositions[i]);
-			gContactVertices.pushBack(gContactSphereActorPositions[i+1]);
+			gContactVertices.push_back(gContactSphereActorPositions[i]);
+			gContactVertices.push_back(gContactSphereActorPositions[i+1]);
 		}
 		glDisable(GL_LIGHTING);
 		glColor4f(1.0f, 1.0f, 0.0f, 1.0f);
@@ -100,10 +102,9 @@ void renderCallback()
 	Snippets::finishRender();
 }
 
-void exitCallback()
+void exitCallback(void)
 {
 	delete sCamera;
-	gContactVertices.reset();
 	cleanupPhysics(true);
 }
 }

@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_CONTROLLER_H
 #define PX_CONTROLLER_H
+/** \addtogroup character
+  @{
+*/
 
 #include "characterkinematic/PxExtended.h"
 #include "characterkinematic/PxControllerObstacles.h"
@@ -49,14 +52,14 @@ struct PxControllerShapeType
 		/**
 		\brief A box controller.
 
-		\see PxBoxController PxBoxControllerDesc
+		@see PxBoxController PxBoxControllerDesc
 		*/
 		eBOX,
 
 		/**
 		\brief A capsule controller
 
-		\see PxCapsuleController PxCapsuleControllerDesc
+		@see PxCapsuleController PxCapsuleControllerDesc
 		*/
 		eCAPSULE,
 
@@ -105,7 +108,7 @@ struct PxControllerCollisionFlag
 /**
 \brief Bitfield that contains a set of raised flags defined in PxControllerCollisionFlag.
 
-\see PxControllerCollisionFlag
+@see PxControllerCollisionFlag
 */
 typedef PxFlags<PxControllerCollisionFlag::Enum, PxU8> PxControllerCollisionFlags;
 PX_FLAGS_OPERATORS(PxControllerCollisionFlag::Enum, PxU8)
@@ -151,7 +154,7 @@ struct PxControllerHit
 /**
 \brief Describes a hit between a CCT and a shape. Passed to onShapeHit()
 
-\see PxUserControllerHitReport.onShapeHit()
+@see PxUserControllerHitReport.onShapeHit()
 */
 struct PxControllerShapeHit : public PxControllerHit
 {
@@ -163,7 +166,7 @@ struct PxControllerShapeHit : public PxControllerHit
 /**
 \brief Describes a hit between a CCT and another CCT. Passed to onControllerHit().
 
-\see PxUserControllerHitReport.onControllerHit()
+@see PxUserControllerHitReport.onControllerHit()
 */
 struct PxControllersHit : public PxControllerHit
 {
@@ -173,7 +176,7 @@ struct PxControllersHit : public PxControllerHit
 /**
 \brief Describes a hit between a CCT and a user-defined obstacle. Passed to onObstacleHit().
 
-\see PxUserControllerHitReport.onObstacleHit() PxObstacleContext
+@see PxUserControllerHitReport.onObstacleHit() PxObstacleContext
 */
 struct PxControllerObstacleHit : public PxControllerHit
 {
@@ -185,7 +188,7 @@ struct PxControllerObstacleHit : public PxControllerHit
 
 \note Character controller hit reports are only generated when move is called.
 
-\see PxControllerDesc.callback
+@see PxControllerDesc.callback
 */
 class PxUserControllerHitReport
 {
@@ -198,7 +201,7 @@ public:
 
 	\param[in] hit Provides information about the hit.
 
-	\see PxControllerShapeHit
+	@see PxControllerShapeHit
 	*/
 	virtual void onShapeHit(const PxControllerShapeHit& hit) = 0;
 
@@ -207,7 +210,7 @@ public:
 
 	\param[in] hit Provides information about the hit.
 
-	\see PxControllersHit
+	@see PxControllersHit
 	*/
 	virtual void onControllerHit(const PxControllersHit& hit) = 0;
 
@@ -216,7 +219,7 @@ public:
 
 	\param[in] hit Provides information about the hit.
 
-	\see PxControllerObstacleHit PxObstacleContext
+	@see PxControllerObstacleHit PxObstacleContext
 	*/
 	virtual void onObstacleHit(const PxControllerObstacleHit& hit) = 0;
 
@@ -234,7 +237,7 @@ To make each CCT collide against all other CCTs, just return true - or simply av
 To make each CCT freely go through all other CCTs, just return false.
 Otherwise create a custom filtering logic in this callback.
 
-\see PxControllerFilters
+@see PxControllerFilters
 */
 class PxControllerFilterCallback
 {
@@ -266,7 +269,7 @@ all other CCTs.
 
 \note PxQueryFlag::eANY_HIT and PxQueryFlag::eNO_BLOCK are ignored in mFilterFlags.
 
-\see PxController.move() PxControllerFilterCallback
+@see PxController.move() PxControllerFilterCallback
 */
 class PxControllerFilters
 {
@@ -291,7 +294,7 @@ class PxControllerFilters
 /**
 \brief Descriptor class for a character controller.
 
-\see PxBoxController PxCapsuleController
+@see PxBoxController PxCapsuleController
 */
 class PxControllerDesc
 {
@@ -309,7 +312,7 @@ public:
 
 	\return The controllers type.
 
-	\see PxControllerType PxCapsuleControllerDesc PxBoxControllerDesc
+	@see PxControllerType PxCapsuleControllerDesc PxBoxControllerDesc
 	*/
 	PX_INLINE	PxControllerShapeType::Enum		getType()		const	{ return mType;		}
 
@@ -344,7 +347,7 @@ public:
 
 	<b>Default:</b> 0.707
 
-	\see upDirection invisibleWallHeight maxJumpHeight
+	@see upDirection invisibleWallHeight maxJumpHeight
 	*/
 	PxF32								slopeLimit;
 
@@ -357,7 +360,7 @@ public:
 
 	<b>Default:</b> 0.0
 
-	\see upDirection slopeLimit maxJumpHeight
+	@see upDirection slopeLimit maxJumpHeight
 	*/
 	PxF32								invisibleWallHeight;
 
@@ -382,7 +385,7 @@ public:
 
 	<b>Default:</b> 0.0
 
-	\see upDirection slopeLimit invisibleWallHeight
+	@see upDirection slopeLimit invisibleWallHeight
 	*/
 	PxF32								maxJumpHeight;
 
@@ -408,7 +411,7 @@ public:
 
 	<b>Default:</b> 0.5
 
-	\see upDirection 
+	@see upDirection 
 	*/
 	PxF32								stepOffset;
 
@@ -426,25 +429,6 @@ public:
 
 	The CCT creates a PhysX's kinematic actor under the hood. This controls its scale factor.
 	This should be a number a bit smaller than 1.0.
-
-	This scale factor affects how the character interacts with dynamic rigid bodies around it (e.g. pushing them, etc).
-
-	With a scale factor < 1, the underlying kinematic actor will not touch surrounding rigid bodies - they will
-	only interact with the character controller's shapes (capsules or boxes), and users will have full control
-	over the interactions (i.e. they will have to push the objects with explicit forces themselves).
-
-	With a scale factor >=1, the underlying kinematic actor will touch and push surrounding rigid bodies based
-	on PhysX's computations, as if there would be no character controller involved. This works fine except
-	when you push objects into a wall. PhysX has no control over kinematic actors (since they are kinematic)
-	so they would freely push dynamic objects into walls, and make them tunnel / explode / behave badly.
-
-	With a smaller kinematic actor however, the character controller's swept shape touches dynamic rigid bodies
-	first, and can apply forces to them to move them away (or not, depending on what the gameplay needs).
-	Meanwhile the character controller's swept shape itself is stopped by these dynamic bodies.
-
-	Setting the scale factor to 1 could still work, but it is unreliable. Depending on FPU accuracy you could
-	end up with either the CCT's volume or the underlying kinematic actor touching the dynamic bodies first,
-	and this could change from one moment to the next.
 
 	<b>Default:</b> 0.8
 	*/
@@ -469,7 +453,7 @@ public:
 
 	<b>Default:</b> NULL
 
-	\see PxUserControllerHitReport
+	@see PxUserControllerHitReport
 	*/
 	PxUserControllerHitReport*			reportCallback;
 
@@ -482,7 +466,7 @@ public:
 
 	<b>Default:</b> NULL
 
-	\see PxControllerBehaviorCallback
+	@see PxControllerBehaviorCallback
 	*/
 	PxControllerBehaviorCallback*		behaviorCallback;
 
@@ -493,7 +477,7 @@ public:
 
 	<b>Default:</b> PxControllerNonWalkableMode::ePREVENT_CLIMBING
 
-	\see PxControllerNonWalkableMode
+	@see PxControllerNonWalkableMode
 	*/
 	PxControllerNonWalkableMode::Enum	nonWalkableMode;
 
@@ -504,7 +488,7 @@ public:
 
 	<b>Default:</b> NULL
 
-	\see PxMaterial
+	@see PxMaterial
 	*/
 	PxMaterial*							material;
 
@@ -515,7 +499,7 @@ public:
 	controller to invalidate cached data that connects to a released object. If a deletion listener is not
 	registered, PxController::invalidateCache has to be called manually after objects have been released.
 
-	\see PxController::invalidateCache
+	@see PxController::invalidateCache
 
 	<b>Default:</b> true
 	*/
@@ -524,7 +508,7 @@ public:
 	/**
 	\brief Client ID for associated actor.
 
-	\see PxClientID PxActor::setOwnerClient
+	@see PxClientID PxActor::setOwnerClient
 
 	<b>Default:</b> PX_DEFAULT_CLIENT
 	*/
@@ -648,7 +632,7 @@ PX_INLINE bool PxControllerDesc::isValid() const
 /**
 \brief Base class for character controllers.
 
-\see PxCapsuleController PxBoxController
+@see PxCapsuleController PxBoxController
 */
 class PxController
 {
@@ -656,7 +640,7 @@ public:
 	/**
 	\brief Return the type of controller
 
-	\see PxControllerType
+	@see PxControllerType
 	*/
 	virtual		PxControllerShapeType::Enum	getType()		const			= 0;
 
@@ -691,7 +675,7 @@ public:
 	\param[in] position The new (center) positon for the controller.
 	\return Currently always returns true.
 
-	\see PxControllerDesc.position getPosition() getFootPosition() setFootPosition() move()
+	@see PxControllerDesc.position getPosition() getFootPosition() setFootPosition() move()
 	*/
 	virtual		bool					setPosition(const PxExtendedVec3& position) = 0;
 
@@ -706,7 +690,7 @@ public:
 
 	\return The controller's center position
 
-	\see PxControllerDesc.position setPosition() getFootPosition() setFootPosition() move()
+	@see PxControllerDesc.position setPosition() getFootPosition() setFootPosition() move()
 	*/
 	virtual		const PxExtendedVec3&	getPosition()			const	= 0;
 
@@ -724,7 +708,7 @@ public:
 	\param[in] position The new (bottom) positon for the controller.
 	\return Currently always returns true.
 
-	\see PxControllerDesc.position setPosition() getPosition() getFootPosition() move()
+	@see PxControllerDesc.position setPosition() getPosition() getFootPosition() move()
 	*/
 	virtual		bool					setFootPosition(const PxExtendedVec3& position) = 0;
 
@@ -735,7 +719,7 @@ public:
 
 	\return The controller's foot position
 
-	\see PxControllerDesc.position setPosition() getPosition() setFootPosition() move()
+	@see PxControllerDesc.position setPosition() getPosition() setFootPosition() move()
 	*/
 	virtual		PxExtendedVec3			getFootPosition()		const	= 0;
 
@@ -753,7 +737,7 @@ public:
 
 	\param[in] offset The new step offset for the controller.
 
-	\see PxControllerDesc.stepOffset
+	@see PxControllerDesc.stepOffset
 	*/
 	virtual	    void					setStepOffset(const PxF32 offset) =0;
 
@@ -762,7 +746,7 @@ public:
 
 	\return The step offset for the controller.
 
-	\see setStepOffset()
+	@see setStepOffset()
 	*/
 	virtual	    PxF32					getStepOffset()						const		=0;
 
@@ -771,7 +755,7 @@ public:
 
 	\param[in] flag The new value of the non-walkable mode.
 
-	\see PxControllerNonWalkableMode
+	@see PxControllerNonWalkableMode
 	*/
 	virtual		void						setNonWalkableMode(PxControllerNonWalkableMode::Enum flag)	= 0;
 
@@ -780,7 +764,7 @@ public:
 
 	\return The current non-walkable mode.
 
-	\see PxControllerNonWalkableMode
+	@see PxControllerNonWalkableMode
 	*/
 	virtual		PxControllerNonWalkableMode::Enum	getNonWalkableMode()				const		= 0;
 
@@ -789,7 +773,7 @@ public:
 
 	\return The contact offset for the controller.
 
-	\see PxControllerDesc.contactOffset
+	@see PxControllerDesc.contactOffset
 	*/
 	virtual	    PxF32					getContactOffset()					const		=0;
 
@@ -798,7 +782,7 @@ public:
 
 	\param[in] offset	The contact offset for the controller.
 
-	\see PxControllerDesc.contactOffset
+	@see PxControllerDesc.contactOffset
 	*/
 	virtual	    void					setContactOffset(PxF32 offset)					=0;
 
@@ -807,7 +791,7 @@ public:
 
 	\return The up direction for the controller.
 
-	\see PxControllerDesc.upDirection
+	@see PxControllerDesc.upDirection
 	*/
 	virtual		PxVec3					getUpDirection()					const		=0;
 
@@ -816,7 +800,7 @@ public:
 
 	\param[in] up The up direction for the controller.
 
-	\see PxControllerDesc.upDirection
+	@see PxControllerDesc.upDirection
 	*/
 	virtual		void					setUpDirection(const PxVec3& up)				=0;
 
@@ -825,7 +809,7 @@ public:
 
 	\return The slope limit for the controller.
 
-	\see PxControllerDesc.slopeLimit
+	@see PxControllerDesc.slopeLimit
 	*/
 	virtual	    PxF32					getSlopeLimit()						const		=0;
 
@@ -838,7 +822,7 @@ public:
 
 	\param[in]	slopeLimit	The slope limit for the controller.
 
-	\see PxControllerDesc.slopeLimit
+	@see PxControllerDesc.slopeLimit
 	*/
 	virtual	    void					setSlopeLimit(PxF32 slopeLimit)					=0;
 
@@ -855,7 +839,7 @@ public:
 	could detect a change in these parameters, it cannot detect a change in the behavior of the filtering 
 	function.
 
-	\see PxController.move
+	@see PxController.move
 	*/
 	virtual		void					invalidateCache()			= 0;
 
@@ -871,7 +855,7 @@ public:
 
 	\return The user pointer associated with the controller.
 
-	\see PxControllerDesc.userData
+	@see PxControllerDesc.userData
 	*/
 	virtual		void*					getUserData()		const		= 0;
 
@@ -880,7 +864,7 @@ public:
 
 	\param[in] userData The user pointer associated with the controller.
 
-	\see PxControllerDesc.userData
+	@see PxControllerDesc.userData
 	*/
 	virtual		void					setUserData(void* userData)		= 0;
 
@@ -889,7 +873,7 @@ public:
 
 	\param[out] state The controller's internal state
 
-	\see PxControllerState
+	@see PxControllerState
 	*/
 	virtual		void					getState(PxControllerState& state)	const		= 0;
 
@@ -898,7 +882,7 @@ public:
 
 	\param[out] stats The controller's internal statistics
 
-	\see PxControllerStats
+	@see PxControllerStats
 	*/
 	virtual		void					getStats(PxControllerStats& stats)	const		= 0;
 
@@ -923,4 +907,5 @@ protected:
 } // namespace physx
 #endif
 
+/** @} */
 #endif

@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -361,15 +361,16 @@ class PxHashBase : private PxAllocator
 		uint32_t* newEntriesNext;
 		Entry* newEntries;
 		{
-			const uint64_t newEntriesNextBytesOffset = newHashSize * sizeof(uint32_t);
-			uint64_t newEntriesByteOffset = newEntriesNextBytesOffset + newEntriesCapacity * sizeof(uint32_t);
+			uint32_t newHashByteOffset = 0;
+			uint32_t newEntriesNextBytesOffset = newHashByteOffset + newHashSize * sizeof(uint32_t);
+			uint32_t newEntriesByteOffset = newEntriesNextBytesOffset + newEntriesCapacity * sizeof(uint32_t);
 			newEntriesByteOffset += (16 - (newEntriesByteOffset & 15)) & 15;
-			const uint64_t newBufferByteSize = newEntriesByteOffset + newEntriesCapacity * sizeof(Entry);
+			uint32_t newBufferByteSize = newEntriesByteOffset + newEntriesCapacity * sizeof(Entry);
 
 			newBuffer = reinterpret_cast<uint8_t*>(PxAllocator::allocate(newBufferByteSize, PX_FL));
 			PX_ASSERT(newBuffer);
 
-			newHash = reinterpret_cast<uint32_t*>(newBuffer);
+			newHash = reinterpret_cast<uint32_t*>(newBuffer + newHashByteOffset);
 			newEntriesNext = reinterpret_cast<uint32_t*>(newBuffer + newEntriesNextBytesOffset);
 			newEntries = reinterpret_cast<Entry*>(newBuffer + newEntriesByteOffset);
 		}

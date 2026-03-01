@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -56,18 +56,10 @@ PxDefaultMemoryOutputStream::~PxDefaultMemoryOutputStream()
 
 PxU32 PxDefaultMemoryOutputStream::write(const void* src, PxU32 size)
 {
-	PxU64 expectedSize = PxU64(mSize) + PxU64(size);
-
-	// if expectedSize is bigger than 32 bits (overflow), return 0
-	if (expectedSize > PX_MAX_U32)
-	{
-		PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "Unable to write to stream because max capacity is PX_MAX_U32\n");
-		return 0;
-	}
-
+	PxU32 expectedSize = mSize + size;
 	if(expectedSize > mCapacity)
 	{
-		mCapacity = PxMax(PxNextPowerOfTwo((PxU32)expectedSize), 4096u);
+		mCapacity = PxMax(PxNextPowerOfTwo(expectedSize), 4096u);
 
 		PxU8* newData = reinterpret_cast<PxU8*>(mAllocator.allocate(mCapacity,"PxDefaultMemoryOutputStream",__FILE__,__LINE__));
 		PX_ASSERT(newData!=NULL);

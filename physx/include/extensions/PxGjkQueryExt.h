@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -40,7 +40,6 @@ namespace physx
 class PxSphereGeometry;
 class PxCapsuleGeometry;
 class PxBoxGeometry;
-class PxConvexCoreGeometry;
 class PxConvexMeshGeometry;
 class PxContactBuffer;
 class PxConvexMesh;
@@ -71,8 +70,8 @@ public:
 		*/
 		SphereSupport(const PxSphereGeometry& geom);
 
-		virtual PxReal getMargin() const PX_OVERRIDE PX_FINAL;
-		virtual PxVec3 supportLocal(const PxVec3& dir) const PX_OVERRIDE PX_FINAL;
+		virtual PxReal getMargin() const;
+		virtual PxVec3 supportLocal(const PxVec3& dir) const;
 	};
 
 	/**
@@ -95,8 +94,8 @@ public:
 		*/
 		CapsuleSupport(const PxCapsuleGeometry& geom);
 
-		virtual PxReal getMargin() const PX_OVERRIDE PX_FINAL;
-		virtual PxVec3 supportLocal(const PxVec3& dir) const PX_OVERRIDE PX_FINAL;
+		virtual PxReal getMargin() const;
+		virtual PxVec3 supportLocal(const PxVec3& dir) const;
 	};
 
 	/**
@@ -120,28 +119,8 @@ public:
 		*/
 		BoxSupport(const PxBoxGeometry& box, PxReal margin = 0);
 
-		virtual PxReal getMargin() const PX_OVERRIDE PX_FINAL;
-		virtual PxVec3 supportLocal(const PxVec3& dir) const PX_OVERRIDE PX_FINAL;
-	};
-
-	/**
-	\brief Pre-made support mapping for a convex core
-	*/
-	struct ConvexCoreSupport : PxGjkQuery::Support
-	{
-		PxU64 shapeData[10];
-
-		/**
-		\brief Default constructor
-		*/
-		ConvexCoreSupport();
-		/**
-		\brief Constructs a ConvexCoreSupport for a PxConvexCoreGeometry
-		*/
-		ConvexCoreSupport(const PxConvexCoreGeometry& geom, PxReal margin = 0);
-
-		virtual PxReal getMargin() const PX_OVERRIDE PX_FINAL;
-		virtual PxVec3 supportLocal(const PxVec3& dir) const PX_OVERRIDE PX_FINAL;
+		virtual PxReal getMargin() const;
+		virtual PxVec3 supportLocal(const PxVec3& dir) const;
 	};
 
 	/**
@@ -167,8 +146,8 @@ public:
 		*/
 		ConvexMeshSupport(const PxConvexMeshGeometry& convexMesh, PxReal margin = 0);
 
-		virtual PxReal getMargin() const PX_OVERRIDE PX_FINAL;
-		virtual PxVec3 supportLocal(const PxVec3& dir) const PX_OVERRIDE PX_FINAL;
+		virtual PxReal getMargin() const;
+		virtual PxVec3 supportLocal(const PxVec3& dir) const;
 	};
 
 	/**
@@ -194,8 +173,8 @@ public:
 		*/
 		bool isValid() const;
 
-		virtual PxReal getMargin() const PX_OVERRIDE PX_FINAL;
-		virtual PxVec3 supportLocal(const PxVec3& dir) const PX_OVERRIDE PX_FINAL;
+		virtual PxReal getMargin() const;
+		virtual PxVec3 supportLocal(const PxVec3& dir) const;
 
 	private:
 		PxGeometryType::Enum mType;
@@ -204,7 +183,6 @@ public:
 			PxU8 sphere[sizeof(SphereSupport)];
 			PxU8 capsule[sizeof(CapsuleSupport)];
 			PxU8 box[sizeof(BoxSupport)];
-			PxU8 convexCore[sizeof(ConvexCoreSupport)];
 			PxU8 convexMesh[sizeof(ConvexMeshSupport)];
 		} mSupport;
 	};

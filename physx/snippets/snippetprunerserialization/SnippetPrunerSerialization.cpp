@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -38,6 +38,7 @@
 // ****************************************************************************
 
 #include <ctype.h>
+#include <vector>
 #include "PxPhysicsAPI.h"
 #include "extensions/PxCollectionExt.h"
 #include "../snippetcommon/SnippetPrint.h"
@@ -96,7 +97,7 @@ void createStack(const PxTransform& t, PxU32 size, PxReal halfExtent)
 // the query shapes into the AABB tree.
 void createStackWithRuntimePrunerStructure(const PxTransform& t, PxU32 size, PxReal halfExtent)
 {
-	PxArray<PxRigidActor*> actors;
+	std::vector<PxRigidActor*> actors;
 	PxShape* shape = gPhysics->createShape(PxBoxGeometry(halfExtent, halfExtent, halfExtent), *gMaterial);
 	for (PxU32 i = 0; i < size; i++)
 	{
@@ -107,7 +108,7 @@ void createStackWithRuntimePrunerStructure(const PxTransform& t, PxU32 size, PxR
 			body->attachShape(*shape);
 			PxRigidBodyExt::updateMassAndInertia(*body, 10.0f);
 			// store the actors, will be added later
-			actors.pushBack(body);
+			actors.push_back(body);
 		}
 	}
 	shape->release();
@@ -127,7 +128,7 @@ void createStackWithSerializedPrunerStructure(const PxTransform& t, PxU32 size, 
 	PxCollection* collection = PxCreateCollection();		// collection for all the objects
 	PxSerializationRegistry* sr = PxSerialization::createSerializationRegistry(*gPhysics);
 
-	PxArray<PxRigidActor*> actors;
+	std::vector<PxRigidActor*> actors;
 	PxShape* shape = gPhysics->createShape(PxBoxGeometry(halfExtent, halfExtent, halfExtent), *gMaterial);
 	for (PxU32 i = 0; i < size; i++)
 	{
@@ -138,7 +139,7 @@ void createStackWithSerializedPrunerStructure(const PxTransform& t, PxU32 size, 
 			body->attachShape(*shape);
 			PxRigidBodyExt::updateMassAndInertia(*body, 10.0f);
 			// store the actors, will be added later
-			actors.pushBack(body);
+			actors.push_back(body);
 		}
 	}
 	collection->add(*shape);	
@@ -157,7 +158,7 @@ void createStackWithSerializedPrunerStructure(const PxTransform& t, PxU32 size, 
 
 	// Release the used items added to the collection.
 	ps->release();
-	for (PxU32 i = 0; i < actors.size(); i++)
+	for (size_t i = 0; i < actors.size(); i++)
 	{
 		actors[i]->release();
 	}	
@@ -230,7 +231,7 @@ void cleanupPhysics(bool /*interactive*/)
 	if(gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
-		PX_RELEASE(gPvd);
+		gPvd->release();	gPvd = NULL;
 		PX_RELEASE(transport);
 	}
 	

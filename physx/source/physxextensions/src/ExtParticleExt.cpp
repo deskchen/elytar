@@ -22,12 +22,10 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
-#include "PxParticleBuffer.h"
-#include "extensions/PxCudaHelpersExt.h"
 #include "extensions/PxParticleExt.h"
 
 #include "foundation/PxUserAllocated.h"
@@ -185,7 +183,7 @@ PxParticleRigidBuffer* PxCreateAndPopulateParticleRigidBuffer(const PxParticleBu
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-PxParticleAttachmentBuffer::PxParticleAttachmentBuffer(PxParticleBuffer& particleBuffer, PxPBDParticleSystem& particleSystem) : mParticleBuffer(particleBuffer),
+PxParticleAttachmentBuffer::PxParticleAttachmentBuffer(PxParticleBuffer& particleBuffer, PxParticleSystem& particleSystem) : mParticleBuffer(particleBuffer),
 	mDeviceAttachments(NULL), mDeviceFilters(NULL), mNumDeviceAttachments(0), mNumDeviceFilters(0), mCudaContextManager(particleSystem.getCudaContextManager()),
 	mParticleSystem(particleSystem), mDirty(false)
 {
@@ -476,22 +474,21 @@ struct ParticleClothBuffersImpl : public PxParticleClothBufferHelper, public PxU
 		mMaxCloths = maxCloths;
 		mClothDesc.nbCloths = 0;
 #if PX_SUPPORT_GPU_PHYSX
-		mClothDesc.restPositions = PX_EXT_PINNED_MEMORY_ALLOC(PxVec4, *mCudaContextManager, maxParticles);
-		mClothDesc.triangles = PX_EXT_PINNED_MEMORY_ALLOC(PxU32, *mCudaContextManager, maxTriangles * 3);
-		mClothDesc.springs = PX_EXT_PINNED_MEMORY_ALLOC(PxParticleSpring, *mCudaContextManager, maxSprings);
-		mClothDesc.cloths = PX_EXT_PINNED_MEMORY_ALLOC(PxParticleCloth, *mCudaContextManager, maxCloths);
+		mClothDesc.restPositions = mCudaContextManager->allocPinnedHostBuffer<PxVec4>(maxParticles);
+		mClothDesc.triangles = mCudaContextManager->allocPinnedHostBuffer<PxU32>(maxTriangles * 3);
+		mClothDesc.springs = mCudaContextManager->allocPinnedHostBuffer<PxParticleSpring>(maxSprings);
+		mClothDesc.cloths = mCudaContextManager->allocPinnedHostBuffer<PxParticleCloth>(maxCloths);
 #endif
 	}
 
 	void release()
 	{
 #if PX_SUPPORT_GPU_PHYSX
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mClothDesc.cloths);
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mClothDesc.restPositions);
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mClothDesc.triangles);
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mClothDesc.springs);
+		mCudaContextManager->freePinnedHostBuffer(mClothDesc.cloths);
+		mCudaContextManager->freePinnedHostBuffer(mClothDesc.restPositions);
+		mCudaContextManager->freePinnedHostBuffer(mClothDesc.triangles);
+		mCudaContextManager->freePinnedHostBuffer(mClothDesc.springs);
 #endif
-		
 		PX_DELETE_THIS;
 	}
 
@@ -601,7 +598,7 @@ struct ParticleVolumeBuffersImpl : public PxParticleVolumeBufferHelper, public P
 		mTriangles = reinterpret_cast<PxU32*>(PX_ALLOC(sizeof(PxU32) * maxTriangles * 3, "ParticleVolumeBuffersImpl::mTriangles"));
 
 #if PX_SUPPORT_GPU_PHYSX
-		mParticleVolumes = PX_EXT_PINNED_MEMORY_ALLOC(PxParticleVolume, *cudaContextManager, maxVolumes);
+		mParticleVolumes = cudaContextManager->allocPinnedHostBuffer<PxParticleVolume>(maxVolumes);
 		mCudaContextManager = cudaContextManager;
 #else
 		PX_UNUSED(cudaContextManager);
@@ -611,9 +608,8 @@ struct ParticleVolumeBuffersImpl : public PxParticleVolumeBufferHelper, public P
 	void release()
 	{
 #if PX_SUPPORT_GPU_PHYSX
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mParticleVolumes);
+		mCudaContextManager->freePinnedHostBuffer(mParticleVolumes);
 #endif
-		
 		PX_FREE(mParticleVolumeMeshes);
 		PX_FREE(mTriangles);
 		PX_DELETE_THIS;
@@ -719,27 +715,25 @@ struct ParticleRigidBuffersImpl : public PxParticleRigidBufferHelper, public PxU
 		mNumParticles = 0;
 
 #if PX_SUPPORT_GPU_PHYSX
-		mRigidDesc.rigidOffsets = PX_EXT_PINNED_MEMORY_ALLOC(PxU32, *mCudaContextManager, maxRigids + 1);
-		mRigidDesc.rigidCoefficients = PX_EXT_PINNED_MEMORY_ALLOC(PxReal, *mCudaContextManager, maxRigids);
-		mRigidDesc.rigidTranslations = PX_EXT_PINNED_MEMORY_ALLOC(PxVec4, *mCudaContextManager, maxRigids);
-		mRigidDesc.rigidRotations = PX_EXT_PINNED_MEMORY_ALLOC(PxQuat, *mCudaContextManager, maxRigids);
-		mRigidDesc.rigidLocalPositions = PX_EXT_PINNED_MEMORY_ALLOC(PxVec4, *mCudaContextManager, maxParticles);
-		mRigidDesc.rigidLocalNormals = PX_EXT_PINNED_MEMORY_ALLOC(PxVec4, *mCudaContextManager, maxParticles);
+		mCudaContextManager->allocPinnedHostBuffer<PxU32>(mRigidDesc.rigidOffsets, maxRigids + 1);
+		mCudaContextManager->allocPinnedHostBuffer<PxReal>(mRigidDesc.rigidCoefficients, maxRigids);
+		mCudaContextManager->allocPinnedHostBuffer<PxVec4>(mRigidDesc.rigidTranslations, maxRigids);
+		mCudaContextManager->allocPinnedHostBuffer<PxQuat>(mRigidDesc.rigidRotations, maxRigids);
+		mCudaContextManager->allocPinnedHostBuffer<PxVec4>(mRigidDesc.rigidLocalPositions, maxParticles);
+		mCudaContextManager->allocPinnedHostBuffer<PxVec4>(mRigidDesc.rigidLocalNormals, maxParticles);
 #endif
-		
 	}
 
 	void release()
 	{
 #if PX_SUPPORT_GPU_PHYSX
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mRigidDesc.rigidOffsets);
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mRigidDesc.rigidCoefficients);
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mRigidDesc.rigidTranslations);
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mRigidDesc.rigidRotations);
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mRigidDesc.rigidLocalPositions);
-		PX_EXT_PINNED_MEMORY_FREE(*mCudaContextManager, mRigidDesc.rigidLocalNormals);
+		mCudaContextManager->freePinnedHostBuffer(mRigidDesc.rigidOffsets);
+		mCudaContextManager->freePinnedHostBuffer(mRigidDesc.rigidCoefficients);
+		mCudaContextManager->freePinnedHostBuffer(mRigidDesc.rigidTranslations);
+		mCudaContextManager->freePinnedHostBuffer(mRigidDesc.rigidRotations);
+		mCudaContextManager->freePinnedHostBuffer(mRigidDesc.rigidLocalPositions);
+		mCudaContextManager->freePinnedHostBuffer(mRigidDesc.rigidLocalNormals);
 #endif
-		
 		PX_DELETE_THIS;
 	}
 

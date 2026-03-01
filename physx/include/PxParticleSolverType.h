@@ -22,12 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_PARTICLE_SOLVER_TYPE_H
 #define PX_PARTICLE_SOLVER_TYPE_H
+/** \addtogroup physics
+@{ */
 
 #include "foundation/PxPreprocessor.h"
 
@@ -43,14 +45,15 @@ namespace physx
 
 
 /**
-\deprecated The solver type will be removed in a future version without replacement.
 \brief Identifies the solver to use for a particle system.
 */
-struct PX_DEPRECATED PxParticleSolverType
+struct PxParticleSolverType
 {
 	enum Enum
 	{
-		ePBD = 1 << 0			//!< The position based dynamics solver that can handle fluid, granular material, cloth, inflatables etc. See #PxPBDParticleSystem.
+		ePBD = 1 << 0,			//!< The position based dynamics solver that can handle fluid, granular material, cloth, inflatables etc. See #PxPBDParticleSystem.
+		eFLIP = 1 << 1,			//!< The FLIP fluid solver. See #PxFLIPParticleSystem.
+		eMPM = 1 << 2			//!< The MPM (material point method) solver that can handle a variety of materials. See #PxMPMParticleSystem.
 	};
 };
 
@@ -63,4 +66,5 @@ struct PX_DEPRECATED PxParticleSolverType
 } // namespace physx
 #endif
 
+  /** @} */
 #endif

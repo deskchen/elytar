@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -32,11 +32,10 @@
 #include "extensions/PxStringTableExt.h"
 #include "PxProfileAllocatorWrapper.h" //tools for using a custom allocator
 
-using namespace physx;
-using namespace physx::profile;
-
-namespace
+namespace physx
 {
+	using namespace physx::profile;
+
 	class PxStringTableImpl : public PxStringTable, public PxUserAllocated
 	{
 		typedef PxProfileHashMap<const char*, PxU32> THashMapType;
@@ -58,6 +57,7 @@ namespace
 				PX_PROFILE_DELETE( mWrapper, const_cast<char*>( iter->first ) );
 			mHashMap.clear();
 		}
+
 
 		virtual const char* allocateStr( const char* inSrc )
 		{
@@ -88,9 +88,9 @@ namespace
 			PX_PROFILE_DELETE( mWrapper.getAllocator(), this );
 		}
 	};
-}
 
-PxStringTable& physx::PxStringTableExt::createStringTable( PxAllocatorCallback& inAllocator )
-{
-	return *PX_PROFILE_NEW( inAllocator, PxStringTableImpl )( inAllocator );
+	PxStringTable& PxStringTableExt::createStringTable( PxAllocatorCallback& inAllocator )
+	{
+		return *PX_PROFILE_NEW( inAllocator, PxStringTableImpl )( inAllocator );
+	}
 }

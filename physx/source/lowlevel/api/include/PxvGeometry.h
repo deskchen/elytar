@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -69,13 +69,13 @@ struct MaterialIndicesStruct
 {
 // PX_SERIALIZATION
 	MaterialIndicesStruct(const PxEMPTY)	{}
+	static void getBinaryMetaData(PxOutputStream& stream);
 //~PX_SERIALIZATION
 
 	MaterialIndicesStruct()
 	:	indices(NULL)
 	,	numIndices(0)
 	,	pad(PX_PADDING_16)
-	,	gpuRemapId(0)
 	{
 	}
 
@@ -125,11 +125,17 @@ struct PxHeightFieldGeometryLL : public PxHeightFieldGeometry
 	MaterialIndicesStruct	materialsLL;
 };
 
+struct PxHairSystemGeometryLL : public PxHairSystemGeometry
+{
+	PxU32					gpuRemapId;
+};
+
 template <> struct PxcGeometryTraits<PxParticleSystemGeometryLL>	{ enum { TypeID = PxGeometryType::ePARTICLESYSTEM}; };
 template <> struct PxcGeometryTraits<PxConvexMeshGeometryLL>		{ enum { TypeID = PxGeometryType::eCONVEXMESH }; };
 template <> struct PxcGeometryTraits<PxTriangleMeshGeometryLL>		{ enum { TypeID = PxGeometryType::eTRIANGLEMESH }; };
 template <> struct PxcGeometryTraits<PxTetrahedronMeshGeometryLL>	{ enum { TypeID = PxGeometryType::eTETRAHEDRONMESH }; };
 template <> struct PxcGeometryTraits<PxHeightFieldGeometryLL>		{ enum { TypeID = PxGeometryType::eHEIGHTFIELD }; };
+template <> struct PxcGeometryTraits<PxHairSystemGeometryLL>		{ enum { TypeID = PxGeometryType::eHAIRSYSTEM }; };
 
 class InvalidGeometry : public PxGeometry
 {
@@ -142,6 +148,7 @@ class GeometryUnion
 public:
 // PX_SERIALIZATION
 	GeometryUnion(const PxEMPTY)	{}
+	static	void	getBinaryMetaData(PxOutputStream& stream);
 //~PX_SERIALIZATION
 
 	PX_CUDA_CALLABLE PX_FORCE_INLINE						GeometryUnion()						{ reinterpret_cast<InvalidGeometry&>(mGeometry) = InvalidGeometry(); }
@@ -172,12 +179,12 @@ private:
 		PxU8	sphere[sizeof(PxSphereGeometry)];
 		PxU8	capsule[sizeof(PxCapsuleGeometry)];
 		PxU8	plane[sizeof(PxPlaneGeometry)];
-		PxU8	convexCore[sizeof(PxConvexCoreGeometry)];
 		PxU8	convex[sizeof(PxConvexMeshGeometryLL)];
 		PxU8	particleSystem[sizeof(PxParticleSystemGeometryLL)];
 		PxU8	mesh[sizeof(PxTriangleMeshGeometryLL)];
 		PxU8	tetMesh[sizeof(PxTetrahedronMeshGeometryLL)];
 		PxU8	heightfield[sizeof(PxHeightFieldGeometryLL)];
+		PxU8	hairsystem[sizeof(PxHairSystemGeometryLL)];
 		PxU8	custom[sizeof(PxCustomGeometry)];
 		PxU8	invalid[sizeof(InvalidGeometry)];
 	} mGeometry;
@@ -190,8 +197,8 @@ private:
 			eOWNS_MATERIAL_IDX_MEMORY	= (1<<0),	// PT: for de-serialization to avoid deallocating material index list. Moved there from Sc::ShapeCore (since one byte was free).
 			eIS_EXCLUSIVE				= (1<<1),	// PT: shape's exclusive flag
 			eIDT_TRANSFORM				= (1<<2),	// PT: true if PxsShapeCore::transform is identity
-			eDEFORMABLE_SURFACE_SHAPE	= (1<<3),	// True if this shape is a deformable surface shape
-			eDEFORMABLE_VOLUME_SHAPE	= (1<<4)	// True if this shape is a deformable volume shape
+			eSOFT_BODY_SHAPE			= (1<<3),	// True if this shape is a soft body shape
+			eCLOTH_SHAPE				= (1<<4)	// True if this shape is a cloth shape
 		};
 	};
 

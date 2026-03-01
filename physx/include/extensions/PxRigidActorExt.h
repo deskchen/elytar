@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_RIGID_ACTOR_EXT_H
 #define PX_RIGID_ACTOR_EXT_H
+/** \addtogroup extensions
+  @{
+*/
 
 #include "PxPhysXConfig.h"
 #include "PxPhysics.h"
@@ -43,7 +46,7 @@ class PxBVH;
 /**
 \brief utility functions for use with PxRigidActor and subclasses
 
-\see PxRigidActor PxRigidStatic PxRigidBody PxRigidDynamic PxArticulationLink
+@see PxRigidActor PxRigidStatic PxRigidBody PxRigidDynamic PxArticulationLink
 */
 
 class PxRigidActorExt
@@ -77,7 +80,7 @@ public:
 
 	\return The newly created shape.
 
-	\see PxShape PxShape::release(), PxPhysics::createShape(), PxRigidActor::attachShape()
+	@see PxShape PxShape::release(), PxPhysics::createShape(), PxRigidActor::attachShape()
 	*/
 	static PxShape* createExclusiveShape(PxRigidActor& actor, const PxGeometry& geometry, PxMaterial*const* materials, PxU16 materialCount, 
 								         PxShapeFlags shapeFlags = PxShapeFlag::eVISUALIZATION | PxShapeFlag::eSCENE_QUERY_SHAPE | PxShapeFlag::eSIMULATION_SHAPE)
@@ -86,7 +89,7 @@ public:
 		if(shape)
 		{
 			bool status = actor.attachShape(*shape);	// attach can fail, if e.g. we try and attach a trimesh simulation shape to a dynamic actor
-			shape->release();							// if attach fails, we hold the only counted reference, and so this cleans up properly
+			shape->release();		// if attach fails, we hold the only counted reference, and so this cleans up properly
 			if(!status)
 				shape = NULL;
 		}
@@ -119,7 +122,7 @@ public:
 
 	\return The newly created shape.
 
-	\see PxShape PxShape::release(), PxPhysics::createShape(), PxRigidActor::attachShape()
+	@see PxShape PxShape::release(), PxPhysics::createShape(), PxRigidActor::attachShape()
 	*/
 	static PX_FORCE_INLINE	PxShape*	createExclusiveShape(PxRigidActor& actor, const PxGeometry& geometry, const PxMaterial& material, 
 													         PxShapeFlags shapeFlags = PxShapeFlag::eVISUALIZATION | PxShapeFlag::eSCENE_QUERY_SHAPE | PxShapeFlag::eSIMULATION_SHAPE)
@@ -135,7 +138,7 @@ public:
 	\param[in] actor The actor from which the bounds list is retrieved.
 	\param[out] numBounds Number of bounds in returned list.
 
-	\see PxShape PxBVH PxCooking::createBVH PxCooking::cookBVH
+	@see PxShape PxBVH PxCooking::createBVH PxCooking::cookBVH
 	*/
 	static PxBounds3*	getRigidActorShapeLocalBoundsList(const PxRigidActor& actor, PxU32& numBounds);
 
@@ -150,7 +153,7 @@ public:
 
 	\return	The PxBVH for this actor.
 
-	\see PxBVH PxScene::addActor PxAggregate::addActor
+	@see PxBVH PxScene::addActor PxAggregate::addActor
 	*/
 	static PxBVH* createBVHFromActor(PxPhysics& physics, const PxRigidActor& actor);
 };
@@ -159,4 +162,5 @@ public:
 } // namespace physx
 #endif
 
+/** @} */
 #endif

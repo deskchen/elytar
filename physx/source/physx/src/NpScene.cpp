@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -31,19 +31,13 @@
 #include "NpRigidDynamic.h"
 #include "NpArticulationReducedCoordinate.h"
 #include "NpArticulationTendon.h"
+#include "NpArticulationSensor.h"
 #include "NpAggregate.h"
-#include "PxConstraint.h"
-#include "PxSceneDesc.h"
-#include "PxDirectGPUAPI.h"
-#include "ScScene.h"
-#include "foundation/PxErrors.h"
-#include "foundation/PxFoundation.h"
 #if PX_SUPPORT_GPU_PHYSX
-	#include "NpPBDParticleSystem.h"
-	#include "NpDeformableSurface.h"
-	#include "NpDeformableVolume.h"
-	#include "NpDeformableAttachment.h"
-	#include "NpDeformableElementFilter.h"
+	#include "NpSoftBody.h"
+	#include "NpParticleSystem.h"
+	#include "NpFEMCloth.h"
+	#include "NpHairSystem.h"
 	#include "cudamanager/PxCudaContextManager.h"
 	#include "cudamanager/PxCudaContext.h"
 #endif
@@ -168,14 +162,9 @@ NpScene::NpScene(const PxSceneDesc& desc, NpPhysics& physics) :
 	mSQUpdateRunning			(false),
 	mBetweenFetchResults		(false),
 	mBuildFrozenActors			(false),
-	mCorruptedState				(false),
 	mScene						(desc, getContextId()),
-	mDirectGPUAPI				(NULL),
 #if PX_SUPPORT_PVD
 	mScenePvdClient				(*this),
-#endif
-#if PX_SUPPORT_OMNI_PVD
-	mSceneOvdClient				(*this),
 #endif
 	mWakeCounterResetValue		(desc.wakeCounterResetValue),
 	mPhysics					(physics),
@@ -197,32 +186,18 @@ NpScene::NpScene(const PxSceneDesc& desc, NpPhysics& physics) :
 
 	mThreadReadWriteDepth = PxTlsAlloc();
 
-#if PX_SUPPORT_OMNI_PVD
+	updatePhysXIndicator();
 	createInOmniPVD(desc);
-	OmniPvdPxSampler* sampler = NpPhysics::getInstance().mOmniPvdSampler;
-	if (sampler) 
-	{
+
+#if PX_SUPPORT_OMNI_PVD
+	if (NpPhysics::getInstance().mOmniPvdSampler)
 		mScene.mOnSleepingStateChanged = SleepingStateChanged;
-		PxsSimulationController* sc = getSimulationController();
-		if (sc) 
-		{
-			// pdeheras : should be depending on OVD readback flags
-			sc->setEnableOVDReadback(true);
-			sc->setEnableOVDCollisionReadback(true);
-		}
-	}
 #endif
 }
 
 NpScene::~NpScene()
 {
-#if PX_SUPPORT_OMNI_PVD
-	OMNI_PVD_WRITE_SCOPE_BEGIN(pvdWriter, pvdRegData)
-	OMNI_PVD_DESTROY_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, this->mGpuDynamicsConfig)
-	OMNI_PVD_DESTROY_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, static_cast<PxScene &>(*this))
-	getSceneOvdClientInternal().stopLastFrame(*pvdWriter);
-	OMNI_PVD_WRITE_SCOPE_END
-#endif
+	OMNI_PVD_DESTROY(OMNI_PVD_CONTEXT_HANDLE, PxScene, static_cast<PxScene &>(*this))
 
 	// PT: we need to do that one first, now that we don't release the objects anymore. Otherwise we end up with a sequence like:
 	// - actor is part of an aggregate, and part of a scene
@@ -249,13 +224,29 @@ NpScene::~NpScene()
 	while(particleCount--)
 		removeParticleSystem(*mPBDParticleSystems.getEntries()[particleCount], false);
 
-	PxU32 deformableSurfaceCount = mDeformableSurfaces.size();
-	while (deformableSurfaceCount--)
-		removeDeformableSurface(*mDeformableSurfaces.getEntries()[deformableSurfaceCount], false);
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	particleCount = mFLIPParticleSystems.size();
+	while (particleCount--)
+		removeParticleSystem(*mFLIPParticleSystems.getEntries()[particleCount], false);
 
-	PxU32 deformableVolumeCount = mDeformableVolumes.size();
-	while(deformableVolumeCount--)
-		removeDeformableVolume(*mDeformableVolumes.getEntries()[deformableVolumeCount], false);
+	particleCount = mMPMParticleSystems.size();
+	while (particleCount--)
+		removeParticleSystem(*mMPMParticleSystems.getEntries()[particleCount], false);
+#endif
+	
+	PxU32 softBodyCount = mSoftBodies.size();
+	while(softBodyCount--)
+		removeSoftBody(*mSoftBodies.getEntries()[softBodyCount], false);
+
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	PxU32 femClothCount = mFEMCloths.size();
+	while (femClothCount--)
+		removeFEMCloth(*mFEMCloths.getEntries()[femClothCount], false);
+
+	PxU32 hairSystemsCount = mHairSystems.size();
+	while (hairSystemsCount--)
+		removeHairSystem(*mHairSystems.getEntries()[hairSystemsCount], false);
+#endif
 #endif
 	bool unlock = mScene.getFlags() & PxSceneFlag::eREQUIRE_RW_LOCK;
 
@@ -267,8 +258,6 @@ NpScene::~NpScene()
 	mScenePvdClient.releasePvdInstance();
 #endif
 	mScene.release();
-
-	PX_DELETE(mDirectGPUAPI);
 
 	// unlock the lock taken in release(), must unlock before 
 	// mRWLock is destroyed otherwise behavior is undefined
@@ -515,7 +504,7 @@ bool NpScene::addActorInternal(PxActor& actor, const PxBVH* bvh)
 			return outputError<PxErrorCode::eINVALID_PARAMETER>(__LINE__, "PxRigidActor::setBVH: BVH is empty or does not match shapes in the actor.");
 	}	
 
-	const PxType type = actor.getConcreteType();
+	PxType type = actor.getConcreteType();
 	switch (type)
 	{
 		case (PxConcreteType::eRIGID_STATIC):
@@ -539,17 +528,31 @@ bool NpScene::addActorInternal(PxActor& actor, const PxBVH* bvh)
 			return outputError<PxErrorCode::eINVALID_PARAMETER>(__LINE__, "PxScene::addActor(): Individual articulation links can not be added to the scene");
 		}
 #if PX_SUPPORT_GPU_PHYSX
-		case (PxConcreteType::eDEFORMABLE_SURFACE):
+		case (PxConcreteType::eSOFT_BODY):
 		{
-			return addDeformableSurface(static_cast<PxDeformableSurface&>(actor));
+			return addSoftBody(static_cast<PxSoftBody&>(actor));
 		}
-		case (PxConcreteType::eDEFORMABLE_VOLUME):
+		case (PxConcreteType::eFEM_CLOTH):
 		{
-			return addDeformableVolume(static_cast<PxDeformableVolume&>(actor));
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+			return addFEMCloth(static_cast<PxFEMCloth&>(actor));
+#else
+			return false;
+#endif
 		}
 		case (PxConcreteType::ePBD_PARTICLESYSTEM):
+		case (PxConcreteType::eFLIP_PARTICLESYSTEM):
+		case (PxConcreteType::eMPM_PARTICLESYSTEM):
 		{
-			return addParticleSystem(static_cast<PxPBDParticleSystem&>(actor));
+			return addParticleSystem(static_cast<PxParticleSystem&>(actor));
+		}
+		case (PxConcreteType::eHAIR_SYSTEM):
+		{
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+			return addHairSystem(static_cast<PxHairSystem&>(actor));
+#else
+			return false;
+#endif
 		}
 #endif
 		default:
@@ -629,7 +632,6 @@ bool NpScene::addActorsInternal(PxActor*const* PX_RESTRICT actors, PxU32 nbActor
 				addRigidActorToArray(a, mRigidStatics, mRigidActorIndexPool);
 				updateScStateAndSetupSq(this, getSQAPI(), a, a, a.getShapeManager(), false, shapeBounds.begin(), ps);
 				a.addConstraintsToScene();
-				OMNI_PVD_ADD(OMNI_PVD_CONTEXT_HANDLE, PxScene, actors, static_cast<PxScene &>(*this), static_cast<PxActor &>(a))
 			}
 			else
 				addRigidStatic(a, NULL, ps);
@@ -648,7 +650,6 @@ bool NpScene::addActorsInternal(PxActor*const* PX_RESTRICT actors, PxU32 nbActor
 				addRigidActorToArray(a, mRigidDynamics, mRigidActorIndexPool);
 				updateScStateAndSetupSq(this, getSQAPI(), a, a, a.getShapeManager(), true, shapeBounds.begin(), ps);
 				a.addConstraintsToScene();
-				OMNI_PVD_ADD(OMNI_PVD_CONTEXT_HANDLE, PxScene, actors, static_cast<PxScene &>(*this), static_cast<PxActor &>(a))
 			}
 			else
 				addRigidDynamic(a, NULL, ps);
@@ -690,7 +691,7 @@ bool NpScene::addActorsInternal(PxActor*const* PX_RESTRICT actors, PxU32 nbActor
 ///////////////////////////////////////////////////////////////////////////////
 
 template<typename T>
-static PX_FORCE_INLINE void removeFromRigidActorListT(T& rigidActor, PxArray<T*>& rigidActorList, Cm::IDPool& idPool, PxArray<NpScene::Acceleration>* accels)
+static PX_FORCE_INLINE void removeFromRigidActorListT(T& rigidActor, PxArray<T*>& rigidActorList, Cm::IDPool& idPool)
 {
 	const PxU32 index = rigidActor.getRigidActorArrayIndex();
 	PX_ASSERT(index != 0xFFFFFFFF);
@@ -698,9 +699,7 @@ static PX_FORCE_INLINE void removeFromRigidActorListT(T& rigidActor, PxArray<T*>
 
 	const PxU32 size = rigidActorList.size() - 1;
 	rigidActorList.replaceWithLast(index);
-	if(accels && index < accels->size())
-		accels->replaceWithLast(index);
-	if(size && size != index)
+	if (size && size != index)
 	{
 		T& swappedActor = *rigidActorList[index];
 		swappedActor.setRigidActorArrayIndex(index);
@@ -710,26 +709,22 @@ static PX_FORCE_INLINE void removeFromRigidActorListT(T& rigidActor, PxArray<T*>
 	rigidActor.setRigidActorSceneIndex(NP_UNUSED_BASE_INDEX);
 }
 
+// PT: TODO: inline this one in the header for consistency
 void NpScene::removeFromRigidDynamicList(NpRigidDynamic& rigidDynamic)
 {
-	removeFromRigidActorListT(rigidDynamic, mRigidDynamics, mRigidActorIndexPool, &mRigidDynamicsAccelerations);
-#if PX_SUPPORT_OMNI_PVD
-	if (getFlags() & PxSceneFlag::eENABLE_DIRECT_GPU_API)
-	{
-		getSceneOvdClientInternal().removeRigidDynamicReset(&rigidDynamic);
-	}
-#endif
+	removeFromRigidActorListT(rigidDynamic, mRigidDynamics, mRigidActorIndexPool);
 }
 
+// PT: TODO: inline this one in the header for consistency
 void NpScene::removeFromRigidStaticList(NpRigidStatic& rigidStatic)
 {
-	removeFromRigidActorListT(rigidStatic, mRigidStatics, mRigidActorIndexPool, NULL);
+	removeFromRigidActorListT(rigidStatic, mRigidStatics, mRigidActorIndexPool);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 template<class ActorT>
-static void removeActorT(NpScene* npScene, ActorT& actor, PxArray<ActorT*>& actors, bool wakeOnLostTouch, PxArray<NpScene::Acceleration>* accels)
+static void removeActorT(NpScene* npScene, ActorT& actor, PxArray<ActorT*>& actors, bool wakeOnLostTouch)
 {
 	const PxActorFlags actorFlags = actor.getCore().getActorFlags();
 
@@ -744,7 +739,7 @@ static void removeActorT(NpScene* npScene, ActorT& actor, PxArray<ActorT*>& acto
 	actor.getShapeManager().teardownAllSceneQuery(npScene->getSQAPI(), actor);
 
 	npScene->scRemoveActor(actor, wakeOnLostTouch, noSim);
-	removeFromRigidActorListT(actor, actors, npScene->mRigidActorIndexPool, accels);
+	removeFromRigidActorListT(actor, actors, npScene->mRigidActorIndexPool);
 
 	OMNI_PVD_REMOVE(OMNI_PVD_CONTEXT_HANDLE, PxScene, actors, static_cast<PxScene &>(*npScene), static_cast<PxActor &>(actor))
 }
@@ -775,12 +770,12 @@ void NpScene::removeActors(PxActor*const* PX_RESTRICT actors, PxU32 nbActors, bo
 		if(type == PxConcreteType::eRIGID_STATIC)
 		{
 			NpRigidStatic& actor = *static_cast<NpRigidStatic*>(actors[actorsDone]);
-			removeActorT(this, actor, mRigidStatics, wakeOnLostTouch, NULL);
+			removeActorT(this, actor, mRigidStatics, wakeOnLostTouch);
 		}
 		else if(type == PxConcreteType::eRIGID_DYNAMIC)
 		{			
 			NpRigidDynamic& actor = *static_cast<NpRigidDynamic*>(actors[actorsDone]);	
-			removeActorT(this, actor, mRigidDynamics, wakeOnLostTouch, &mRigidDynamicsAccelerations);
+			removeActorT(this, actor, mRigidDynamics, wakeOnLostTouch);
 		}
 		else
 		{
@@ -833,24 +828,48 @@ void NpScene::removeActorInternal(PxActor& actor, bool wakeOnLostTouch, bool rem
 		break;
 
 #if PX_SUPPORT_GPU_PHYSX
-		case PxActorType::eDEFORMABLE_SURFACE:
+		case PxActorType::eSOFTBODY:
 		{
-			NpDeformableSurface& npDeformableSurface = static_cast<NpDeformableSurface&>(actor);
-			removeDeformableSurface(npDeformableSurface, wakeOnLostTouch);
+			NpSoftBody& npSoftBody = static_cast<NpSoftBody&>(actor);
+			removeSoftBody(npSoftBody, wakeOnLostTouch);
 		}
 		break;
-		case PxActorType::eDEFORMABLE_VOLUME:
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+		case PxActorType::eFEMCLOTH:
 		{
-			NpDeformableVolume& npDeformableVolume = static_cast<NpDeformableVolume&>(actor);
-			removeDeformableVolume(npDeformableVolume, wakeOnLostTouch);
+			NpFEMCloth& npFEMCloth= static_cast<NpFEMCloth&>(actor);
+			removeFEMCloth(npFEMCloth, wakeOnLostTouch);
 		}
 		break;
+#endif
 		case PxActorType::ePBD_PARTICLESYSTEM:
 		{
 			PxPBDParticleSystem& npParticleSystem = static_cast<PxPBDParticleSystem&>(actor);
 			removeParticleSystem(npParticleSystem, wakeOnLostTouch);
 		}
 		break;
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+		case PxActorType::eFLIP_PARTICLESYSTEM:
+		{
+			PxFLIPParticleSystem& npParticleSystem = static_cast<PxFLIPParticleSystem&>(actor);
+			removeParticleSystem(npParticleSystem, wakeOnLostTouch);
+		}
+		break;
+
+		case PxActorType::eMPM_PARTICLESYSTEM:
+		{
+			PxMPMParticleSystem& npParticleSystem = static_cast<PxMPMParticleSystem&>(actor);
+			removeParticleSystem(npParticleSystem, wakeOnLostTouch);
+		}
+		break;
+
+		case PxActorType::eHAIRSYSTEM:
+		{
+			NpHairSystem& npHairSystem = static_cast<NpHairSystem&>(actor);
+			removeHairSystem(npHairSystem, wakeOnLostTouch);
+		}
+		break;
+#endif
 #endif
 		default:
 			PX_ASSERT(0);
@@ -863,6 +882,26 @@ template<class T>
 static PX_FORCE_INLINE bool addRigidActorT(T& rigidActor, PxArray<T*>& rigidActorList, NpScene* scene, const BVH* bvh, const PruningStructure* ps)
 {
 	PX_CHECK_SCENE_API_WRITE_FORBIDDEN_AND_RETURN_VAL(scene, "PxScene::addActor() not allowed while simulation is running. Call will be ignored.", false)
+
+#if PX_CHECKED
+	if (!scene->getScScene().isUsingGpuDynamics())
+	{
+		for (PxU32 i = 0; i < rigidActor.getShapeManager().getNbShapes(); ++i)
+		{
+			const NpShape* shape = rigidActor.getShapeManager().getShapes()[i];
+			const PxGeometry& geom = shape->getGeometry();
+			const PxGeometryType::Enum t = geom.getType();
+			if (t == PxGeometryType::eTRIANGLEMESH)
+			{
+				const PxTriangleMeshGeometry& triGeom = static_cast<const PxTriangleMeshGeometry&>(geom);
+				if (triGeom.triangleMesh->getSDF() != NULL)
+				{
+					return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::addRigidActor(): Rigid actors with SDFs are currently only supported with GPU-accelerated scenes!");
+				}
+			}
+		}
+	}
+#endif
 
 	const bool isNoSimActor = rigidActor.getActorFlags().isSet(PxActorFlag::eDISABLE_SIMULATION);
 
@@ -879,11 +918,6 @@ static PX_FORCE_INLINE bool addRigidActorT(T& rigidActor, PxArray<T*>& rigidActo
 	rigidActor.getShapeManager().setupAllSceneQuery(scene->getSQAPI(), rigidActor, ps, uninflatedBounds, bvh);
 	if(!isNoSimActor)
 		rigidActor.addConstraintsToScene();
-
-#if PX_SUPPORT_GPU_PHYSX
-	rigidActor.addAttachments(rigidActor);
-	rigidActor.addElementFilters(rigidActor);
-#endif
 
 	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxActor, worldBounds, static_cast<PxActor &>(rigidActor), rigidActor.getWorldBounds())
 	OMNI_PVD_ADD(OMNI_PVD_CONTEXT_HANDLE, PxScene, actors, static_cast<PxScene &>(*scene), static_cast<PxActor &>(rigidActor))
@@ -921,11 +955,6 @@ static PX_FORCE_INLINE void removeRigidActorT(T& rigidActor, NpScene* scene, boo
 			PX_ASSERT(!rigidActor.getAggregate());
 		}
 	}
-
-#if PX_SUPPORT_GPU_PHYSX
-	rigidActor.removeAttachments(rigidActor, false);
-	rigidActor.removeElementFilters(rigidActor, false);
-#endif
 
 	rigidActor.getShapeManager().teardownAllSceneQuery(scene->getSQAPI(), rigidActor);
 	if(!isNoSimActor)
@@ -966,22 +995,13 @@ bool NpScene::addArticulation(PxArticulationReducedCoordinate& articulation)
 	{
 		PX_CHECK_AND_RETURN_VAL(npa.getSpatialTendon(i)->getNbAttachments() > 0u, "PxScene::addArticulation: Articulations with empty spatial tendons may not be added to a scene.", false)
 	}
-	for(PxU32 i = 0u; i < articulation.getNbMimicJoints(); i++)
-	{
-		PxArticulationMimicJoint* mimicJoint = NULL;
-		articulation.getMimicJoints(&mimicJoint, 1, i);
-		if(mimicJoint->getJointA().getMotion(mimicJoint->getAxisA()) == PxArticulationMotion::eLOCKED || mimicJoint->getJointB().getMotion(mimicJoint->getAxisB()) == PxArticulationMotion::eLOCKED)
-		{
-			PX_CHECK_AND_RETURN_VAL(false, "PxScene::addArticulation: Mimic joints must couple non-locked joints.", false)
-		}
-	}
 #endif
 
 	PX_CHECK_SCENE_API_WRITE_FORBIDDEN_AND_RETURN_VAL(this, "PxScene::addArticulation() not allowed while simulation is running. Call will be ignored.", false);
 
 	PX_SIMD_GUARD;
 
-	if(getFlags() & PxSceneFlag::eENABLE_GPU_DYNAMICS && articulation.getConcreteType() != PxConcreteType::eARTICULATION_REDUCED_COORDINATE)
+	if(this->getFlags() & PxSceneFlag::eENABLE_GPU_DYNAMICS && articulation.getConcreteType() != PxConcreteType::eARTICULATION_REDUCED_COORDINATE)
 		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::addArticulation(): Only Reduced coordinate articulations are currently supported when PxSceneFlag::eENABLE_GPU_DYNAMICS is set!");
 
 	if(getSimulationStage() != Sc::SimulationStage::eCOMPLETE && articulation.getConcreteType() == PxConcreteType::eARTICULATION_REDUCED_COORDINATE)
@@ -1167,33 +1187,22 @@ bool NpScene::addFixedTendonInternal(NpArticulationReducedCoordinate* npaRC, Sc:
 	return true;
 }
 
-bool NpScene::addArticulationMimicJointInternal(NpArticulationReducedCoordinate* npaRC, Sc::ArticulationSim* scArtSim)
+bool NpScene::addArticulationSensorInternal(NpArticulationReducedCoordinate* npaRC, Sc::ArticulationSim* scArtSim)
 {
-	const PxU32 nbMimicJoints = npaRC->getNbMimicJoints();
-	
-#if PX_SUPPORT_OMNI_PVD
-	const OmniPvdPxSampler* ovdSampler = ::OmniPvdPxSampler::getSamplingInstance();
-#endif
-	for (PxU32 i = 0; i < nbMimicJoints; ++i)
+	const PxU32 nbSensors = npaRC->getNbSensors();
+
+	for (PxU32 i = 0; i < nbSensors; ++i)
 	{
-		NpArticulationMimicJoint* mimicJoint = npaRC->getMimicJoint(i);
+		NpArticulationSensor* sensor = npaRC->getSensor(i);
 
-		scAddArticulationMimicJoint(*mimicJoint);
+		scAddArticulationSensor(*sensor);
 
-		//add mimic joint sim to articulation sim
-		Sc::ArticulationMimicJointSim* mimicJointSim = mimicJoint->getMimicJointCore().getSim();
-		scArtSim->addMimicJoint(mimicJointSim, mimicJoint->getLinkA()->getLinkIndex(), mimicJoint->getLinkB()->getLinkIndex());
-		
-		#if PX_SUPPORT_OMNI_PVD
-		if (ovdSampler) {
-			streamArticulationMimicJoint(*mimicJoint);
-		}
-		#endif
+		//add tendon sim to articulation sim
+		Sc::ArticulationSensorSim* sensorSim = sensor->getSensorCore().getSim();
+		scArtSim->addSensor(sensorSim, sensor->getLink()->getLinkIndex());
 	}
 	return true;
 }
-
-
 
 bool NpScene::addArticulationInternal(PxArticulationReducedCoordinate& npa)
 {
@@ -1248,7 +1257,7 @@ bool NpScene::addArticulationInternal(PxArticulationReducedCoordinate& npa)
 			NpArticulationJointReducedCoordinate* joint = static_cast<NpArticulationJointReducedCoordinate*>(child->getInboundJoint());
 			Sc::ArticulationJointCore& jCore = joint->getCore();
 
-			jCore.getCore().jCalcUpdateFrames = true;
+			jCore.getCore().jointDirtyFlag = Dy::ArticulationJointCoreDirtyFlag::eALL;
 
 			checkArticulationLink(this, child);
 
@@ -1270,7 +1279,7 @@ bool NpScene::addArticulationInternal(PxArticulationReducedCoordinate& npa)
 
 	addFixedTendonInternal(&npaRC, scArtSim);
 
-	addArticulationMimicJointInternal(&npaRC, scArtSim);
+	addArticulationSensorInternal(&npaRC, scArtSim);
 
 	scArtSim->createLLStructure();
 	
@@ -1301,7 +1310,7 @@ bool NpScene::addArticulationInternal(PxArticulationReducedCoordinate& npa)
 
 	scArtSim->initializeConfiguration(); 
 	
-	npaRC.updateKinematicInternal(PxArticulationKinematicFlag::ePOSITION | PxArticulationKinematicFlag::eVELOCITY);
+	npaRC.updateKinematic(PxArticulationKinematicFlag::ePOSITION | PxArticulationKinematicFlag::eVELOCITY);
 
 	if (scArtSim)
 	{
@@ -1387,7 +1396,7 @@ void NpScene::removeArticulation(PxArticulationReducedCoordinate& articulation, 
 		removeArticulationInternal(articulation, wakeOnLostTouch, true);
 }
 
-void NpScene::removeArticulationInternal(PxArticulationReducedCoordinate& pxa, bool wakeOnLostTouch, bool removeFromAggregate)
+void NpScene::removeArticulationInternal(PxArticulationReducedCoordinate& pxa, bool wakeOnLostTouch,  bool removeFromAggregate)
 {
 	NpArticulationReducedCoordinate& npArticulation = static_cast<NpArticulationReducedCoordinate&>(pxa);
 
@@ -1399,14 +1408,6 @@ void NpScene::removeArticulationInternal(PxArticulationReducedCoordinate& pxa, b
 		static_cast<NpAggregate*>(npArticulation.getAggregate())->removeArticulationAndReinsert(npArticulation, false);
 		PX_ASSERT(!npArticulation.getAggregate());
 	}
-
-#if PX_SUPPORT_OMNI_PVD
-	if (getFlags() & PxSceneFlag::eENABLE_DIRECT_GPU_API)
-	{
-		getSceneOvdClientInternal().removeArticulationReset(&pxa);
-	}
-#endif
-
 
 	//!!!AL
 	// Inefficient. We might want to introduce a LL method to kill the whole LL articulation together with all joints in one go, then
@@ -1442,8 +1443,8 @@ void NpScene::removeArticulationInternal(PxArticulationReducedCoordinate& pxa, b
 	// Remove tendons (RC checked in method)
 	removeArticulationTendons(npArticulation);
 
-	// Remove mimic joints.
-	removeArticulationMimicJoints(npArticulation);
+	//Remove sensors
+	removeArticulationSensors(npArticulation);
 
 	if (flag & PxRigidBodyFlag::eENABLE_SPECULATIVE_CCD)
 	{
@@ -1464,127 +1465,63 @@ void NpScene::removeArticulationInternal(PxArticulationReducedCoordinate& pxa, b
 
 ///////////////////////////////////////////////////////////////////////////////
 
-bool NpScene::addDeformableSurface(PxDeformableSurface& deformableSurface)
+bool NpScene::addSoftBody(PxSoftBody& softBody)
 {
-	if (!(getFlags() & PxSceneFlag::eENABLE_GPU_DYNAMICS))
-		return PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL,
-			"PxScene::addActor(): Deformable surfaces can only be simulated by GPU-accelerated scenes!");
+	if (!(this->getFlags() & PxSceneFlag::eENABLE_GPU_DYNAMICS))
+		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::addActor(): Soft bodies can only be simulated by GPU-accelerated scenes!");
 
 #if PX_SUPPORT_GPU_PHYSX
-	if (mDeformableSurfaces.size() == PX_MAX_NB_DEFORMABLE_SURFACE)
-		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__,
-			"PxScene::addActor(): Deformable surface exceeds maximum number of instances per scene (PX_MAX_NB_DEFORMABLE_SURFACE)!");
+	if (!softBody.getSimulationMesh())
+		return outputError<PxErrorCode::eINVALID_PARAMETER>(__LINE__, "PxScene::addActor(): Soft body does not have simulation mesh, will not be added to scene!");
 
-	// Add deformable surface
-	NpDeformableSurface& npSurface = static_cast<NpDeformableSurface&>(deformableSurface);
-	scAddDeformableSurface(this, npSurface);
+	// Add soft body
+	NpSoftBody& npSB = static_cast<NpSoftBody&>(softBody);
+	scAddSoftBody(npSB);
 
-	NpShape* npShape = static_cast<NpShape*>(npSurface.getShape());
+	NpShape* npShape = static_cast<NpShape*>(npSB.getShape());
 	Sc::ShapeCore* shapeCore = &npShape->getCore();
-	npSurface.getCore().attachShapeCore(shapeCore);
+	npSB.getCore().attachShapeCore(shapeCore);
+	npSB.getCore().attachSimulationMesh(softBody.getSimulationMesh(), softBody.getSoftBodyAuxData());
 
-	mDeformableSurfaces.insert(&deformableSurface);
+	mSoftBodies.insert(&softBody);
 
-	//for gpu deformable surface
-	mScene.addDeformableSurfaceSimControl(npSurface.getCore());
-
-	npSurface.addAttachments(deformableSurface);
-	npSurface.addElementFilters(deformableSurface);
-
+	//for gpu soft body
+	mScene.addSoftBodySimControl(npSB.getCore());
 	return true;
 #else
-	PX_UNUSED(deformableSurface);
+	PX_UNUSED(softBody);
 	return false;
 #endif
 }
 
-void NpScene::removeDeformableSurface(PxDeformableSurface& deformableSurface, bool /*wakeOnLostTouch*/)
+void NpScene::removeSoftBody(PxSoftBody& softBody, bool /*wakeOnLostTouch*/)
 {
 #if PX_SUPPORT_GPU_PHYSX
-	NpDeformableSurface& npSurface = reinterpret_cast<NpDeformableSurface&>(deformableSurface);
+	// Remove soft body
+	NpSoftBody& npSB = reinterpret_cast<NpSoftBody&>(softBody);
+	scRemoveSoftBody(npSB);
 
-	npSurface.removeAttachments(deformableSurface, false);
-	npSurface.removeElementFilters(deformableSurface, false);
-
-	scRemoveDeformableSurface(npSurface);
-	removeFromDeformableSurfaceList(deformableSurface);
+	removeFromSoftBodyList(softBody);
 #else
-	PX_UNUSED(deformableSurface);
+	PX_UNUSED(softBody);
 #endif
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
-bool NpScene::addDeformableVolume(PxDeformableVolume& deformableVolume)
-{
-	if (!(getFlags() & PxSceneFlag::eENABLE_GPU_DYNAMICS))
-		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__,
-			"PxScene::addActor(): Deformable volumes can only be simulated by GPU-accelerated scenes!");
-
-#if PX_SUPPORT_GPU_PHYSX
-	if (!deformableVolume.getSimulationMesh())
-		return outputError<PxErrorCode::eINVALID_PARAMETER>(__LINE__,
-			"PxScene::addActor(): Deformable volume does not have simulation mesh, will not be added to scene!");
-
-	if (mDeformableVolumes.size() == PX_MAX_NB_DEFORMABLE_VOLUME)
-		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__,
-			"PxScene::addActor(): Deformable volume exceeds maximum number of deformable volumes per scene (PX_MAX_NB_DEFORMABLE_VOLUME)!");
-
-	NpDeformableVolume& npVolume = static_cast<NpDeformableVolume&>(deformableVolume);
-	scAddDeformableVolume(npVolume);
-
-	NpShape* npShape = static_cast<NpShape*>(npVolume.getShape());
-	Sc::ShapeCore* shapeCore = &npShape->getCore();
-	npVolume.getCore().attachShapeCore(shapeCore);
-	npVolume.getCore().attachSimulationMesh(deformableVolume.getSimulationMesh(), deformableVolume.getDeformableVolumeAuxData());
-
-	mDeformableVolumes.insert(&deformableVolume);
-
-	//for gpu deformable volume
-	mScene.addDeformableVolumeSimControl(npVolume.getCore());
-
-	npVolume.addAttachments(deformableVolume);
-	npVolume.addElementFilters(deformableVolume);
-
-	return true;
-#else
-	PX_UNUSED(deformableVolume);
-	return false;
-#endif
-}
-
-void NpScene::removeDeformableVolume(PxDeformableVolume& deformableVolume, bool /*wakeOnLostTouch*/)
-{
-#if PX_SUPPORT_GPU_PHYSX
-	NpDeformableVolume& npVolume = reinterpret_cast<NpDeformableVolume&>(deformableVolume);
-
-	npVolume.removeAttachments(deformableVolume, false);
-	npVolume.removeElementFilters(deformableVolume, false);
-
-	scRemoveDeformableVolume(npVolume);
-	removeFromDeformableVolumeList(deformableVolume);
-#else
-	PX_UNUSED(deformableVolume);
-#endif
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-PxU32 NpScene::getNbDeformableSurfaces() const
+PxU32 NpScene::getNbSoftBodies() const
 {
 #if PX_SUPPORT_GPU_PHYSX
 	NP_READ_CHECK(this);
-	return mDeformableSurfaces.size();
+	return mSoftBodies.size();
 #else
 	return 0;
 #endif
 }
 
-PxU32 NpScene::getDeformableSurfaces(PxDeformableSurface** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
+PxU32 NpScene::getSoftBodies(PxSoftBody** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
 {
 #if PX_SUPPORT_GPU_PHYSX
 	NP_READ_CHECK(this);
-	return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mDeformableSurfaces.getEntries(), mDeformableSurfaces.size());
+	return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mSoftBodies.getEntries(), mSoftBodies.size());
 #else
 	PX_UNUSED(userBuffer);
 	PX_UNUSED(bufferSize);
@@ -1592,24 +1529,66 @@ PxU32 NpScene::getDeformableSurfaces(PxDeformableSurface** userBuffer, PxU32 buf
 	return 0;
 #endif
 }
-
+	
 ///////////////////////////////////////////////////////////////////////////////
 
-PxU32 NpScene::getNbDeformableVolumes() const
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+
+bool NpScene::addFEMCloth(PxFEMCloth& femCloth)
+{
+	if (!(this->getFlags() & PxSceneFlag::eENABLE_GPU_DYNAMICS))
+		return PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "PxScene::addFEMCloth(): FEM-cloth can only be simulated by GPU-accelerated scenes!");
+
+#if PX_SUPPORT_GPU_PHYSX
+	// Add FEM-cloth
+	NpFEMCloth& npCloth = static_cast<NpFEMCloth&>(femCloth);
+	scAddFEMCloth(this, npCloth);
+
+	NpShape* npShape = static_cast<NpShape*>(npCloth.getShape());
+	Sc::ShapeCore* shapeCore = &npShape->getCore();
+	npCloth.getCore().attachShapeCore(shapeCore);
+
+	mFEMCloths.insert(&femCloth);
+
+	//for gpu FEM-cloth
+	mScene.addFEMClothSimControl(npCloth.getCore());
+	return true;
+#else
+	PX_UNUSED(femCloth);
+	return false;
+#endif
+}
+
+void NpScene::removeFEMCloth(PxFEMCloth& femCloth, bool /*wakeOnLostTouch*/)
 {
 #if PX_SUPPORT_GPU_PHYSX
+	// Remove FEM-cloth
+	NpFEMCloth& npCloth = reinterpret_cast<NpFEMCloth&>(femCloth);
+	scRemoveFEMCloth(npCloth);
+
+	removeFromFEMClothList(femCloth);
+#else
+	PX_UNUSED(femCloth);
+#endif
+}
+#endif
+
+PxU32 NpScene::getNbFEMCloths() const
+{
+#if PX_SUPPORT_GPU_PHYSX && PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
 	NP_READ_CHECK(this);
-	return mDeformableVolumes.size();
+	return mFEMCloths.size();
 #else
 	return 0;
 #endif
 }
 
-PxU32 NpScene::getDeformableVolumes(PxDeformableVolume** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+PxU32 NpScene::getFEMCloths(PxFEMCloth** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
 {
 #if PX_SUPPORT_GPU_PHYSX
 	NP_READ_CHECK(this);
-	return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mDeformableVolumes.getEntries(), mDeformableVolumes.size());
+	return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mFEMCloths.getEntries(), mFEMCloths.size());
 #else
 	PX_UNUSED(userBuffer);
 	PX_UNUSED(bufferSize);
@@ -1617,66 +1596,198 @@ PxU32 NpScene::getDeformableVolumes(PxDeformableVolume** userBuffer, PxU32 buffe
 	return 0;
 #endif
 }
+#else
+PxU32 NpScene::getFEMCloths(PxFEMCloth**, PxU32, PxU32) const
+{
+	return 0;
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
-bool NpScene::addParticleSystem(PxPBDParticleSystem& particleSystem)
+bool NpScene::addParticleSystem(PxParticleSystem& particleSystem)
 {
 	if (!mScene.isUsingGpuDynamicsAndBp())
 		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::addActor(): Particle systems only currently supported with GPU-accelerated scenes!");
 
 #if PX_SUPPORT_GPU_PHYSX
-	NpPBDParticleSystem& npPS = static_cast<NpPBDParticleSystem&>(particleSystem);
-	scAddParticleSystem(npPS);
-	mPBDParticleSystems.insert(&particleSystem);
-	mScene.addParticleSystemSimControl(npPS.getCore());
 
-#if PX_SUPPORT_OMNI_PVD
-	OmniPvdPxSampler* omniPvdSampler = NpPhysics::getInstance().mOmniPvdSampler;
-	if (omniPvdSampler && omniPvdSampler->isSampling()) 
+	switch(particleSystem.getConcreteType())
 	{
-		npPS.getCore().getSim()->getLowLevelParticleSystem()->mFlag |= Dy::ParticleSystemFlag::eENABLE_GPU_DATA_SYNC;
-	}
-	OMNI_PVD_ADD(OMNI_PVD_CONTEXT_HANDLE, PxScene, actors, static_cast<PxScene&>(*this), static_cast<PxActor&>(particleSystem));
-#endif // PX_SUPPORT_OMNI_PVD
+		case PxConcreteType::ePBD_PARTICLESYSTEM:
+		{
+			NpPBDParticleSystem& npPS = static_cast<NpPBDParticleSystem&>(particleSystem);
+			scAddParticleSystem(npPS);
 
-	return true;
+			PxPBDParticleSystem& pxPs = static_cast<PxPBDParticleSystem&>(particleSystem);
+			mPBDParticleSystems.insert(&pxPs);
+
+			mScene.addParticleSystemSimControl(npPS.getCore());
+
+			return true;
+		}
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+		case PxConcreteType::eFLIP_PARTICLESYSTEM:
+		{
+			NpFLIPParticleSystem& npPS = static_cast<NpFLIPParticleSystem&>(particleSystem);
+			scAddParticleSystem(npPS);
+
+			PxFLIPParticleSystem& pxPS = static_cast<PxFLIPParticleSystem&>(particleSystem);
+			mFLIPParticleSystems.insert(&pxPS);
+
+			mScene.addParticleSystemSimControl(npPS.getCore());
+
+			return true;
+		}
+
+		case PxConcreteType::eMPM_PARTICLESYSTEM:
+		{
+			NpMPMParticleSystem& npPS = static_cast<NpMPMParticleSystem&>(particleSystem);
+			scAddParticleSystem(npPS);
+
+			PxMPMParticleSystem& pxPS = static_cast<PxMPMParticleSystem&>(particleSystem);
+			mMPMParticleSystems.insert(&pxPS);
+
+			//for gpu particle system
+			mScene.addParticleSystemSimControl(npPS.getCore());
+
+			return true;	
+		}
+#endif
+		default:
+		{
+			PX_ASSERT(false);
+			return false;
+		}
+	}
 #else
 	PX_UNUSED(particleSystem);
 	return false;
 #endif
 }
 
-void NpScene::removeParticleSystem(PxPBDParticleSystem& particleSystem, bool /*wakeOnLostTouch*/)
+void NpScene::removeParticleSystem(PxParticleSystem& particleSystem, bool /*wakeOnLostTouch*/)
 {
 #if PX_SUPPORT_GPU_PHYSX
-	// Remove particle system
-	NpPBDParticleSystem& npPS = reinterpret_cast<NpPBDParticleSystem&>(particleSystem);
-	scRemoveParticleSystem(npPS);
-	removeFromParticleSystemList(particleSystem);
-    OMNI_PVD_REMOVE(OMNI_PVD_CONTEXT_HANDLE, PxScene, actors, static_cast<PxScene&>(*this), static_cast<PxActor&>(particleSystem));
+
+	switch(particleSystem.getConcreteType())
+	{
+		case PxConcreteType::ePBD_PARTICLESYSTEM:
+		{
+			// Remove particle system
+			NpPBDParticleSystem& npPS = reinterpret_cast<NpPBDParticleSystem&>(particleSystem);
+			scRemoveParticleSystem(npPS);
+
+			PxPBDParticleSystem& pxPS = static_cast<PxPBDParticleSystem&>(particleSystem);
+			removeFromParticleSystemList(pxPS);
+			return;
+		}
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+		case PxConcreteType::eFLIP_PARTICLESYSTEM:
+		{
+			// Remove particle system
+			NpFLIPParticleSystem& npPS = reinterpret_cast<NpFLIPParticleSystem&>(particleSystem);
+			scRemoveParticleSystem(npPS);
+
+			PxFLIPParticleSystem& pxPS = static_cast<PxFLIPParticleSystem&>(particleSystem);
+			removeFromParticleSystemList(pxPS);
+			return;
+		}
+
+		case PxConcreteType::eMPM_PARTICLESYSTEM:
+		{
+			// Remove particle system
+			NpMPMParticleSystem& npPS = reinterpret_cast<NpMPMParticleSystem&>(particleSystem);
+			scRemoveParticleSystem(npPS);
+
+			PxMPMParticleSystem& pxPS = static_cast<PxMPMParticleSystem&>(particleSystem);
+			removeFromParticleSystemList(pxPS);	
+			return;
+		}
+#endif
+		default:
+			PX_ASSERT(false);
+	}
 #else
 	PX_UNUSED(particleSystem);
 #endif
 }
 
-PxU32 NpScene::getNbPBDParticleSystems() const
+PxU32 NpScene::getNbParticleSystems(PxParticleSolverType::Enum type) const
 {
 	NP_READ_CHECK(this);
 #if PX_SUPPORT_GPU_PHYSX
-	return mPBDParticleSystems.size();
+
+	switch (type)
+	{
+		case PxParticleSolverType::ePBD:
+		{
+			return mPBDParticleSystems.size();
+		}
+
+		case PxParticleSolverType::eFLIP:
+		{
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+			return mFLIPParticleSystems.size();
 #else
+			return 0;
+#endif
+		}
+
+		case PxParticleSolverType::eMPM:
+		{
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+			return mMPMParticleSystems.size();
+#else
+			return 0;
+#endif
+		}
+
+		default:
+		{
+			PX_ASSERT(false);
+			return 0;
+		}
+	
+	}
+#else
+	PX_UNUSED(type);
 	return 0;
 #endif
 }
 
-PxU32 NpScene::getPBDParticleSystems(PxPBDParticleSystem** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
+PxU32 NpScene::getParticleSystems(PxParticleSolverType::Enum type, PxParticleSystem** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
 {
 	NP_READ_CHECK(this);
 
 #if PX_SUPPORT_GPU_PHYSX
-	return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mPBDParticleSystems.getEntries(), mPBDParticleSystems.size());
+
+	switch (type)
+	{
+		case PxParticleSolverType::ePBD:
+		{
+			return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mPBDParticleSystems.getEntries(), mPBDParticleSystems.size());
+		}
+
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+		case PxParticleSolverType::eFLIP:
+		{
+			return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mFLIPParticleSystems.getEntries(), mFLIPParticleSystems.size());
+		}
+
+		case PxParticleSolverType::eMPM:
+		{
+			return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mMPMParticleSystems.getEntries(), mMPMParticleSystems.size());
+		}
+#endif
+		default:
+		{
+			PX_ASSERT(false);
+			return 0;
+		}
+	}
 #else
+	PX_UNUSED(type);
 	PX_UNUSED(userBuffer);
 	PX_UNUSED(bufferSize);
 	PX_UNUSED(startIndex);
@@ -1684,16 +1795,61 @@ PxU32 NpScene::getPBDParticleSystems(PxPBDParticleSystem** userBuffer, PxU32 buf
 #endif
 }
 
-PxU32 NpScene::getNbParticleSystems(PxParticleSolverType::Enum type) const
+///////////////////////////////////////////////////////////////////////////////
+
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+bool NpScene::addHairSystem(PxHairSystem& hairSystem)
 {
-	PX_UNUSED(type);
-	return getNbPBDParticleSystems();
+	if (!mScene.isUsingGpuDynamicsAndBp())
+	{
+		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::addHairSystem(): Hair systems only currently supported with GPU-accelerated scenes!");
+	}
+
+#if PX_SUPPORT_GPU_PHYSX
+	NpHairSystem& npHairSystem = static_cast<NpHairSystem&>(hairSystem);
+	scAddHairSystem(npHairSystem);
+	mHairSystems.insert(&npHairSystem);
+	mScene.addHairSystemSimControl(npHairSystem.getCore());
+	return true;
+#else
+	PX_UNUSED(hairSystem);
+	return false;
+#endif
 }
 
-PxU32 NpScene::getParticleSystems(PxParticleSolverType::Enum type, PxPBDParticleSystem** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
+void NpScene::removeHairSystem(PxHairSystem& hairSystem, bool /*wakeOnLostTouch*/)
 {
-	PX_UNUSED(type);
-	return getPBDParticleSystems(userBuffer, bufferSize, startIndex);
+#if PX_SUPPORT_GPU_PHYSX
+	NpHairSystem& npHairSystem = static_cast<NpHairSystem&>(hairSystem);
+	scRemoveHairSystem(npHairSystem);
+	removeFromHairSystemList(hairSystem);
+#else
+	PX_UNUSED(hairSystem);
+#endif
+}
+#endif
+
+PxU32 NpScene::getNbHairSystems() const
+{
+#if PX_SUPPORT_GPU_PHYSX && PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	NP_READ_CHECK(this);
+	return mHairSystems.size();
+#else
+	return 0;
+#endif
+}
+
+PxU32 NpScene::getHairSystems(PxHairSystem** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
+{
+#if PX_SUPPORT_GPU_PHYSX && PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	NP_READ_CHECK(this);
+	return Cm::getArrayOfPointers(userBuffer, bufferSize, startIndex, mHairSystems.getEntries(), mHairSystems.size());
+#else
+	PX_UNUSED(userBuffer);
+	PX_UNUSED(bufferSize);
+	PX_UNUSED(startIndex);
+	return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1852,19 +2008,19 @@ void NpScene::removeArticulationTendons(PxArticulationReducedCoordinate& articul
 	}
 }
 
-void NpScene::removeArticulationMimicJoints(PxArticulationReducedCoordinate& articulation)
+void NpScene::removeArticulationSensors(PxArticulationReducedCoordinate& articulation)
 {
 	NpArticulationReducedCoordinate* npaRC = static_cast<NpArticulationReducedCoordinate*>(&articulation);
 
-	const PxU32 nbMimicJoints = npaRC->getNbMimicJoints();
+	//Remove sensors
+	const PxU32 nbSensors = npaRC->getNbSensors();
 
-	for (PxU32 i = 0; i < nbMimicJoints; i++)
+	for (PxU32 i = 0; i < nbSensors; i++)
 	{
-		NpArticulationMimicJoint* mimicJoint = npaRC->getMimicJoint(i);
-		npaRC->removeMimicJointInternal(mimicJoint);
+		NpArticulationSensor* sensor = npaRC->getSensor(i);
+		npaRC->removeSensorInternal(sensor);
 	}
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1874,7 +2030,7 @@ void NpScene::scAddAggregate(NpAggregate& agg)
 
 	agg.setNpScene(this);
 
-	const PxU32 aggregateID = mScene.createAggregate(&agg, agg.getMaxNbShapesFast(), agg.getFilterHint(), agg.getEnvID());
+	const PxU32 aggregateID = mScene.createAggregate(&agg, agg.getMaxNbShapesFast(), agg.getFilterHint());
 	agg.setAggregateID(aggregateID);
 #if PX_SUPPORT_PVD
 	//Sending pvd events after all aggregates's actors are inserted into scene
@@ -2347,7 +2503,7 @@ PxSolverType::Enum NpScene::getSolverType() const
 PxFrictionType::Enum NpScene::getFrictionType() const
 {
 	NP_READ_CHECK(this);
-	return PxFrictionType::ePATCH;
+	return mScene.getFrictionType();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2727,11 +2883,14 @@ void NpScene::updateDirtyShaders()
 }
 
 // PT: TODO
+// - do we really need a different mutex per material type?
 // - classes like PxsMaterialManager are already typedef of templated types so maybe we don't need them here
 
 template<class NpMaterialT, class MaterialManagerT, class MaterialCoreT>
-static void updateLowLevelMaterials(NpPhysics& physics, MaterialManagerT& pxsMaterialManager, PxArray<NpScene::MaterialEvent>& materialBuffer, PxvNphaseImplementationContext* context)
+static void updateLowLevelMaterials(NpPhysics& physics, PxMutex& sceneMaterialBufferLock, MaterialManagerT& pxsMaterialManager, PxArray<NpScene::MaterialEvent>& materialBuffer, PxvNphaseImplementationContext* context)
 {
+	PxMutex::ScopedLock lock(sceneMaterialBufferLock);
+
 	NpMaterialT** masterMaterial = NpMaterialAccessor<NpMaterialT>::getMaterialManager(physics).getMaterials();
 
 	//sync all the material events
@@ -2777,23 +2936,18 @@ static void updateLowLevelMaterials(NpPhysics& physics, MaterialManagerT& pxsMat
 
 void NpScene::syncMaterialEvents()
 {
-	//
-	// Materials are added/updated/removed on a PxPhysics level, thus these operations
-	// can run while a scene is simulating. The operations get buffered and applied here at
-	// the beginning of a simulation step. A lock prevents clashes for:
-	// - modifications to the buffered material events list while processing it in here
-	// - modifications to the master material manager while being accessed in here
-	//
-
-	PxMutex::ScopedLock lock(mPhysics.getSceneAndMaterialMutex());
-
+	//sync all the material events
 	PxvNphaseImplementationContext* context = mScene.getLowLevelContext()->getNphaseImplementationContext();
-	updateLowLevelMaterials<NpMaterial, PxsMaterialManager, PxsMaterialCore>(mPhysics, mScene.getMaterialManager(), mSceneMaterialBuffer, context);
+	updateLowLevelMaterials<NpMaterial, PxsMaterialManager, PxsMaterialCore>(mPhysics, mSceneMaterialBufferLock, mScene.getMaterialManager(), mSceneMaterialBuffer, context);
 
 #if PX_SUPPORT_GPU_PHYSX
-	updateLowLevelMaterials<NpDeformableSurfaceMaterial, PxsDeformableSurfaceMaterialManager, PxsDeformableSurfaceMaterialCore>(mPhysics, mScene.getDeformableSurfaceMaterialManager(), mSceneDeformableSurfaceMaterialBuffer, context);
-	updateLowLevelMaterials<NpDeformableVolumeMaterial, PxsDeformableVolumeMaterialManager, PxsDeformableVolumeMaterialCore>(mPhysics, mScene.getDeformableVolumeMaterialManager(), mSceneDeformableVolumeMaterialBuffer, context);
-	updateLowLevelMaterials<NpPBDMaterial, PxsPBDMaterialManager, PxsPBDMaterialCore>(mPhysics, mScene.getPBDMaterialManager(), mScenePBDMaterialBuffer, context);
+	updateLowLevelMaterials<NpFEMSoftBodyMaterial, PxsFEMMaterialManager, PxsFEMSoftBodyMaterialCore>	(mPhysics, mSceneFEMSoftBodyMaterialBufferLock, mScene.getFEMMaterialManager(), mSceneFEMSoftBodyMaterialBuffer, context);
+	updateLowLevelMaterials<NpPBDMaterial, PxsPBDMaterialManager, PxsPBDMaterialCore>					(mPhysics, mScenePBDMaterialBufferLock, mScene.getPBDMaterialManager(), mScenePBDMaterialBuffer, context);
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	updateLowLevelMaterials<NpFEMClothMaterial, PxsFEMClothMaterialManager, PxsFEMClothMaterialCore>	(mPhysics, mSceneFEMClothMaterialBufferLock, mScene.getFEMClothMaterialManager(), mSceneFEMClothMaterialBuffer, context);
+	updateLowLevelMaterials<NpFLIPMaterial, PxsFLIPMaterialManager, PxsFLIPMaterialCore>				(mPhysics, mSceneFLIPMaterialBufferLock, mScene.getFLIPMaterialManager(), mSceneFLIPMaterialBuffer, context);
+	updateLowLevelMaterials<NpMPMMaterial, PxsMPMMaterialManager, PxsMPMMaterialCore>					(mPhysics, mSceneMPMMaterialBufferLock, mScene.getMPMMaterialManager(), mSceneMPMMaterialBuffer, context);
+	#endif
 #endif
 }
 
@@ -2809,8 +2963,6 @@ bool NpScene::simulateOrCollide(PxReal elapsedTime, PxBaseTask* completionTask, 
 		// and perform API reads,triggering an error
 		NP_WRITE_CHECK(this);
 
-		NP_CHECK_SCENE_CORRUPTION;
-
 		PX_PROFILE_START_CROSSTHREAD("Basic.simulate", getContextId());
 
 		if(getSimulationStage() != Sc::SimulationStage::eCOMPLETE)
@@ -2819,8 +2971,20 @@ bool NpScene::simulateOrCollide(PxReal elapsedTime, PxBaseTask* completionTask, 
 			return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, invalidCallMsg);
 		}
 
-		if (!checkGpuErrorsPreSim(true))
-			return false;
+#if PX_SUPPORT_GPU_PHYSX
+		if (mCudaContextManager)
+		{
+			if (mScene.isUsingGpuDynamicsOrBp())
+			{
+				PxCUresult lastError = mCudaContextManager->getCudaContext()->getLastError();
+				if (lastError)
+				{
+					PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "PhysX Internal CUDA error. Simulation can not continue! Error code %i!\n", PxI32(lastError));
+					//return outputError<PxErrorCode::eINTERNAL_ERROR>(__LINE__, "PhysX Internal CUDA error. Simulation can not continue!");
+				}
+			}
+		}
+#endif
 
 		PX_CHECK_AND_RETURN_VAL(elapsedTime > 0, "PxScene::collide/simulate: The elapsed time must be positive!", false);
 
@@ -2833,13 +2997,6 @@ bool NpScene::simulateOrCollide(PxReal elapsedTime, PxBaseTask* completionTask, 
 		mScenePvdClient.frameStart(elapsedTime);
 #endif
 
-#if PX_SUPPORT_OMNI_PVD		
-		OMNI_PVD_WRITE_SCOPE_BEGIN(pvdWriter, pvdRegData)
-			getSceneOvdClientInternal().incrementFrame(*pvdWriter);
-			OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, elapsedTime, static_cast<PxScene&>(*this), elapsedTime)
-		OMNI_PVD_WRITE_SCOPE_END
-#endif
-	
 #if PX_ENABLE_DEBUG_VISUALIZATION
 		visualize();
 #else
@@ -2914,11 +3071,6 @@ bool NpScene::advance(PxBaseTask* completionTask)
 {
 	NP_WRITE_CHECK(this);
 
-	NP_CHECK_SCENE_CORRUPTION;
-
-	if (!checkGpuErrorsPreSim(false))
-		return false;
-
 	//issue error if advance() doesn't get called between fetchCollision() and fetchResult()
 	if(getSimulationStage() != Sc::SimulationStage::eFETCHCOLLIDE)
 		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::advance: advance() called illegally! advance() needed to be called after fetchCollision() and before fetchResult()!!");
@@ -2958,22 +3110,21 @@ bool NpScene::checkCollisionInternal(bool block)
 	return mCollisionDone.wait(block ? PxSync::waitForever : 0);
 }
 
+bool NpScene::checkCollision(bool block)
+{
+	return checkCollisionInternal(block);
+}
+
 bool NpScene::fetchCollision(bool block)
 {
-	if (mCorruptedState)
-		return true;
-
 	if(getSimulationStage() != Sc::SimulationStage::eCOLLIDE)
+	{
 		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::fetchCollision: fetchCollision() should be called after collide() and before advance()!");
+	}
 
 	//if collision isn't finish running (and block is false), then return false
 	if(!checkCollisionInternal(block))
 		return false;
-
-#if PX_SUPPORT_GPU_PHYSX
-	if (!checkSceneStateAndCudaErrors(true))
-		return true;
-#endif
 
 	// take write check *after* collision() finished, otherwise 
 	// we will block fetchCollision() from using the API
@@ -2981,75 +3132,6 @@ bool NpScene::fetchCollision(bool block)
 
 	setSimulationStage(Sc::SimulationStage::eFETCHCOLLIDE);
 	setAPIReadToAllowed();
-
-	return true;
-}
-
-bool NpScene::checkSceneStateAndCudaErrors(bool isCollide /*= false*/)
-{
-	if (mCorruptedState) // silent because this case means we already reported errors in previous fetch* calls.
-		return false;
-
-#if PX_SUPPORT_GPU_PHYSX
-	if (mCudaContextManager && mScene.isUsingGpuDynamicsOrBp())
-	{
-		PxCUresult res = mCudaContextManager->getCudaContext()->getLastError();
-		if (res)
-		{
-			if (getSimulationStage() != Sc::SimulationStage::eCOMPLETE)
-				PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "PhysX Internal CUDA error. Simulation cannot continue! Error code %i!\n", PxI32(res));
-
-			Sc::SimulationStage::Enum compareStage = isCollide ? Sc::SimulationStage::eCOLLIDE : Sc::SimulationStage::eADVANCE;
-			if (mCudaContextManager->getCudaContext()->isInAbortMode() && (getSimulationStage() == compareStage))
-			{
-				outputError<PxErrorCode::eABORT>(__LINE__, "PhysX failed to allocate GPU memory - aborting simulation.");
-				mCorruptedState = true;
-			}
-		
-			setSimulationStage(Sc::SimulationStage::eCOMPLETE);
-			setAPIReadToAllowed();
-			setAPIWriteToAllowed();
-			if (isCollide)
-				mCollisionDone.reset();
-			else
-				mPhysicsDone.reset();
-			return false;
-		}
-	}
-#else
-	PX_UNUSED(isCollide);
-#endif
-
-	return true;
-}
-
-bool NpScene::checkGpuErrorsPreSim(bool isCollide /* = false */)
-{
-#if PX_SUPPORT_GPU_PHYSX
-	if (mScene.isUsingGpuDynamicsOrBp())
-	{
-		// AD: order of these 2 matters because we always report an error if we're in the skip state.
-		const bool abortMode = mCudaContextManager->getCudaContext()->isInAbortMode();
-		if (abortMode)
-		{
-			if (isCollide)
-				return outputError<PxErrorCode::eABORT>(__LINE__, "PhysX cannot start GPU simulation because the PxCudaContextManager is still in out-of-memory state!\n");
-			else
-				return outputError<PxErrorCode::eABORT>(__LINE__, "PhysX cannot advance GPU simulation because the PxCudaContextManager is still in out-of-memory state!\n");
-		}
-
-		const PxCUresult lastError = mCudaContextManager->getCudaContext()->getLastError();
-		if (lastError)
-		{
-			if (isCollide)
-				return PxGetFoundation().error(PxErrorCode::eABORT, PX_FL, "PhysX cannot start GPU simulation because of previous CUDA errors! Error code %i!\n", PxI32(lastError));
-			else
-				return PxGetFoundation().error(PxErrorCode::eABORT, PX_FL, "PhysX cannot advance GPU simulation because of previous CUDA errors! Error code %i!\n", PxI32(lastError));
-		}
-	}
-#else
-	PX_UNUSED(isCollide);
-#endif
 
 	return true;
 }
@@ -3092,12 +3174,11 @@ void NpScene::executeAdvance(PxBaseTask* continuation)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// all of these rely on NpPhysics::mSceneAndMaterialMutex being locked when called to
-// prevent clashes with syncMaterialEvents()
-#define IMPLEMENT_MATERIAL(MaterialType, CoreType, BufferName)						\
+#define IMPLEMENT_MATERIAL(MaterialType, CoreType, LockName, BufferName)			\
 void NpScene::addMaterial(const MaterialType& mat)									\
 {																					\
 	const CoreType& material = mat.mMaterial;										\
+	PxMutex::ScopedLock lock(LockName);												\
 	BufferName.pushBack(MaterialEvent(material.mMaterialIndex, MATERIAL_ADD));		\
 	CREATE_PVD_INSTANCE(&material)													\
 }																					\
@@ -3105,6 +3186,7 @@ void NpScene::addMaterial(const MaterialType& mat)									\
 void NpScene::updateMaterial(const MaterialType& mat)								\
 {																					\
 	const CoreType& material = mat.mMaterial;										\
+	PxMutex::ScopedLock lock(LockName);												\
 	BufferName.pushBack(MaterialEvent(material.mMaterialIndex, MATERIAL_UPDATE));	\
 	UPDATE_PVD_PROPERTIES(&material)												\
 }																					\
@@ -3114,16 +3196,23 @@ void NpScene::removeMaterial(const MaterialType& mat)								\
 	const CoreType& material = mat.mMaterial;										\
 	if(material.mMaterialIndex == MATERIAL_INVALID_HANDLE)							\
 		return;																		\
+	PxMutex::ScopedLock lock(LockName);												\
 	BufferName.pushBack(MaterialEvent(material.mMaterialIndex, MATERIAL_REMOVE));	\
 	RELEASE_PVD_INSTANCE(&material);												\
 }
 
-IMPLEMENT_MATERIAL(NpMaterial, PxsMaterialCore, mSceneMaterialBuffer)
+IMPLEMENT_MATERIAL(NpMaterial, PxsMaterialCore, mSceneMaterialBufferLock, mSceneMaterialBuffer)
 
 #if PX_SUPPORT_GPU_PHYSX
-	IMPLEMENT_MATERIAL(NpDeformableSurfaceMaterial, PxsDeformableSurfaceMaterialCore, mSceneDeformableSurfaceMaterialBuffer)
-	IMPLEMENT_MATERIAL(NpDeformableVolumeMaterial, PxsDeformableVolumeMaterialCore, mSceneDeformableVolumeMaterialBuffer)
-	IMPLEMENT_MATERIAL(NpPBDMaterial, PxsPBDMaterialCore, mScenePBDMaterialBuffer)
+	IMPLEMENT_MATERIAL(NpFEMSoftBodyMaterial, PxsFEMSoftBodyMaterialCore, mSceneFEMSoftBodyMaterialBufferLock, mSceneFEMSoftBodyMaterialBuffer)
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	IMPLEMENT_MATERIAL(NpFEMClothMaterial, PxsFEMClothMaterialCore, mSceneFEMClothMaterialBufferLock, mSceneFEMClothMaterialBuffer)
+#endif
+	IMPLEMENT_MATERIAL(NpPBDMaterial, PxsPBDMaterialCore, mScenePBDMaterialBufferLock, mScenePBDMaterialBuffer)
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	IMPLEMENT_MATERIAL(NpFLIPMaterial, PxsFLIPMaterialCore, mSceneFLIPMaterialBufferLock, mSceneFLIPMaterialBuffer)
+	IMPLEMENT_MATERIAL(NpMPMMaterial, PxsMPMMaterialCore, mSceneMPMMaterialBufferLock, mSceneMPMMaterialBuffer)
+#endif
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3157,14 +3246,14 @@ PxDominanceGroupPair NpScene::getDominanceGroupPair(PxDominanceGroup group1, PxD
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#if PX_SUPPORT_GPU_PHYSX && !PX_PUBLIC_RELEASE
+#if PX_SUPPORT_GPU_PHYSX
 void NpScene::updatePhysXIndicator()
 {
 	PxIntBool isGpu = mScene.isUsingGpuDynamicsOrBp();
 
 	mPhysXIndicator.setIsGpu(isGpu != 0);
 }
-#endif
+#endif	//PX_SUPPORT_GPU_PHYSX
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -3179,7 +3268,7 @@ void NpScene::setSolverBatchSize(PxU32 solverBatchSize)
 	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxScene, solverBatchSize, static_cast<PxScene&>(*this), solverBatchSize)
 }
 
-PxU32 NpScene::getSolverBatchSize() const
+PxU32 NpScene::getSolverBatchSize(void) const
 {
 	NP_READ_CHECK(this);
 	// get from our local copy
@@ -3197,7 +3286,7 @@ void NpScene::setSolverArticulationBatchSize(PxU32 solverBatchSize)
 	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxScene, solverArticulationBatchSize, static_cast<PxScene&>(*this), solverBatchSize)
 }
 
-PxU32 NpScene::getSolverArticulationBatchSize() const
+PxU32 NpScene::getSolverArticulationBatchSize(void) const
 {
 	NP_READ_CHECK(this);
 	// get from our local copy
@@ -3287,6 +3376,11 @@ PxCpuDispatcher* NpScene::getCpuDispatcher() const
 	return mTaskManager->getCpuDispatcher();
 }
 
+PxCudaContextManager* NpScene::getCudaContextManager() const
+{
+	return mCudaContextManager;
+}
+
 void NpScene::setMaxBiasCoefficient(const PxReal coeff)
 {
 	NP_WRITE_CHECK(this);
@@ -3351,7 +3445,8 @@ PxU32 NpScene::getContactReportStreamBufferSize() const
 void NpScene::checkPositionSanity(const PxRigidActor& a, const PxTransform& pose, const char* fnName) const
 {
 	if(!mSanityBounds.contains(pose.p))
-		PxGetFoundation().error(PxErrorCode::eDEBUG_WARNING, PX_FL, "%s: actor pose for %lp is outside sanity bounds\n", fnName, &a);
+		PxGetFoundation().error(PxErrorCode::eDEBUG_WARNING, PX_FL,
+			"%s: actor pose for %lp is outside sanity bounds\n", fnName, &a);
 }
 #endif
 
@@ -3577,19 +3672,22 @@ PxReal NpScene::getWakeCounterResetValue() const
 
 static PX_FORCE_INLINE void shiftRigidActor(PxRigidActor* a, const PxVec3& shift)
 {
-	const PxType t = a->getConcreteType();
-	if(t==PxConcreteType::eRIGID_DYNAMIC)
+	PxActorType::Enum t = a->getType();
+	if (t == PxActorType::eRIGID_DYNAMIC)
 	{
-		static_cast<NpRigidDynamic*>(a)->getCore().onOriginShift(shift);
+		NpRigidDynamic* rd = static_cast<NpRigidDynamic*>(a);
+		rd->getCore().onOriginShift(shift);
 	}
-	else if(t==PxConcreteType::eRIGID_STATIC)
+	else if (t == PxActorType::eRIGID_STATIC)
 	{
-		static_cast<NpRigidStatic*>(a)->getCore().onOriginShift(shift);
+		NpRigidStatic* rs = static_cast<NpRigidStatic*>(a);
+		rs->getCore().onOriginShift(shift);
 	}
 	else
 	{
-		PX_ASSERT(t == PxConcreteType::eARTICULATION_LINK);
-		static_cast<NpArticulationLink*>(a)->getCore().onOriginShift(shift);
+		PX_ASSERT(t == PxActorType::eARTICULATION_LINK);
+		NpArticulationLink* al = static_cast<NpArticulationLink*>(a);
+		al->getCore().onOriginShift(shift);
 	}
 }
 
@@ -3644,17 +3742,11 @@ void NpScene::shiftOrigin(const PxVec3& shift)
 	PX_PROFILE_ZONE("API.shiftOrigin", getContextId());
 	NP_WRITE_CHECK(this);
 
-	if(getFlags() & PxSceneFlag::eENABLE_DIRECT_GPU_API)
-	{
-		NP_API_READ_WRITE_ERROR_MSG(
-			"shiftOrigin() not allowed when direct-GPU API is used.");
-	}
-
 	PX_CHECK_SCENE_API_WRITE_FORBIDDEN(this, "PxScene::shiftOrigin() not allowed while simulation is running. Call will be ignored.")
 	
 	PX_SIMD_GUARD;
 
-	shiftRigidActors(mRigidDynamics, shift);	// PT: TODO: we don't need to re-test the type all the time in shiftRigidActors...
+	shiftRigidActors(mRigidDynamics, shift);
 	shiftRigidActors(mRigidStatics, shift);
 
 	PxArticulationReducedCoordinate*const* articulations = mArticulations.getEntries();
@@ -3693,35 +3785,238 @@ PxPvdSceneClient* NpScene::getScenePvdClient()
 #endif
 }
 
-void NpScene::setDeformableSurfaceGpuPostSolveCallback(PxPostSolveCallback* postSolveCallback)
+void NpScene::copyArticulationData(void* jointData, void* index, PxArticulationGpuDataType::Enum dataType, const PxU32 nbCopyArticulations, CUevent copyEvent)
 {
-	mScene.setDeformableSurfaceGpuPostSolveCallback(postSolveCallback);
+	PX_CHECK_SCENE_API_READ_FORBIDDEN(this, "PxScene::copyArticulationData() not allowed while simulation is running. Call will be ignored.");
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::copyArticulationData(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	if (dataType == PxArticulationGpuDataType::eLINK_FORCE ||
+		dataType == PxArticulationGpuDataType::eLINK_TORQUE ||
+		dataType == PxArticulationGpuDataType::eFIXED_TENDON ||
+		dataType == PxArticulationGpuDataType::eFIXED_TENDON_JOINT ||
+		dataType == PxArticulationGpuDataType::eSPATIAL_TENDON ||
+		dataType == PxArticulationGpuDataType::eSPATIAL_TENDON_ATTACHMENT)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::copyArticulationData, specified data is write only.");
+		return;
+	}
+
+	mScene.getSimulationController()->copyArticulationData(jointData, index, dataType, nbCopyArticulations, copyEvent);
 }
 
-void NpScene::setDeformableVolumeGpuPostSolveCallback(PxPostSolveCallback* postSolveCallback)
+void NpScene::applyArticulationData(void* data, void* index, PxArticulationGpuDataType::Enum dataType, const PxU32 nbUpdatedArticulations, CUevent waitEvent, CUevent signalEvent)
 {
-	mScene.setDeformableVolumeGpuPostSolveCallback(postSolveCallback);
+	PX_CHECK_SCENE_API_WRITE_FORBIDDEN(this, "PxScene::applyArticulationData() not allowed while simulation is running. Call will be ignored.");
+	
+	if (!data || !index)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::applyArticulationData, data and/or index has to be valid pointer.");
+		return;
+	}
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::applyArticulationData(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	if (dataType == PxArticulationGpuDataType::eJOINT_ACCELERATION ||
+		dataType == PxArticulationGpuDataType::eJOINT_SOLVER_FORCE ||
+		dataType == PxArticulationGpuDataType::eSENSOR_FORCE ||
+		dataType == PxArticulationGpuDataType::eLINK_TRANSFORM ||
+		dataType == PxArticulationGpuDataType::eLINK_VELOCITY ||
+		dataType == PxArticulationGpuDataType::eLINK_ACCELERATION ||
+		dataType == PxArticulationGpuDataType::eLINK_INCOMING_JOINT_FORCE
+	)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::applyArticulationData, specified data is read only.");
+		return;
+	}
+
+	mScene.getSimulationController()->applyArticulationData(data,index, dataType, nbUpdatedArticulations, waitEvent, signalEvent);
 }
 
-// PT: DIRECTGPU: deprecated
+void NpScene::updateArticulationsKinematic(CUevent signalEvent)
+{
+	PX_CHECK_SCENE_API_WRITE_FORBIDDEN(this, "PxScene::updateArticulationsKinematic() not allowed while simulation is running. Call will be ignored.");
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::updateArticulationsKinematic(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->updateArticulationsKinematic(signalEvent);
+}
+
 void NpScene::copySoftBodyData(void** data, void* dataSizes, void* softBodyIndices, PxSoftBodyGpuDataFlag::Enum flag, const PxU32 nbCopySoftBodies, const PxU32 maxSize, CUevent copyEvent)
 {
 	PX_CHECK_SCENE_API_READ_FORBIDDEN(this, "PxScene::copySoftBodyData() not allowed while simulation is running. Call will be ignored.");
 	
 	//if ((mScene.getFlags() & PxSceneFlag::eENABLE_DIRECT_GPU_API) && mScene.isUsingGpuRigidBodies())
-		mScene.getSimulationController()->copySoftBodyDataDEPRECATED(data, dataSizes, softBodyIndices, flag, nbCopySoftBodies, maxSize, copyEvent);
+		mScene.getSimulationController()->copySoftBodyData(data, dataSizes, softBodyIndices, flag, nbCopySoftBodies, maxSize, copyEvent);
 }
-
-// PT: DIRECTGPU: deprecated
 void NpScene::applySoftBodyData(void** data, void* dataSizes, void* softBodyIndices, PxSoftBodyGpuDataFlag::Enum flag, const PxU32 nbUpdatedSoftBodies, const PxU32 maxSize, CUevent applyEvent, CUevent signalEvent)
 {
 	PX_CHECK_SCENE_API_WRITE_FORBIDDEN(this, "PxScene::applySoftBodyData() not allowed while simulation is running. Call will be ignored.");
 	
 	//if ((mScene.getFlags() & PxSceneFlag::eENABLE_DIRECT_GPU_API) && mScene.isUsingGpuRigidBodies())
-		mScene.getSimulationController()->applySoftBodyDataDEPRECATED(data, dataSizes, softBodyIndices, flag, nbUpdatedSoftBodies, maxSize, applyEvent, signalEvent);
+		mScene.getSimulationController()->applySoftBodyData(data, dataSizes, softBodyIndices, flag, nbUpdatedSoftBodies, maxSize, applyEvent, signalEvent);
 }
 
-// PT: DIRECTGPU: deprecated
+void NpScene::copyContactData(void* data, const PxU32 maxContactPairs, void* numContactPairs, CUevent copyEvent)
+{
+	PX_CHECK_SCENE_API_READ_FORBIDDEN(this, "PxScene::copyContactData() not allowed while simulation is running. Call will be ignored.");
+	
+	if (!data || !numContactPairs)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::copyContactData, data and/or count has to be valid pointer.");
+		return;
+	}
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::copyContactData(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->copyContactData(mScene.getDynamicsContext(), data, maxContactPairs, numContactPairs, copyEvent);
+}
+
+void NpScene::copyBodyData(PxGpuBodyData* data, PxGpuActorPair* index, const PxU32 nbCopyActors, CUevent copyEvent)
+{
+	PX_CHECK_SCENE_API_READ_FORBIDDEN(this, "PxScene::copyBodyData() not allowed while simulation is running. Call will be ignored.");
+
+	if (!data)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::copyBodyData, data has to be valid pointer.");
+		return;
+	}
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::copyBodyData(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->copyBodyData(data, index, nbCopyActors, copyEvent);
+}
+
+void NpScene::applyActorData(void* data, PxGpuActorPair* index, PxActorCacheFlag::Enum flag, const PxU32 nbUpdatedActors, CUevent waitEvent, CUevent signalEvent)
+{
+	PX_CHECK_SCENE_API_WRITE_FORBIDDEN(this, "PxScene::applyActorData() not allowed while simulation is running. Call will be ignored.");
+
+	if (!data || !index)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::applyActorData, data and/or index has to be valid pointer.");
+		return;
+	}
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::applyActorData(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->applyActorData(data, index, flag, nbUpdatedActors, waitEvent, signalEvent);
+}
+
+void NpScene::evaluateSDFDistances(const PxU32* sdfShapeIds, const PxU32 nbShapes, const PxVec4* samplePointsConcatenated,
+	const PxU32* samplePointCountPerShape, const PxU32 maxPointCount, PxVec4* localGradientAndSDFConcatenated, CUevent event)
+{
+	PX_CHECK_SCENE_API_WRITE_FORBIDDEN(this, "PxScene::evaluateSDFDistances() not allowed while simulation is running. Call will be ignored.");
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::evaluateSDFDistances(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->evaluateSDFDistances(sdfShapeIds, nbShapes, samplePointsConcatenated, 
+		samplePointCountPerShape, maxPointCount, localGradientAndSDFConcatenated, event);
+}
+
+void NpScene::computeDenseJacobians(const PxIndexDataPair* indices, PxU32 nbIndices, CUevent computeEvent)
+{
+	PX_CHECK_SCENE_API_READ_FORBIDDEN(this, "PxScene::computeDenseJacobians() not allowed while simulation is running. Call will be ignored.");
+
+	if (!indices)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::computeDenseJacobians, indices have to be a valid pointer.");
+		return;
+	}
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::computeDenseJacobians(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->computeDenseJacobians(indices, nbIndices, computeEvent);
+}
+
+void NpScene::computeGeneralizedMassMatrices(const PxIndexDataPair* indices, PxU32 nbIndices, CUevent computeEvent)
+{
+	PX_CHECK_SCENE_API_READ_FORBIDDEN(this, "PxScene::computeGeneralizedMassMatrices() not allowed while simulation is running. Call will be ignored.");
+
+	if (!indices)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::computeGeneralizedMassMatrices, indices have to be a valid pointer.");
+		return;
+	}
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::computeGeneralizedMassMatrices(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->computeGeneralizedMassMatrices(indices, nbIndices, computeEvent);
+}
+
+void NpScene::computeGeneralizedGravityForces(const PxIndexDataPair* indices, PxU32 nbIndices, CUevent computeEvent)
+{
+	PX_CHECK_SCENE_API_READ_FORBIDDEN(this, "PxScene::computeGeneralizedGravityForces() not allowed while simulation is running. Call will be ignored.");
+
+	if (!indices)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::computeGeneralizedGravityForces, indices have to be a valid pointer.");
+		return;
+	}
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::computeGeneralizedGravityForces(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->computeGeneralizedGravityForces(indices, nbIndices, getGravity(), computeEvent);
+}
+
+void NpScene::computeCoriolisAndCentrifugalForces(const PxIndexDataPair* indices, PxU32 nbIndices, CUevent computeEvent)
+{
+	PX_CHECK_SCENE_API_READ_FORBIDDEN(this, "PxScene::computeCoriolisAndCentrifugalForces() not allowed while simulation is running. Call will be ignored.");
+
+	if (!indices)
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::computeCoriolisAndCentrifugalForces, indices have to be a valid pointer.");
+		return;
+	}
+
+	if (!isDirectGPUAPIInitialized())
+	{
+		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxScene::computeCoriolisAndCentrifugalForces(): it is illegal to call this function if the scene is not configured for direct-GPU access or the direct-GPU API has not been initialized yet.");
+		return;
+	}
+
+	mScene.getSimulationController()->computeCoriolisAndCentrifugalForces(indices, nbIndices, computeEvent);
+}
+
 void NpScene::applyParticleBufferData(const PxU32* indices, const PxGpuParticleBufferIndexPair* indexPairs, const PxParticleBufferFlags* flags, PxU32 nbUpdatedBuffers, CUevent waitEvent, CUevent signalEvent)
 {
 	PX_CHECK_SCENE_API_WRITE_FORBIDDEN(this, "PxScene::applyParticleBufferData() not allowed while simulation is running. Call will be ignored.");
@@ -3738,20 +4033,7 @@ void NpScene::applyParticleBufferData(const PxU32* indices, const PxGpuParticleB
 		return;
 	}
 
-	mScene.getSimulationController()->applyParticleBufferDataDEPRECATED(indices, indexPairs, flags, nbUpdatedBuffers, waitEvent, signalEvent);
-}
-
-PxDirectGPUAPI& NpScene::getDirectGPUAPI()
-{
-#if PX_SUPPORT_GPU_PHYSX
-	if (!mDirectGPUAPI)
-		mDirectGPUAPI = PX_NEW(NpDirectGPUAPI)(*this);
-
-	return *mDirectGPUAPI;
-#else
-	PxDirectGPUAPI* p = NULL;
-	return *p;
-#endif
+	mScene.getSimulationController()->applyParticleBufferData(indices, indexPairs, flags, nbUpdatedBuffers, waitEvent, signalEvent);
 }
 
 PxsSimulationController* NpScene::getSimulationController()
@@ -3839,7 +4121,7 @@ PX_FORCE_INLINE static void removeActorShapes(T* const* shapeArray, const PxU32 
 	}
 }
 
-static void addSimActorToScScene(Sc::Scene& s, NpRigidStatic& staticObject, NpShape* const* npShapes, PxU32 nbShapes, PxBounds3* uninflatedBounds, const BVH* bvh)
+void addSimActorToScScene(Sc::Scene& s, NpRigidStatic& staticObject, NpShape* const* npShapes, PxU32 nbShapes, PxBounds3* uninflatedBounds, const BVH* bvh)
 {
 	PX_UNUSED(bvh);
 	const size_t shapePtrOffset = NpShape::getCoreOffset();
@@ -3847,19 +4129,19 @@ static void addSimActorToScScene(Sc::Scene& s, NpRigidStatic& staticObject, NpSh
 }
 
 template <class T>
-static void addSimActorToScSceneT(Sc::Scene& s, NpRigidBodyTemplate<T>& dynamicObject, NpShape* const* npShapes, PxU32 nbShapes, PxBounds3* uninflatedBounds, const BVH* bvh)
+void addSimActorToScSceneT(Sc::Scene& s, NpRigidBodyTemplate<T>& dynamicObject, NpShape* const* npShapes, PxU32 nbShapes, PxBounds3* uninflatedBounds, const BVH* bvh)
 {
 	const bool isCompound = bvh ? true : false;
 	const size_t shapePtrOffset = NpShape::getCoreOffset();
 	s.addBody(dynamicObject.getCore(), npShapes, nbShapes, shapePtrOffset, uninflatedBounds, isCompound);
 }
 
-static void addSimActorToScScene(Sc::Scene& s, NpRigidDynamic& dynamicObject, NpShape* const* npShapes, PxU32 nbShapes, PxBounds3* uninflatedBounds, const BVH* bvh)
+void addSimActorToScScene(Sc::Scene& s, NpRigidDynamic& dynamicObject, NpShape* const* npShapes, PxU32 nbShapes, PxBounds3* uninflatedBounds, const BVH* bvh)
 {
 	addSimActorToScSceneT<PxRigidDynamic>(s, dynamicObject, npShapes, nbShapes, uninflatedBounds, bvh);
 }
 
-static void addSimActorToScScene(Sc::Scene& s, NpArticulationLink& dynamicObject, NpShape* const* npShapes, PxU32 nbShapes, PxBounds3* uninflatedBounds, const BVH* bvh)
+void addSimActorToScScene(Sc::Scene& s, NpArticulationLink& dynamicObject, NpShape* const* npShapes, PxU32 nbShapes, PxBounds3* uninflatedBounds, const BVH* bvh)
 {
 	addSimActorToScSceneT<PxArticulationLink>(s, dynamicObject, npShapes, nbShapes, uninflatedBounds, bvh);
 }
@@ -3913,48 +4195,59 @@ PX_FORCE_INLINE static void removeSimActor(Sc::Scene& s, T& object, bool wakeOnL
 	removeActorShapes(scShapes, nbShapes, &object, scScene);
 }
 
-template <const bool add, class T>
-PX_FORCE_INLINE static void addOrRemoveNonSimActor(T& rigid)
+// PT: TODO: consider unifying addNonSimActor / removeNonSimActor
+template <class T>
+PX_FORCE_INLINE static void addNonSimActor(T& rigid)
 {
 	NpShape* const* npShapes = NULL;
 	const PxU32 nbShapes = getShapes(rigid, npShapes);
 	PX_ASSERT((0 == nbShapes) || npShapes);
 	NpScene* scScene = rigid.getNpScene();
 	PX_ASSERT(scScene);
-	if(add)
-		addActorShapes(npShapes, nbShapes, &rigid, scScene);
-	else
-		removeActorShapes(npShapes, nbShapes, &rigid, scScene);
+	addActorShapes(npShapes, nbShapes, &rigid, scScene);
+}
+
+template <class T>
+PX_FORCE_INLINE static void removeNonSimActor(T& rigid)
+{
+	NpShape* const* npShapes = NULL;
+	const PxU32 nbShapes = getShapes(rigid, npShapes);
+	PX_ASSERT((0 == nbShapes) || npShapes);
+	NpScene* scScene = rigid.getNpScene();
+	PX_ASSERT(scScene);
+	removeActorShapes(npShapes, nbShapes, &rigid, scScene);
 }
 
 template <typename T>struct ScSceneFns {};
 
 #if PX_SUPPORT_GPU_PHYSX
-template<> struct ScSceneFns<NpDeformableSurface>
+template<> struct ScSceneFns<NpSoftBody>
 {
-	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpDeformableSurface& v, PxBounds3*, const Gu::BVH*, bool)
+	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpSoftBody& v, PxBounds3*, const BVH*, bool)
 	{
-		s.addDeformableSurface(v.getCore());
+		s.addSoftBody(v.getCore());
 	}
 
-	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpDeformableSurface& v, bool /*wakeOnLostTouch*/)
+	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpSoftBody& v, bool /*wakeOnLostTouch*/)
 	{
-		s.removeDeformableSurface(v.getCore());
+		s.removeSoftBody(v.getCore());
 	}
 };
 
-template<> struct ScSceneFns<NpDeformableVolume>
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+template<> struct ScSceneFns<NpFEMCloth>
 {
-	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpDeformableVolume& v, PxBounds3*, const BVH*, bool)
+	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpFEMCloth& v, PxBounds3*, const Gu::BVH*, bool)
 	{
-		s.addDeformableVolume(v.getCore());
+		s.addFEMCloth(v.getCore());
 	}
 
-	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpDeformableVolume& v, bool /*wakeOnLostTouch*/)
+	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpFEMCloth& v, bool /*wakeOnLostTouch*/)
 	{
-		s.removeDeformableVolume(v.getCore());
+		s.removeFEMCloth(v.getCore());
 	}
 };
+#endif
 
 template<> struct ScSceneFns<NpPBDParticleSystem>
 {
@@ -3969,7 +4262,48 @@ template<> struct ScSceneFns<NpPBDParticleSystem>
 	}
 };
 
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+template<> struct ScSceneFns<NpFLIPParticleSystem>
+{
+	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpFLIPParticleSystem& v, PxBounds3*, const BVH*, bool)
+	{
+		s.addParticleSystem(v.getCore());
+	}
+
+	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpFLIPParticleSystem& v, bool /*wakeOnLostTouch*/)
+	{
+		s.removeParticleSystem(v.getCore());
+	}
+};
+
+template<> struct ScSceneFns<NpMPMParticleSystem>
+{
+	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpMPMParticleSystem& v, PxBounds3*, const BVH*, bool)
+	{
+		s.addParticleSystem(v.getCore());
+	}
+
+	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpMPMParticleSystem& v, bool /*wakeOnLostTouch*/)
+	{
+		s.removeParticleSystem(v.getCore());
+	}
+};
+
+template<> struct ScSceneFns<NpHairSystem>
+{
+	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpHairSystem& v, PxBounds3*, const BVH*, bool)
+	{
+		s.addHairSystem(v.getCore());
+	}
+
+	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpHairSystem& v, bool /*wakeOnLostTouch*/)
+	{
+		s.removeHairSystem(v.getCore());
+	}
+};
 #endif
+#endif
+
 
 template<> struct ScSceneFns<NpArticulationReducedCoordinate>
 {
@@ -4003,8 +4337,7 @@ template<> struct ScSceneFns<NpArticulationSpatialTendon>
 	}
 	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpArticulationSpatialTendon& v, bool /*wakeOnLostTouch*/)
 	{
-		PX_UNUSED(s);
-		Sc::Scene::removeArticulationTendon(v.getTendonCore());
+		s.removeArticulationTendon(v.getTendonCore());
 	}
 };
 
@@ -4016,23 +4349,40 @@ template<> struct ScSceneFns<NpArticulationFixedTendon>
 	}
 	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpArticulationFixedTendon& v, bool /*wakeOnLostTouch*/)
 	{
-		PX_UNUSED(s);
-		Sc::Scene::removeArticulationTendon(v.getTendonCore());
+		s.removeArticulationTendon(v.getTendonCore());
 	}
 };
 
-template<> struct ScSceneFns<NpArticulationMimicJoint>
+template<> struct ScSceneFns<NpArticulationSensor>
 {
-	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpArticulationMimicJoint& v, PxBounds3*, const BVH*, bool)
+	static PX_FORCE_INLINE void insert(Sc::Scene& s, NpArticulationSensor& v, PxBounds3*, const BVH*, bool)
 	{
-		s.addArticulationMimicJoint(v.getMimicJointCore());
+		s.addArticulationSensor(v.getSensorCore());
 	}
-	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpArticulationMimicJoint& v, bool /*wakeOnLostTouch*/)
+	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpArticulationSensor& v, bool /*wakeOnLostTouch*/)
 	{
-		PX_UNUSED(s);
-		Sc::Scene::removeArticulationMimicJoint(v.getMimicJointCore());
+		s.removeArticulationSensor(v.getSensorCore());
 	}
 };
+
+// PT: TODO: refactor with version in NpConstraint.cpp & with NpActor::getFromPxActor
+static NpActor* getNpActor(PxRigidActor* a)
+{
+	if(!a)
+		return NULL;
+
+	const PxType type = a->getConcreteType();
+
+	if(type == PxConcreteType::eRIGID_DYNAMIC)
+		return static_cast<NpRigidDynamic*>(a);
+	else if(type == PxConcreteType::eARTICULATION_LINK)
+		return static_cast<NpArticulationLink*>(a);
+	else
+	{
+		PX_ASSERT(type == PxConcreteType::eRIGID_STATIC);
+		return static_cast<NpRigidStatic*>(a);
+	}
+}
 
 template<> struct ScSceneFns<NpConstraint>
 {
@@ -4040,19 +4390,17 @@ template<> struct ScSceneFns<NpConstraint>
 	{ 
 		PxRigidActor* a0, * a1;
 		v.getActors(a0, a1);
-		NpActor* sc0 = NpActor::getNpActor(a0);
-		NpActor* sc1 = NpActor::getNpActor(a1);
+		NpActor* sc0 = getNpActor(a0);
+		NpActor* sc1 = getNpActor(a1);
 
 		PX_ASSERT((!sc0) || (!(sc0->getActorFlags().isSet(PxActorFlag::eDISABLE_SIMULATION))));
 		PX_ASSERT((!sc1) || (!(sc1->getActorFlags().isSet(PxActorFlag::eDISABLE_SIMULATION))));
 		
 		s.addConstraint(v.getCore(), sc0 ? &sc0->getScRigidCore() : NULL, sc1 ? &sc1->getScRigidCore() : NULL);
-		OMNI_PVD_ADD(OMNI_PVD_CONTEXT_HANDLE, PxScene, constraints, static_cast<PxScene &>(*v.getNpScene()), static_cast<PxConstraint &>(v))
 	}
 	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpConstraint& v, bool /*wakeOnLostTouch*/)
 	{
 		s.removeConstraint(v.getCore());
-		OMNI_PVD_REMOVE(OMNI_PVD_CONTEXT_HANDLE, PxScene, constraints, static_cast<PxScene &>(*v.getNpScene()), static_cast<PxConstraint &>(v))
 	}
 };
 
@@ -4065,7 +4413,7 @@ template<> struct ScSceneFns<NpRigidStatic>
 		if(!noSim)
 			addSimActor(s, v, uninflatedBounds, bvh);
 		else
-			addOrRemoveNonSimActor<true>(v);
+			addNonSimActor(v);
 	}
 
 	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpRigidStatic& v, bool wakeOnLostTouch)
@@ -4073,7 +4421,7 @@ template<> struct ScSceneFns<NpRigidStatic>
 		if(!v.getActorFlags().isSet(PxActorFlag::eDISABLE_SIMULATION))
 			removeSimActor(s, v, wakeOnLostTouch);
 		else
-			addOrRemoveNonSimActor<false>(v);
+			removeNonSimActor(v);
 	}
 };
 
@@ -4086,14 +4434,15 @@ template<> struct ScSceneFns<NpRigidDynamic>
 		if(!noSim)
 			addSimActor(s, v, uninflatedBounds, bvh);
 		else
-			addOrRemoveNonSimActor<true>(v);
+			addNonSimActor(v);
+
 	}
 	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpRigidDynamic& v, bool wakeOnLostTouch)	
 	{
 		if(!v.getActorFlags().isSet(PxActorFlag::eDISABLE_SIMULATION))
 			removeSimActor(s, v, wakeOnLostTouch);
 		else
-			addOrRemoveNonSimActor<false>(v);
+			removeNonSimActor(v);
 	}
 };
 
@@ -4108,7 +4457,7 @@ template<> struct ScSceneFns<NpArticulationLink>
 		//if(!noSim)
 			addSimActor(s, v, uninflatedBounds, bvh);
 		//else
-		//	addOrRemoveNonSimActor<true>(v);
+		//	addNonSimActor(v);
 	}
 	static PX_FORCE_INLINE void remove(Sc::Scene& s, NpArticulationLink& v, bool wakeOnLostTouch)	
 	{
@@ -4116,7 +4465,7 @@ template<> struct ScSceneFns<NpArticulationLink>
 		//if(!v.getActorFlags().isSet(PxActorFlag::eDISABLE_SIMULATION))
 			removeSimActor(s, v, wakeOnLostTouch);
 		//else
-		//	addOrRemoveNonSimActor<false>(v);
+		//	removeNonSimActor(v);
 	}
 };
 
@@ -4189,8 +4538,7 @@ static void removeRigidNoSimT(NpScene* npScene, T& v)
 
 	PX_ASSERT(v.getActorFlags().isSet(PxActorFlag::eDISABLE_SIMULATION));
 
-	addOrRemoveNonSimActor<false>(v);
-
+	removeNonSimActor(v);
 #if PX_SUPPORT_PVD
 	Vd::PvdSceneClient& pvdClient = npScene->getScenePvdClientInternal();
 	if(pvdClient.checkPvdDebugFlag())
@@ -4224,7 +4572,7 @@ static PX_FORCE_INLINE void addActorT(NpScene* npScene, T& actor, bool noSim, Px
 
 		OMNI_PVD_ADD(OMNI_PVD_CONTEXT_HANDLE, PxScene, actors, static_cast<PxScene &>(*npScene), static_cast<PxActor &>(actor))
 
-		addOrRemoveNonSimActor<true>(actor);
+		addNonSimActor(actor);
 	}
 }
 
@@ -4301,16 +4649,6 @@ void NpScene::addToConstraintList(PxConstraint& constraint)
 {
 	NpConstraint& npConstraint = static_cast<NpConstraint&>(constraint);
 
-	// AD: cannot call getFlags() directly because that clears out the GPU_COMPATIBLE flag!
-	bool gpuCompatible = npConstraint.getCore().getFlags() & PxConstraintFlag::eGPU_COMPATIBLE;
-	bool useDirectApi = getFlagsFast() & PxSceneFlag::eENABLE_DIRECT_GPU_API;
-	bool opAllowed = gpuCompatible || !useDirectApi;
-	if (!opAllowed)
-	{
-		outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "It is not allowed to add a non-GPU compatible PxConstraint to a scene that is configured for direct-GPU access. Please use a D6 joint instead.");
-		return;
-	}
-
 	add<NpConstraint>(this, npConstraint);
 
 #ifdef NEW_DIRTY_SHADERS_CODE
@@ -4353,30 +4691,31 @@ void NpScene::removeFromConstraintList(PxConstraint& constraint)
 ///////////////////////////////////////////////////////////////////////////////
 
 #if PX_SUPPORT_GPU_PHYSX
-
-void NpScene::scAddDeformableSurface(NpScene* npScene, NpDeformableSurface& npSurface)
+void NpScene::scAddSoftBody(NpSoftBody& softBody)
 {
-	add<NpDeformableSurface>(npScene, npSurface, NULL, NULL);
+	add<NpSoftBody>(this, softBody);
 }
 
-void NpScene::scRemoveDeformableSurface(NpDeformableSurface& npSurface)
+void NpScene::scRemoveSoftBody(NpSoftBody& softBody)
 {
-	mScene.removeDeformableSurfaceSimControl(npSurface.getCore());
-	remove<NpDeformableSurface>(this, npSurface, false);
+	mScene.removeSoftBodySimControl(softBody.getCore());
+	remove<NpSoftBody>(this, softBody);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void NpScene::scAddDeformableVolume(NpDeformableVolume& npVolume)
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+void NpScene::scAddFEMCloth(NpScene* npScene, NpFEMCloth& femCloth)
 {
-	add<NpDeformableVolume>(this, npVolume);
+	add<NpFEMCloth>(npScene, femCloth, NULL, NULL);
 }
 
-void NpScene::scRemoveDeformableVolume(NpDeformableVolume& npVolume)
+void NpScene::scRemoveFEMCloth(NpFEMCloth& femCloth)
 {
-	mScene.removeDeformableVolumeSimControl(npVolume.getCore());
-	remove<NpDeformableVolume>(this, npVolume);
+	mScene.removeFEMClothSimControl(femCloth.getCore());
+	remove<NpFEMCloth>(this, femCloth, false);
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4393,49 +4732,45 @@ void NpScene::scRemoveParticleSystem(NpPBDParticleSystem& particleSystem)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void NpScene::addToAttachmentList(PxDeformableAttachment& attachment)
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+void NpScene::scAddParticleSystem(NpFLIPParticleSystem& particleSystem)
 {
-	NpDeformableAttachment& npAttachment = static_cast<NpDeformableAttachment&>(attachment);
-
-	//TODO: Attachment does not have a sc layer implementation but could potentially benefit from implementing one to unify the disparate pieces of low level code.
-	//add<NpDeformableAttachment>(this, npAttachment);
-
-	npAttachment.addAttachment();
-	npAttachment.setNpScene(npAttachment.getSceneFromActors());
+	add<NpFLIPParticleSystem>(this, particleSystem);
 }
 
-void NpScene::removeFromAttachmentList(PxDeformableAttachment& attachment)
+void NpScene::scRemoveParticleSystem(NpFLIPParticleSystem& particleSystem)
 {
-	NpDeformableAttachment& npAttachment = static_cast<NpDeformableAttachment&>(attachment);
-
-	//TODO: Attachment does not have a sc layer implementation but could potentially benefit from implementing one to unify the disparate pieces of low level code.
-	//remove<NpDeformableAttachment>(this, npAttachment);
-
-	npAttachment.removeAttachment();
-	npAttachment.setNpScene(NULL);
+	mScene.removeParticleSystemSimControl(particleSystem.getCore());
+	remove<NpFLIPParticleSystem>(this, particleSystem);
 }
 
-void NpScene::addToElementFilterList(PxDeformableElementFilter& elementFilter)
+////////////////////////////////////////////////////////////////////////////////
+
+void NpScene::scAddParticleSystem(NpMPMParticleSystem& particleSystem)
 {
-	NpDeformableElementFilter& npElementFilter = static_cast<NpDeformableElementFilter&>(elementFilter);
-
-	//TODO: Element filter does not have a sc layer implementation but could potentially benefit from implementing one to unify the disparate pieces of low level code.
-	//add<NpDeformableElementFilter>(this, npElementFilter);
-
-	npElementFilter.addElementFilter();
-	npElementFilter.setNpScene(npElementFilter.getSceneFromActors());
+	add<NpMPMParticleSystem>(this, particleSystem);
 }
 
-void NpScene::removeFromElementFilterList(PxDeformableElementFilter& elementFilter)
+void NpScene::scRemoveParticleSystem(NpMPMParticleSystem& particleSystem)
 {
-	NpDeformableElementFilter& npElementFilter = static_cast<NpDeformableElementFilter&>(elementFilter);
-
-	//TODO: Element filter does not have a sc layer implementation but could potentially benefit from implementing one to unify the disparate pieces of low level code.
-	//remove<NpDeformableElementFilter>(this, npElementFilter);
-
-	npElementFilter.removeElementFilter();
-	npElementFilter.setNpScene(NULL);
+	mScene.removeParticleSystemSimControl(particleSystem.getCore());
+	remove<NpMPMParticleSystem>(this, particleSystem);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void NpScene::scAddHairSystem(NpHairSystem& hairSystem)
+{
+	add<NpHairSystem>(this, hairSystem);
+}
+
+void NpScene::scRemoveHairSystem(NpHairSystem& hairSystem)
+{
+	mScene.removeHairSystemSimControl(hairSystem.getCore());
+	remove<NpHairSystem>(this, hairSystem);
+}
+
+#endif
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4487,38 +4822,24 @@ void NpScene::scRemoveArticulationFixedTendon(NpArticulationFixedTendon& tendon)
 	remove<NpArticulationFixedTendon>(this, tendon);
 }
 
-void NpScene::scAddArticulationMimicJoint(NpArticulationMimicJoint& mimicJoint)
+void NpScene::scAddArticulationSensor(NpArticulationSensor& sensor)
 {
-	add<NpArticulationMimicJoint>(this, mimicJoint);
+	add<NpArticulationSensor>(this, sensor);
 }
-void NpScene::scRemoveArticulationMimicJoint(NpArticulationMimicJoint& mimicJoint)
+void NpScene::scRemoveArticulationSensor(NpArticulationSensor& sensor)
 {
-	remove<NpArticulationMimicJoint>(this, mimicJoint);
+	remove<NpArticulationSensor>(this, sensor);
 }
 
-#if PX_SUPPORT_OMNI_PVD
+///////////////////////////////////////////////////////////////////////////////
+
 void NpScene::createInOmniPVD(const PxSceneDesc& desc)
 {
+	PX_UNUSED(desc);
+
 	OMNI_PVD_WRITE_SCOPE_BEGIN(pvdWriter, pvdRegData)
 
 	OMNI_PVD_CREATE_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, static_cast<PxScene &>(*this))
-
-	getSceneOvdClientInternal().startFirstFrame(*pvdWriter); // Needs to have the PxScene pointer object set before the first startFrame
-
-	// Create the PxGpuDynamicsMemoryConfig object
-	OMNI_PVD_CREATE_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, desc.gpuDynamicsConfig)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, tempBufferCapacity, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.tempBufferCapacity)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, maxRigidContactCount, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.maxRigidContactCount)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, maxRigidPatchCount, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.maxRigidPatchCount)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, heapCapacity, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.heapCapacity)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, foundLostPairsCapacity, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.foundLostPairsCapacity)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, foundLostAggregatePairsCapacity, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.foundLostAggregatePairsCapacity)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, totalAggregatePairsCapacity, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.totalAggregatePairsCapacity)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, maxDeformableSurfaceContacts, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.maxDeformableSurfaceContacts)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, maxDeformableVolumeContacts, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.maxDeformableVolumeContacts)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, maxParticleContacts, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.maxParticleContacts)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxGpuDynamicsMemoryConfig, collisionStackSize, desc.gpuDynamicsConfig, desc.gpuDynamicsConfig.collisionStackSize)
-
 
 	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, gravity, static_cast<PxScene &>(*this), getGravity())
 	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, flags,	static_cast<PxScene&>(*this), getFlags())
@@ -4560,10 +4881,7 @@ void NpScene::createInOmniPVD(const PxSceneDesc& desc)
 	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, hasFilterCallback, static_cast<PxScene&>(*this), getFilterCallback() ? true : false)
 	
 	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, sanityBounds, static_cast<PxScene&>(*this), desc.sanityBounds)
-
-	// Point to the PxGpuDynamicsMemoryConfig object
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, gpuDynamicsConfig, static_cast<PxScene&>(*this), static_cast<PxGpuDynamicsMemoryConfig const*>(&this->mGpuDynamicsConfig))
-	
+	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, gpuDynamicsConfig, static_cast<PxScene&>(*this), desc.gpuDynamicsConfig)
 	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, gpuMaxNumPartitions, static_cast<PxScene&>(*this), desc.gpuMaxNumPartitions)
 	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, gpuMaxNumStaticPartitions, static_cast<PxScene&>(*this), desc.gpuMaxNumStaticPartitions)
 	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxScene, gpuComputeVersion, static_cast<PxScene&>(*this), desc.gpuComputeVersion)
@@ -4572,5 +4890,3 @@ void NpScene::createInOmniPVD(const PxSceneDesc& desc)
 
 	OMNI_PVD_WRITE_SCOPE_END
 }
-
-#endif

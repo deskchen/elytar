@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.   
 
@@ -30,7 +30,6 @@
 #define PX_PARTICLE_SYSTEM_FLAG_H
 
 #include "foundation/PxFlags.h"
-#include "foundation/PxPreprocessor.h"
 
 #if !PX_DOXYGEN
 namespace physx
@@ -67,11 +66,9 @@ typedef PxFlags<PxParticleBufferFlag::Enum, PxU32> PxParticleBufferFlags;
 /**
 \brief A pair of particle buffer unique id and GPU particle system index. 
 
-\see PxScene::applyParticleBufferData
-
-\deprecated There is no replacement.
+@see PxScene::applyParticleBufferData
 */
-PX_DEPRECATED struct PxGpuParticleBufferIndexPair
+struct PxGpuParticleBufferIndexPair
 {
 	PxU32 		systemIndex; // gpu particle system index	
 	PxU32		bufferIndex; // particle buffer unique id
@@ -80,7 +77,7 @@ PX_DEPRECATED struct PxGpuParticleBufferIndexPair
 /**
 \brief Identifies per-particle behavior for a PxParticleSystem.
 
-See #PxPBDParticleSystem::createPhase().
+See #PxParticleSystem::createPhase().
 */
 struct PxParticlePhaseFlag
 {

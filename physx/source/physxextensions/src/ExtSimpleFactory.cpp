@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -52,8 +52,6 @@ static bool isDynamicGeometry(PxGeometryType::Enum type)
 	return type == PxGeometryType::eBOX 
 		|| type == PxGeometryType::eSPHERE
 		|| type == PxGeometryType::eCAPSULE
-		|| type == PxGeometryType::eCONVEXCORE
-		|| type == PxGeometryType::eCUSTOM
 		|| type == PxGeometryType::eCONVEXMESH;
 }
 
@@ -102,7 +100,7 @@ PxRigidDynamic* PxCreateDynamic(PxPhysics& sdk,
 
 	shape->setLocalPose(shapeOffset);
 
-	PxRigidDynamic* body = PxCreateDynamic(sdk, transform, *shape, density);
+	PxRigidDynamic* body = shape ? PxCreateDynamic(sdk, transform, *shape, density) : NULL;
 	shape->release();
 	return body;
 }
@@ -251,7 +249,6 @@ static void copyStaticProperties(PxPhysics& physics, PxRigidActor& to, const PxR
 	to.setActorFlags(from.getActorFlags());
 	to.setOwnerClient(from.getOwnerClient());
 	to.setDominanceGroup(from.getDominanceGroup());
-	to.setEnvironmentID(from.getEnvironmentID());
 }
 
 PxRigidStatic* PxCloneStatic(PxPhysics& physicsSDK, 

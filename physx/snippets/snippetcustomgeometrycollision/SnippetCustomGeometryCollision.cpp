@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -32,6 +32,7 @@
 // ****************************************************************************
 
 #include <ctype.h>
+#include <vector>
 #include "PxPhysicsAPI.h"
 #include "PxImmediateMode.h"
 #include "geomutils/PxContactBuffer.h"
@@ -265,12 +266,12 @@ void cleanupPhysics(bool /*interactive*/)
 	if (gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
-		PX_RELEASE(gPvd);
+		gPvd->release();	gPvd = NULL;
 		PX_RELEASE(transport);
 	}
 	PX_RELEASE(gFoundation);
 
-	printf("SnippetCustomGeometryCollision done.\n");
+	printf("SnippetGeometryCollision done.\n");
 }
 
 void keyPress(unsigned char key, const PxTransform& camera)

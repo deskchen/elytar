@@ -22,11 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifdef RENDER_SNIPPET
+
+#include <vector>
 
 #include "PxPhysicsAPI.h"
 
@@ -58,7 +60,7 @@ namespace
 		{
 			const PxVec3 dynColor(1.0f, 0.5f, 0.25f);
 
-			PxArray<PxRigidActor*> actors(nbActors);
+			std::vector<PxRigidActor*> actors(nbActors);
 			scene->getActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC, reinterpret_cast<PxActor**>(&actors[0]), nbActors);
 			Snippets::renderActors(&actors[0], static_cast<PxU32>(actors.size()), true, dynColor);
 		}
@@ -68,7 +70,7 @@ namespace
 		Snippets::finishRender();
 	}
 
-	void exitCallback()
+	void exitCallback(void)
 	{
 		delete sCamera;
 		cleanupPhysics(true);
@@ -87,7 +89,7 @@ void renderLoop()
 
 struct RenderMesh
 {
-	PxArray<PxVec3> positions, normals;
+	std::vector<PxVec3> positions, normals;
 };
 
 RenderMesh* createRenderCylinder(float height, float radius, float margin)
@@ -107,8 +109,8 @@ RenderMesh* createRenderCylinder(float height, float radius, float margin)
 		float height, radius, margin;
 		RenderMesh* mesh;
 
-		PxArray<PxVec3> positions;
-		PxArray<PxVec3> normals;
+		std::vector<PxVec3> positions;
+		std::vector<PxVec3> normals;
 
 		float halfHeight;
 
@@ -119,19 +121,19 @@ RenderMesh* createRenderCylinder(float height, float radius, float margin)
 
 		void addVertex(int index)
 		{
-			mesh->positions.pushBack(positions[index]);
-			mesh->normals.pushBack(normals[index]);
+			mesh->positions.push_back(positions[index]);
+			mesh->normals.push_back(normals[index]);
 		}
 
 		void addTop(const PxVec3& p0, const PxVec3& n0, const PxVec3& p1, const PxVec3& n1, const PxVec3& ax)
 		{
 			int base = int(positions.size());
-			positions.pushBack(p0);
-			normals.pushBack(n0);
+			positions.push_back(p0);
+			normals.push_back(n0);
 			for (int i = 0; i < sides; ++i)
 			{
-				positions.pushBack(PxQuat(i * step, ax).rotate(p1));
-				normals.pushBack(PxQuat(i * step, ax).rotate(n1));
+				positions.push_back(PxQuat(i * step, ax).rotate(p1));
+				normals.push_back(PxQuat(i * step, ax).rotate(n1));
 			}
 			for (int i = 0; i < sides; ++i)
 			{
@@ -146,8 +148,8 @@ RenderMesh* createRenderCylinder(float height, float radius, float margin)
 			int base = int(positions.size());
 			for (int i = 0; i < sides; ++i)
 			{
-				positions.pushBack(PxQuat(i * step, ax).rotate(p0));
-				normals.pushBack(PxQuat(i * step, ax).rotate(n0));
+				positions.push_back(PxQuat(i * step, ax).rotate(p0));
+				normals.push_back(PxQuat(i * step, ax).rotate(n0));
 			}
 			for (int i = 0; i < sides; ++i)
 			{
@@ -163,8 +165,8 @@ RenderMesh* createRenderCylinder(float height, float radius, float margin)
 		void addBottom(const PxVec3& p0, const PxVec3& n0, const PxVec3& /*ax*/)
 		{
 			int base = int(positions.size());
-			positions.pushBack(p0);
-			normals.pushBack(n0);
+			positions.push_back(p0);
+			normals.push_back(n0);
 			for (int i = 0; i < sides; ++i)
 			{
 				addVertex(base - sides + i);
@@ -222,8 +224,8 @@ RenderMesh* createRenderCone(float height, float radius, float margin)
 		float height, radius, margin;
 		RenderMesh* mesh;
 
-		PxArray<PxVec3> positions;
-		PxArray<PxVec3> normals;
+		std::vector<PxVec3> positions;
+		std::vector<PxVec3> normals;
 
 		float halfHeight;
 
@@ -234,19 +236,19 @@ RenderMesh* createRenderCone(float height, float radius, float margin)
 
 		void addVertex(int index)
 		{
-			mesh->positions.pushBack(positions[index]);
-			mesh->normals.pushBack(normals[index]);
+			mesh->positions.push_back(positions[index]);
+			mesh->normals.push_back(normals[index]);
 		}
 
 		void addTop(const PxVec3& p0, const PxVec3& n0, const PxVec3& p1, const PxVec3& n1, const PxVec3& ax)
 		{
 			int base = int(positions.size());
-			positions.pushBack(p0);
-			normals.pushBack(n0);
+			positions.push_back(p0);
+			normals.push_back(n0);
 			for (int i = 0; i < sides; ++i)
 			{
-				positions.pushBack(PxQuat(i * step, ax).rotate(p1));
-				normals.pushBack(PxQuat(i * step, ax).rotate(n1));
+				positions.push_back(PxQuat(i * step, ax).rotate(p1));
+				normals.push_back(PxQuat(i * step, ax).rotate(n1));
 			}
 			for (int i = 0; i < sides; ++i)
 			{
@@ -261,8 +263,8 @@ RenderMesh* createRenderCone(float height, float radius, float margin)
 			int base = int(positions.size());
 			for (int i = 0; i < sides; ++i)
 			{
-				positions.pushBack(PxQuat(i * step, ax).rotate(p0));
-				normals.pushBack(PxQuat(i * step, ax).rotate(n0));
+				positions.push_back(PxQuat(i * step, ax).rotate(p0));
+				normals.push_back(PxQuat(i * step, ax).rotate(n0));
 			}
 			for (int i = 0; i < sides; ++i)
 			{
@@ -278,8 +280,8 @@ RenderMesh* createRenderCone(float height, float radius, float margin)
 		void addBottom(const PxVec3& p0, const PxVec3& n0, const PxVec3& /*ax*/)
 		{
 			int base = int(positions.size());
-			positions.pushBack(p0);
-			normals.pushBack(n0);
+			positions.push_back(p0);
+			normals.push_back(n0);
 			for (int i = 0; i < sides; ++i)
 			{
 				addVertex(base - sides + i);
@@ -346,8 +348,8 @@ void renderMesh(const RenderMesh& mesh, const PxTransform& pose, bool sleeping)
 
 	glEnableClientState(GL_NORMAL_ARRAY);
 	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(3, GL_FLOAT, 3 * sizeof(float), mesh.positions.begin());
-	glNormalPointer(GL_FLOAT, 3 * sizeof(float), mesh.normals.begin());
+	glVertexPointer(3, GL_FLOAT, 3 * sizeof(float), mesh.positions.data());
+	glNormalPointer(GL_FLOAT, 3 * sizeof(float), mesh.normals.data());
 	glDrawArrays(GL_TRIANGLES, 0, int(mesh.positions.size()));
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_NORMAL_ARRAY);
@@ -370,8 +372,8 @@ void renderMesh(const RenderMesh& mesh, const PxTransform& pose, bool sleeping)
 
 		glEnableClientState(GL_NORMAL_ARRAY);
 		glEnableClientState(GL_VERTEX_ARRAY);
-		glVertexPointer(3, GL_FLOAT, 3 * sizeof(float), mesh.positions.begin());
-		glNormalPointer(GL_FLOAT, 3 * sizeof(float), mesh.normals.begin());
+		glVertexPointer(3, GL_FLOAT, 3 * sizeof(float), mesh.positions.data());
+		glNormalPointer(GL_FLOAT, 3 * sizeof(float), mesh.normals.data());
 		glDrawArrays(GL_TRIANGLES, 0, int(mesh.positions.size()));
 		glDisableClientState(GL_VERTEX_ARRAY);
 		glDisableClientState(GL_NORMAL_ARRAY);

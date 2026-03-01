@@ -22,16 +22,21 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #include "NpShape.h"
+#include "NpCheck.h"
 #include "NpRigidStatic.h"
 #include "NpRigidDynamic.h"
 #include "NpArticulationLink.h"
-#include "NpDeformableSurface.h"
-#include "NpDeformableVolume.h"
+#include "GuConvexMesh.h"
+#include "GuTriangleMesh.h"
+#include "GuTetrahedronMesh.h"
+#include "GuBounds.h"
+#include "NpFEMCloth.h"
+#include "NpSoftBody.h"
 
 #include "omnipvd/NpOmniPvdSetData.h"
 
@@ -82,18 +87,18 @@ NpShape::~NpShape()
 	const PxU32 nbMaterials = scGetNbMaterials();
 	PxShapeCoreFlags flags = mCore.getCore().mShapeCoreFlags;
 
-	if (flags & PxShapeCoreFlag::eDEFORMABLE_SURFACE_SHAPE)
+	if (flags & PxShapeCoreFlag::eCLOTH_SHAPE)
 	{
-#if PX_SUPPORT_GPU_PHYSX
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION && PX_SUPPORT_GPU_PHYSX
 		for (PxU32 i = 0; i < nbMaterials; i++)
-			RefCountable_decRefCount(*scGetMaterial<NpDeformableSurfaceMaterial>(i));
+			RefCountable_decRefCount(*scGetMaterial<NpFEMClothMaterial>(i));
 #endif
 	}
-	else if(flags & PxShapeCoreFlag::eDEFORMABLE_VOLUME_SHAPE)
+	else if(flags & PxShapeCoreFlag::eSOFT_BODY_SHAPE)
 	{ 
 #if PX_SUPPORT_GPU_PHYSX
 		for (PxU32 i = 0; i < nbMaterials; i++)
-			RefCountable_decRefCount(*scGetMaterial<NpDeformableVolumeMaterial>(i));
+			RefCountable_decRefCount(*scGetMaterial<NpFEMSoftBodyMaterial>(i));
 #endif
 	}
 	else
@@ -264,11 +269,6 @@ void NpShape::setGeometry(const PxGeometry& g)
 {
 	NpScene* ownerScene = getNpScene();
 	NP_WRITE_CHECK(ownerScene);
-	if(ownerScene && (ownerScene->getFlags() & PxSceneFlag::eENABLE_DIRECT_GPU_API) && ownerScene->isDirectGPUAPIInitialized())
-	{
-		 NP_API_READ_WRITE_ERROR_MSG(
-			"NpShape::setGeometry() is not allowed when direct-GPU API is already initialized.");
-	}
 	PX_CHECK_AND_RETURN(isWritable(), "PxShape::setGeometry: shared shapes attached to actors are not writable.");
 #if PX_CHECKED
 	if(!checkShape(g, "PxShape::setGeometry(): Invalid geometry!"))
@@ -348,7 +348,8 @@ void NpShape::setLocalPose(const PxTransform& newShape2Actor)
 	notifyActorAndUpdatePVD(Sc::ShapeChangeNotifyFlag::eSHAPE2BODY);
 
 	OMNI_PVD_WRITE_SCOPE_BEGIN(pvdWriter, pvdRegData)
-	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxShape, localPose, static_cast<PxShape &>(*this), normalizedTransform)
+	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxShape, translation, static_cast<PxShape &>(*this), normalizedTransform.p)
+	OMNI_PVD_SET_EXPLICIT(pvdWriter, pvdRegData, OMNI_PVD_CONTEXT_HANDLE, PxShape, rotation, static_cast<PxShape &>(*this), normalizedTransform.q)
 	OMNI_PVD_WRITE_SCOPE_END
 
 	updateSQ("PxShape::setLocalPose: Shape is a part of pruning structure, pruning structure is now invalid!");
@@ -405,24 +406,6 @@ PxFilterData NpShape::getQueryFilterData() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename PxMaterialType, typename NpMaterialType>
-static PX_INLINE PxU32 scGetMaterials(const Sc::ShapeCore& mCore, PxMaterialType** buffer, PxU32 bufferSize, PxU32 startIndex=0)
-{
-	NpMaterialManager<NpMaterialType>& matManager = NpMaterialAccessor<NpMaterialType>::getMaterialManager(NpPhysics::getInstance());
-	const PxU16* materialIndices = mCore.getMaterialIndices();
-
-	// PT: this is copied from Cm::getArrayOfPointers(). We cannot use the Cm function here
-	// because of the extra indirection needed to access the materials.
-	PxU32 size = mCore.getNbMaterialIndices();
-	const PxU32 remainder = PxU32(PxMax<PxI32>(PxI32(size - startIndex), 0));
-	const PxU32 writeCount = PxMin(remainder, bufferSize);
-	materialIndices += startIndex;
-	for(PxU32 i=0;i<writeCount;i++)
-		buffer[i] = matManager.getMaterial(materialIndices[i]);
-
-	return writeCount;
-}
-
 template<typename PxMaterialType, typename NpMaterialType> 
 void NpShape::setMaterialsInternal(PxMaterialType* const * materials, PxU16 materialCount)
 {
@@ -439,7 +422,7 @@ void NpShape::setMaterialsInternal(PxMaterialType* const * materials, PxU16 mate
 
 	const PxU32 oldMaterialCount = scGetNbMaterials();
 	PX_ALLOCA(oldMaterials, PxMaterialType*, oldMaterialCount);
-	PxU32 tmp = scGetMaterials<PxMaterialType, NpMaterialType>(mCore, oldMaterials, oldMaterialCount);
+	PxU32 tmp = scGetMaterials<PxMaterialType, NpMaterialType>(oldMaterials, oldMaterialCount);
 	PX_ASSERT(tmp == oldMaterialCount);
 	PX_UNUSED(tmp);
 
@@ -465,39 +448,33 @@ void NpShape::setMaterialsInternal(PxMaterialType* const * materials, PxU16 mate
 
 void NpShape::setMaterials(PxMaterial*const* materials, PxU16 materialCount)
 {
-	PX_CHECK_AND_RETURN(!(mCore.getCore().mShapeCoreFlags & PxShapeCoreFlag::eDEFORMABLE_SURFACE_SHAPE),
-		"NpShape::setMaterials: cannot set rigid body materials to a deformable surface shape!");
-
-	PX_CHECK_AND_RETURN(!(mCore.getCore().mShapeCoreFlags & PxShapeCoreFlag::eDEFORMABLE_VOLUME_SHAPE),
-		"NpShape::setMaterials: cannot set rigid body materials to a deformable volume shape!");
-
+	PX_CHECK_AND_RETURN(!(mCore.getCore().mShapeCoreFlags & PxShapeCoreFlag::eSOFT_BODY_SHAPE), "NpShape::setMaterials: cannot set rigid body materials to a soft body shape!");
+	PX_CHECK_AND_RETURN(!(mCore.getCore().mShapeCoreFlags & PxShapeCoreFlag::eCLOTH_SHAPE), "NpShape::setMaterials: cannot set rigid body materials to a cloth shape!");
 	setMaterialsInternal<PxMaterial, NpMaterial>(materials, materialCount);
 }
 
-void NpShape::setDeformableSurfaceMaterials(PxDeformableSurfaceMaterial*const* materials, PxU16 materialCount)
+void NpShape::setSoftBodyMaterials(PxFEMSoftBodyMaterial*const* materials, PxU16 materialCount)
 {
 #if PX_SUPPORT_GPU_PHYSX
-	PX_CHECK_AND_RETURN((mCore.getCore().mShapeCoreFlags & PxShapeCoreFlag::eDEFORMABLE_SURFACE_SHAPE),
-		"NpShape::setMaterials: can only apply deformable surface materials to a deformable surface shape!");
+	PX_CHECK_AND_RETURN((mCore.getCore().mShapeCoreFlags & PxShapeCoreFlag::eSOFT_BODY_SHAPE), "NpShape::setMaterials: can only apply soft body materials to a soft body shape!");
 
-	setMaterialsInternal<PxDeformableSurfaceMaterial, NpDeformableSurfaceMaterial>(materials, materialCount);
-	if (mExclusiveShapeActor)
-		static_cast<NpDeformableSurface*>(mExclusiveShapeActor)->updateMaterials();
+	setMaterialsInternal<PxFEMSoftBodyMaterial, NpFEMSoftBodyMaterial>(materials, materialCount);
+	if (this->mExclusiveShapeActor)
+	{
+		static_cast<NpSoftBody*>(mExclusiveShapeActor)->updateMaterials();
+	}
 #else
 	PX_UNUSED(materials);
 	PX_UNUSED(materialCount);
 #endif
 }
 
-void NpShape::setDeformableVolumeMaterials(PxDeformableVolumeMaterial* const* materials, PxU16 materialCount)
+void NpShape::setClothMaterials(PxFEMClothMaterial*const* materials, PxU16 materialCount)
 {
-#if PX_SUPPORT_GPU_PHYSX
-	PX_CHECK_AND_RETURN((mCore.getCore().mShapeCoreFlags & PxShapeCoreFlag::eDEFORMABLE_VOLUME_SHAPE),
-		"NpShape::setMaterials: can only apply deformable volume materials to a deformable volume shape!");
+#if PX_SUPPORT_GPU_PHYSX && PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+	PX_CHECK_AND_RETURN((mCore.getCore().mShapeCoreFlags & PxShapeCoreFlag::eCLOTH_SHAPE), "NpShape::setMaterials: can only apply cloth materials to a cloth shape!");
 
-	setMaterialsInternal<PxDeformableVolumeMaterial, NpDeformableVolumeMaterial>(materials, materialCount);
-	if (mExclusiveShapeActor)
-		static_cast<NpDeformableVolume*>(mExclusiveShapeActor)->updateMaterials();
+	setMaterialsInternal<PxFEMClothMaterial, NpFEMClothMaterial>(materials, materialCount);
 #else
 	PX_UNUSED(materials);
 	PX_UNUSED(materialCount);
@@ -513,30 +490,30 @@ PxU16 NpShape::getNbMaterials() const
 PxU32 NpShape::getMaterials(PxMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
 {
 	NP_READ_CHECK(getNpScene());
-	return scGetMaterials<PxMaterial, NpMaterial>(mCore, userBuffer, bufferSize, startIndex);
+	return scGetMaterials<PxMaterial, NpMaterial>(userBuffer, bufferSize, startIndex);
 }
 
 #if PX_SUPPORT_GPU_PHYSX
-PxU32 NpShape::getDeformableSurfaceMaterials(PxDeformableSurfaceMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
+PxU32 NpShape::getSoftBodyMaterials(PxFEMSoftBodyMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
 {
 	NP_READ_CHECK(getNpScene());
-	return scGetMaterials<PxDeformableSurfaceMaterial, NpDeformableSurfaceMaterial>(mCore, userBuffer, bufferSize, startIndex);
+	return scGetMaterials<PxFEMSoftBodyMaterial, NpFEMSoftBodyMaterial>(userBuffer, bufferSize, startIndex);
 }
 #else
-PxU32 NpShape::getDeformableSurfaceMaterials(PxDeformableSurfaceMaterial**, PxU32, PxU32) const
+PxU32 NpShape::getSoftBodyMaterials(PxFEMSoftBodyMaterial**, PxU32, PxU32) const
 {
 	return 0;
 }
 #endif
 
-#if PX_SUPPORT_GPU_PHYSX
-PxU32 NpShape::getDeformableVolumeMaterials(PxDeformableVolumeMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
+#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION && PX_SUPPORT_GPU_PHYSX
+PxU32 NpShape::getClothMaterials(PxFEMClothMaterial** userBuffer, PxU32 bufferSize, PxU32 startIndex) const
 {
 	NP_READ_CHECK(getNpScene());
-	return scGetMaterials<PxDeformableVolumeMaterial, NpDeformableVolumeMaterial>(mCore, userBuffer, bufferSize, startIndex);
+	return scGetMaterials<PxFEMClothMaterial, NpFEMClothMaterial>(userBuffer, bufferSize, startIndex);
 }
 #else
-PxU32 NpShape::getDeformableVolumeMaterials(PxDeformableVolumeMaterial**, PxU32, PxU32) const
+PxU32 NpShape::getClothMaterials(PxFEMClothMaterial**, PxU32, PxU32) const
 {
 	return 0;
 }
@@ -711,14 +688,14 @@ PxReal NpShape::getMinTorsionalPatchRadius() const
 	return mCore.getMinTorsionalPatchRadius();
 }
 
-PxShapeGPUIndex NpShape::getGPUIndex() const
+PxU32 NpShape::getInternalShapeIndex() const
 {
 	NP_READ_CHECK(getNpScene());
-	if(getNpScene())
+	if (getNpScene())
 	{
 		PxsSimulationController* simulationController = getNpScene()->getSimulationController();
-		if(simulationController)
-			return simulationController->getInternalShapeIndex(mCore.getCore());
+		if (simulationController)
+			return mCore.getInternalShapeIndex(*simulationController);
 	}
 	return PX_INVALID_NODE;
 }
@@ -946,10 +923,16 @@ bool NpShape::setMaterialsHelper(PxMaterialType* const* materials, PxU16 materia
 	else
 	{
 		PX_ASSERT(materialCount > 1);
+
 		PX_ALLOCA(materialIndices, PxU16, materialCount);
 
-		NpMaterialType::getMaterialIndices(materials, materialIndices, materialCount);
-		mCore.setMaterialIndices(materialIndices, materialCount);
+		if(materialIndices)
+		{
+			NpMaterialType::getMaterialIndices(materials, materialIndices, materialCount);
+			mCore.setMaterialIndices(materialIndices, materialCount);
+		}
+		else
+			return outputError<PxErrorCode::eOUT_OF_MEMORY>(__LINE__, "PxShape::setMaterials() failed. Out of memory. Call will be ignored.");
 	}
 
 	NpScene* npScene = getNpScene();
@@ -970,12 +953,12 @@ void NpShape::notifyActorAndUpdatePVD(Sc::ShapeChangeNotifyFlags notifyFlags)
 
 #if PX_SUPPORT_GPU_PHYSX
 		const PxType type = mExclusiveShapeActor->getConcreteType();
-
-		if(type==PxConcreteType::eDEFORMABLE_SURFACE)
-			static_cast<NpDeformableSurface*>(mExclusiveShapeActor)->getCore().onShapeChange(mCore, notifyFlags);
-
-		if(type==PxConcreteType::eDEFORMABLE_VOLUME)
-			static_cast<NpDeformableVolume*>(mExclusiveShapeActor)->getCore().onShapeChange(mCore, notifyFlags);
+	#if PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+		if(type==PxConcreteType::eFEM_CLOTH)
+			static_cast<NpFEMCloth*>(mExclusiveShapeActor)->getCore().onShapeChange(mCore, notifyFlags);
+	#endif
+		if(type==PxConcreteType::eSOFT_BODY)
+			static_cast<NpSoftBody*>(mExclusiveShapeActor)->getCore().onShapeChange(mCore, notifyFlags);
 #endif
 	}
 

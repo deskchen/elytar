@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -156,8 +156,6 @@ PxD6JointDrive getPxD6Joint_Drive( const PxD6Joint* inObj, PxD6Drive::Enum inInd
 void setPxD6Joint_DrivePosition( PxD6Joint* inObj, const PxTransform & inArg){ inObj->setDrivePosition( inArg ); }
 PxTransform getPxD6Joint_DrivePosition( const PxD6Joint* inObj ) { return inObj->getDrivePosition(); }
 const char * getPxD6Joint_ConcreteTypeName( const PxD6Joint* inObj ) { return inObj->getConcreteTypeName(); }
-void setPxD6Joint_AngularDriveConfig( PxD6Joint* inObj, PxD6AngularDriveConfig::Enum inArg){ inObj->setAngularDriveConfig( inArg ); }
-PxD6AngularDriveConfig::Enum getPxD6Joint_AngularDriveConfig( const PxD6Joint* inObj ) { return inObj->getAngularDriveConfig(); }
  PxD6JointGeneratedInfo::PxD6JointGeneratedInfo()
 	: Motion( "Motion", setPxD6Joint_Motion, getPxD6Joint_Motion)
 	, TwistAngle( "TwistAngle", getPxD6Joint_TwistAngle)
@@ -172,7 +170,6 @@ PxD6AngularDriveConfig::Enum getPxD6Joint_AngularDriveConfig( const PxD6Joint* i
 	, Drive( "Drive", setPxD6Joint_Drive, getPxD6Joint_Drive)
 	, DrivePosition( "DrivePosition", setPxD6Joint_DrivePosition, getPxD6Joint_DrivePosition)
 	, ConcreteTypeName( "ConcreteTypeName", getPxD6Joint_ConcreteTypeName)
-	, AngularDriveConfig( "AngularDriveConfig", setPxD6Joint_AngularDriveConfig, getPxD6Joint_AngularDriveConfig)
 {}
  PxD6JointGeneratedValues::PxD6JointGeneratedValues( const PxD6Joint* inSource )
 		:PxJointGeneratedValues( inSource )
@@ -187,7 +184,6 @@ PxD6AngularDriveConfig::Enum getPxD6Joint_AngularDriveConfig( const PxD6Joint* i
 		,PyramidSwingLimit( getPxD6Joint_PyramidSwingLimit( inSource ) )
 		,DrivePosition( getPxD6Joint_DrivePosition( inSource ) )
 		,ConcreteTypeName( getPxD6Joint_ConcreteTypeName( inSource ) )
-		,AngularDriveConfig( getPxD6Joint_AngularDriveConfig( inSource ) )
 {
 	PX_UNUSED(inSource);
 		for ( PxU32 idx = 0; idx < static_cast<PxU32>( physx::PxD6Axis::eCOUNT ); ++idx )
@@ -229,6 +225,36 @@ const char * getPxDistanceJoint_ConcreteTypeName( const PxDistanceJoint* inObj )
 		,Damping( getPxDistanceJoint_Damping( inSource ) )
 		,DistanceJointFlags( getPxDistanceJoint_DistanceJointFlags( inSource ) )
 		,ConcreteTypeName( getPxDistanceJoint_ConcreteTypeName( inSource ) )
+{
+	PX_UNUSED(inSource);
+}
+void setPxContactJoint_Contact( PxContactJoint* inObj, const PxVec3 & inArg){ inObj->setContact( inArg ); }
+PxVec3 getPxContactJoint_Contact( const PxContactJoint* inObj ) { return inObj->getContact(); }
+void setPxContactJoint_ContactNormal( PxContactJoint* inObj, const PxVec3 & inArg){ inObj->setContactNormal( inArg ); }
+PxVec3 getPxContactJoint_ContactNormal( const PxContactJoint* inObj ) { return inObj->getContactNormal(); }
+void setPxContactJoint_Penetration( PxContactJoint* inObj, const PxReal inArg){ inObj->setPenetration( inArg ); }
+PxReal getPxContactJoint_Penetration( const PxContactJoint* inObj ) { return inObj->getPenetration(); }
+void setPxContactJoint_Restitution( PxContactJoint* inObj, const PxReal inArg){ inObj->setRestitution( inArg ); }
+PxReal getPxContactJoint_Restitution( const PxContactJoint* inObj ) { return inObj->getRestitution(); }
+void setPxContactJoint_BounceThreshold( PxContactJoint* inObj, const PxReal inArg){ inObj->setBounceThreshold( inArg ); }
+PxReal getPxContactJoint_BounceThreshold( const PxContactJoint* inObj ) { return inObj->getBounceThreshold(); }
+const char * getPxContactJoint_ConcreteTypeName( const PxContactJoint* inObj ) { return inObj->getConcreteTypeName(); }
+ PxContactJointGeneratedInfo::PxContactJointGeneratedInfo()
+	: Contact( "Contact", setPxContactJoint_Contact, getPxContactJoint_Contact)
+	, ContactNormal( "ContactNormal", setPxContactJoint_ContactNormal, getPxContactJoint_ContactNormal)
+	, Penetration( "Penetration", setPxContactJoint_Penetration, getPxContactJoint_Penetration)
+	, Restitution( "Restitution", setPxContactJoint_Restitution, getPxContactJoint_Restitution)
+	, BounceThreshold( "BounceThreshold", setPxContactJoint_BounceThreshold, getPxContactJoint_BounceThreshold)
+	, ConcreteTypeName( "ConcreteTypeName", getPxContactJoint_ConcreteTypeName)
+{}
+ PxContactJointGeneratedValues::PxContactJointGeneratedValues( const PxContactJoint* inSource )
+		:PxJointGeneratedValues( inSource )
+		,Contact( getPxContactJoint_Contact( inSource ) )
+		,ContactNormal( getPxContactJoint_ContactNormal( inSource ) )
+		,Penetration( getPxContactJoint_Penetration( inSource ) )
+		,Restitution( getPxContactJoint_Restitution( inSource ) )
+		,BounceThreshold( getPxContactJoint_BounceThreshold( inSource ) )
+		,ConcreteTypeName( getPxContactJoint_ConcreteTypeName( inSource ) )
 {
 	PX_UNUSED(inSource);
 }

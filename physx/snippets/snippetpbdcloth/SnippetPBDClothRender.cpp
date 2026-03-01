@@ -22,11 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifdef RENDER_SNIPPET
+
+#include <vector>
 
 #include "PxPhysicsAPI.h"
 #include "cudamanager/PxCudaContext.h"
@@ -94,14 +96,12 @@ void allocParticleBuffers()
 	PxScene* scene;
 	PxGetPhysics().getScenes(&scene, 1);
 	PxCudaContextManager* cudaContextManager = scene->getCudaContextManager();
-	if (cudaContextManager != NULL)
-	{
-		PxParticleClothBuffer* userBuffer = getUserClothBuffer();
-		PxU32 maxParticles = userBuffer->getMaxParticles();
 
-		sPosBuffer.initialize(cudaContextManager);
-		sPosBuffer.allocate(maxParticles * sizeof(PxVec4));
-	}
+	PxParticleClothBuffer* userBuffer = getUserClothBuffer();
+	PxU32 maxParticles = userBuffer->getMaxParticles();
+
+	sPosBuffer.initialize(cudaContextManager);
+	sPosBuffer.allocate(maxParticles * sizeof(PxVec4));
 }
 
 void clearupParticleBuffers()
@@ -122,7 +122,7 @@ void renderCallback()
 	PxU32 nbActors = scene->getNbActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC);
 	if(nbActors)
 	{
-		PxArray<PxRigidActor*> actors(nbActors);
+		std::vector<PxRigidActor*> actors(nbActors);
 		scene->getActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC, reinterpret_cast<PxActor**>(&actors[0]), nbActors);
 		Snippets::renderActors(&actors[0], static_cast<PxU32>(actors.size()), true);
 	}
@@ -141,7 +141,7 @@ void cleanup()
 	cleanupPhysics(true);
 }
 
-void exitCallback()
+void exitCallback(void)
 {
 }
 }

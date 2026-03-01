@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -68,7 +68,7 @@ public:
 		mBlocks.resize(0);
 	}
 
-	PX_NOINLINE void reserve(PxU32 capacity)
+	void reserve(PxU32 capacity)
 	{
 		if (capacity > mCapacity)
 		{
@@ -88,18 +88,15 @@ public:
 		}
 	}
 
-	PX_NOINLINE void resize(PxU32 size)
+	void resize(PxU32 size)
 	{
-		if(size != mSize)
+		reserve(size);
+		for (PxU32 a = mSize; a < size; ++a)
 		{
-			reserve(size);
-			for (PxU32 a = mSize; a < size; ++a)
-			{
-				mBlocks[a / SlabSize][a&(SlabSize - 1)].~T();
-				mBlocks[a / SlabSize][a&(SlabSize - 1)] = T();
-			}
-			mSize = size;
+			mBlocks[a / SlabSize][a&(SlabSize - 1)].~T();
+			mBlocks[a / SlabSize][a&(SlabSize-1)] = T();
 		}
+		mSize = size;
 	}
 
 	void forceSize_Unsafe(PxU32 size)

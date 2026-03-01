@@ -22,11 +22,10 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
+#include "foundation/Px.h"
 #include "foundation/PxSimpleTypes.h"
-#include "foundation/PxVec3.h"
-#include "foundation/PxQuat.h"
 
 namespace physx
 {

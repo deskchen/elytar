@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_PHYSICS_GPU_H
 #define PX_PHYSICS_GPU_H
+/** \addtogroup extensions
+  @{
+*/
 
 
 #include "cudamanager/PxCudaContext.h"
@@ -56,8 +59,9 @@ namespace physx
 	class PxParticleNeighborhoodProvider;
 
 	class PxArrayConverter;
+	class PxLineStripSkinning;
+	class PxSoftBodyEmbedding;
 	class PxSDFBuilder;
-	class PxDeformableSkinning;
 
 	struct PxIsosurfaceParams;
 	struct PxSparseGridParams;
@@ -134,6 +138,15 @@ namespace physx
 		virtual PxArrayConverter* createArrayConverter(PxCudaContextManager* cudaContextManager) = 0;
 
 		/**
+		\brief Creates an line strip embedding helper. If not used anymore, the caller needs to delete the returned pointer.
+
+		\param[in] cudaContextManager A cuda context manager
+
+		\return Pointer to a new instance of a PxLineStripSkinning
+		*/
+		virtual PxLineStripSkinning* createLineStripSkinning(PxCudaContextManager* cudaContextManager) = 0;
+
+		/**
 		\brief Creates sdf builder to construct sdfs quickly on the GPU. If not used anymore, the caller needs to delete the returned pointer.
 
 		\param[in] cudaContextManager A cuda context manager
@@ -143,13 +156,18 @@ namespace physx
 		virtual PxSDFBuilder* createSDFBuilder(PxCudaContextManager* cudaContextManager) = 0;
 
 		/**
-		\brief Creates a deformable skinning instance to perform skinning operations on the GPU. If not used anymore, the caller needs to delete the returned pointer.
+		\brief Estimates the amount of GPU memory needed to create a scene for the given descriptor.
 
-		\param[in] cudaContextManager A cuda context manager
+		\param[in] sceneDesc a valid scene desriptor
 
-		\return Pointer to a new instance of a PxDeformableSkinning
-		*/
-		virtual PxDeformableSkinning* createDeformableSkinning(PxCudaContextManager* cudaContextManager) = 0;
+		\note While this is a conservative estimate, scene allocation may still fail even though there is
+		enough memory - this function does not contain the potential overhead coming from the CUDA allocator.
+		Additionally, there may be fragmentation issues. Generally, this is not an issue for 
+		scene allocation sizes < 500Mb, but may become problematic for larger scenes.
+
+		\return A conservative estimate for the amount of GPU memory needed to create a scene for the given descriptor.
+	 	*/
+		virtual PxU64 estimateSceneCreationGpuMemoryRequirements(const PxSceneDesc& sceneDesc) = 0;
 
 		virtual void release() = 0;
 
@@ -162,4 +180,5 @@ namespace physx
 } // namespace physx
 #endif
 
+/** @} */
 #endif

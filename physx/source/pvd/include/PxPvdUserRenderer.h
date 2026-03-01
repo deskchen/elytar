@@ -22,11 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
 #ifndef PX_PVD_USER_RENDERER_H
 #define PX_PVD_USER_RENDERER_H
 
+/** \addtogroup pvd
+@{
+*/
 #include "foundation/PxVec3.h"
 #include "foundation/PxTransform.h"
 #include "common/PxRenderBuffer.h"
@@ -100,5 +103,6 @@ class RendererEventClient
 }
 }
 #endif
+/** @} */
 #endif
 

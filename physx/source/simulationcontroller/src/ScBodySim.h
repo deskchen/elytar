@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -31,8 +31,6 @@
 
 #include "foundation/PxUtilities.h"
 #include "foundation/PxIntrinsics.h"
-#include "foundation/PxPinnedArray.h"
-#include "foundation/PxPinnedBitMap.h"
 #include "ScRigidSim.h"
 #include "PxvDynamics.h"
 #include "ScBodyCore.h"
@@ -42,12 +40,10 @@
 
 namespace physx
 {
-
 namespace Bp
 {
 	class BoundsArray;
 }
-	struct PxsExternalAccelerationProvider;
 	class PxsTransformCache;
 namespace Sc
 {
@@ -142,8 +138,7 @@ namespace Sc
 		PX_FORCE_INLINE PxIntBool				isFrozen()					const	{ return PxIntBool(mLLBody.mInternalFlags & PxsRigidBody::eFROZEN);									}
 
 		// External velocity changes - returns true if any forces were applied to this body
-						bool					updateForces(PxReal dt, PxsRigidBody** updatedBodySims, PxU32* updatedBodyNodeIndices, PxU32& index, Cm::SpatialVector* acceleration, 
-													PxsExternalAccelerationProvider* externalAccelerations = NULL, PxU32 maxNumExternalAccelerations = 0);
+						bool					updateForces(PxReal dt, PxsRigidBody** updatedBodySims, PxU32* updatedBodyNodeIndices, PxU32& index, Cm::SpatialVector* acceleration);
 
 		PX_FORCE_INLINE bool					readVelocityModFlag(VelocityModFlags f) { return (mVelModState & f) != 0; }
 
@@ -201,8 +196,10 @@ namespace Sc
 						void					tearDownSimStateData(bool isKinematic);
 
 						void					raiseVelocityModFlagAndNotify(VelocityModFlags flag);
-		PX_FORCE_INLINE	void					notifyDirtySpatialAcceleration()	{ raiseVelocityModFlagAndNotify(VMF_ACC_DIRTY);	}
-		PX_FORCE_INLINE	void					notifyDirtySpatialVelocity()		{ raiseVelocityModFlagAndNotify(VMF_VEL_DIRTY);	}
+		PX_FORCE_INLINE	void					notifyAddSpatialAcceleration()		{ raiseVelocityModFlagAndNotify(VMF_ACC_DIRTY);	}
+		PX_FORCE_INLINE	void					notifyClearSpatialAcceleration()	{ raiseVelocityModFlagAndNotify(VMF_ACC_DIRTY);	}
+		PX_FORCE_INLINE	void					notifyAddSpatialVelocity()			{ raiseVelocityModFlagAndNotify(VMF_VEL_DIRTY);	}
+		PX_FORCE_INLINE	void					notifyClearSpatialVelocity()		{ raiseVelocityModFlagAndNotify(VMF_VEL_DIRTY);	}
 
 		PX_FORCE_INLINE void					initKinematicStateBase(BodyCore&, bool asPartOfCreation);
 

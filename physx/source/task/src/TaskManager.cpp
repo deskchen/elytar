@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
 #include "task/PxTask.h"
 #include "foundation/PxErrors.h"
@@ -43,8 +43,8 @@ namespace physx
 
 	struct PxTaskDepTableRow
 	{
-		PxTaskID	mTaskID;
-		int			mNextDep;
+		PxTaskID    mTaskID;
+		int       mNextDep;
 	};
 	typedef PxArray<PxTaskDepTableRow> PxTaskDepTable;
 
@@ -123,16 +123,16 @@ public:
 	void	decrReference( PxLightCpuTask& lighttask );
 	void	addReference( PxLightCpuTask& lighttask );		
 
-	PxErrorCallback&	mErrorCallback;
-	PxCpuDispatcher*	mCpuDispatcher;
-	PxTaskNameToIDMap	mName2IDmap;
-	volatile int		mPendingTasks;
-    PxMutex				mMutex;
+	PxErrorCallback&			mErrorCallback;
+	PxCpuDispatcher           *mCpuDispatcher;
+	PxTaskNameToIDMap          mName2IDmap;
+	volatile int			 mPendingTasks;
+    PxMutex            mMutex;
 
-	PxTaskDepTable		mDepTable;
-	PxTaskTable			mTaskTable;
+	PxTaskDepTable				 mDepTable;
+	PxTaskTable				 mTaskTable;
 
-	PxArray<PxTaskID>	mStartDispatch;
+	PxArray<PxTaskID>	 mStartDispatch;
 	};
 
 PxTaskManager* PxTaskManager::createTaskManager(PxErrorCallback& errorCallback, PxCpuDispatcher* cpuDispatcher)
@@ -413,7 +413,7 @@ void PxTaskMgr::dispatchTask( PxTaskID taskID )
 	LOCK(); // todo: reader lock necessary?
     PxTaskTableRow& tt = mTaskTable[ taskID ];
 
-	// prevent re-submission
+    // prevent re-submission
     if( tt.mType == PxTaskType::eCOMPLETED )
     {		
 		mErrorCallback.reportError(PxErrorCode::eDEBUG_WARNING, "PxTask dispatched twice", PX_FL);

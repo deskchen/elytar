@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -30,14 +30,13 @@
 #define DY_TGS_H
 
 #include "foundation/PxPreprocessor.h"
+#include "foundation/PxSimpleTypes.h"
 
 namespace physx
 {
 	struct PxConstraintBatchHeader;
 	struct PxSolverConstraintDesc;
 	struct PxTGSSolverBodyTxInertia;
-	struct PxTGSSolverBodyData;
-	struct PxTGSSolverBodyVel;
 
 	namespace Dy
 	{
@@ -58,16 +57,6 @@ namespace physx
 		extern TGSSolveBlockMethod		g_SolveTGSMethods[];
 		extern TGSSolveConcludeMethod	g_SolveConcludeTGSMethods[];
 		extern TGSWriteBackMethod		g_WritebackTGSMethods[];
-
-		// PT: also used by immediate mode
-		void copyToSolverBodyDataStep(const PxVec3& linearVelocity, const PxVec3& angularVelocity, PxReal invMass, const PxVec3& invInertia, const PxTransform& globalPose,
-			PxReal maxDepenetrationVelocity, PxReal maxContactImpulse, PxU32 nodeIndex, PxReal reportThreshold,
-			PxReal maxAngVelSq, PxU32 lockFlags, bool isKinematic,
-			PxTGSSolverBodyVel& solverVel, PxTGSSolverBodyTxInertia& solverBodyTxInertia, PxTGSSolverBodyData& solverBodyData,
-			PxReal dt, bool gyroscopicForces);
-
-		// PT: also used by immediate mode
-		void integrateCoreStep(PxTGSSolverBodyVel& vel, PxTGSSolverBodyTxInertia& txInertia, PxF32 dt);
 	}
 }
 

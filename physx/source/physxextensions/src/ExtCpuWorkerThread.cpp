@@ -22,18 +22,21 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #include "task/PxTask.h"
 #include "ExtCpuWorkerThread.h"
 #include "ExtDefaultCpuDispatcher.h"
+#include "ExtTaskQueueHelper.h"
 #include "foundation/PxFPU.h"
 
 using namespace physx;
 
-Ext::CpuWorkerThread::CpuWorkerThread() : mOwner(NULL), mThreadId(0)
+Ext::CpuWorkerThread::CpuWorkerThread()
+:	mQueueEntryPool(EXT_TASK_QUEUE_ENTRY_POOL_SIZE),
+	mThreadId(0)
 {
 }
 
@@ -41,8 +44,32 @@ Ext::CpuWorkerThread::~CpuWorkerThread()
 {
 }
 
-#define HighPriority	true
-#define RegularPriority	false
+void Ext::CpuWorkerThread::initialize(DefaultCpuDispatcher* ownerDispatcher)
+{
+	mOwner = ownerDispatcher;
+}
+
+bool Ext::CpuWorkerThread::tryAcceptJobToLocalQueue(PxBaseTask& task, PxThread::Id taskSubmitionThread)
+{
+	if(taskSubmitionThread == mThreadId)
+	{
+		SharedQueueEntry* entry = mQueueEntryPool.getEntry(&task);
+		if (entry)
+		{
+			mLocalJobList.push(*entry);
+			return true;
+		}
+		else
+			return false;
+	}
+
+	return false;
+}
+
+PxBaseTask* Ext::CpuWorkerThread::giveUpJob()
+{
+	return TaskQueueHelper::fetchTask(mLocalJobList, mQueueEntryPool);
+}
 
 void Ext::CpuWorkerThread::execute()
 {
@@ -55,17 +82,11 @@ void Ext::CpuWorkerThread::execute()
 		if(PxDefaultCpuDispatcherWaitForWorkMode::eWAIT_FOR_WORK == ownerWaitForWorkMode)
 			mOwner->resetWakeSignal();
 
-		// PT: look for high priority tasks first, across threads
-		PxBaseTask* task = getJob<HighPriority>();
-		if(!task)
-			task = mOwner->fetchNextTask<HighPriority>();
+		PxBaseTask* task = TaskQueueHelper::fetchTask(mLocalJobList, mQueueEntryPool);
 
-		// PT: then look for regular tasks
 		if(!task)
-			task = getJob<RegularPriority>();
-		if(!task)
-			task = mOwner->fetchNextTask<RegularPriority>();
-
+			task = mOwner->fetchNextTask();
+		
 		if(task)
 		{
 			mOwner->runTask(*task);

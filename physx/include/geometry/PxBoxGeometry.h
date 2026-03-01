@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_BOX_GEOMETRY_H
 #define PX_BOX_GEOMETRY_H
+/** \addtogroup geomutils
+@{
+*/
 #include "geometry/PxGeometry.h"
 #include "foundation/PxVec3.h"
 
@@ -81,9 +84,9 @@ public:
 	\return True if the current settings are valid
 
 	\note A valid box has a positive extent in each direction (halfExtents.x > 0, halfExtents.y > 0, halfExtents.z > 0). 
-	It is illegal to call PxPhysics::createShape with a box that has zero extent in any direction.
+	It is illegal to call PxRigidActor::createShape and PxPhysics::createShape with a box that has zero extent in any direction.
 
-	\see PxPhysics::createShape
+	@see PxRigidActor::createShape, PxPhysics::createShape
 	*/
 	PX_INLINE bool isValid() const;
 
@@ -110,4 +113,5 @@ PX_INLINE bool PxBoxGeometry::isValid() const
 } // namespace physx
 #endif
 
+/** @} */
 #endif

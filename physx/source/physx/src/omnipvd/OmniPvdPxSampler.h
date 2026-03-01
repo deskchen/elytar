@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -32,11 +32,8 @@
 #if PX_SUPPORT_OMNI_PVD
 #include "foundation/PxSimpleTypes.h"
 #include "foundation/PxHashMap.h"
-#include "foundation/PxArray.h"
-#include "foundation/PxHashSet.h"
 #include "foundation/PxMutex.h"
 #include "foundation/PxUserAllocated.h"
-#include "foundation/PxErrorCallback.h"
 #include "OmniPvdChunkAlloc.h"
 
 namespace physx
@@ -48,17 +45,13 @@ namespace physx
 	class PxShape;
 	class PxMaterial;
 
-	class PxArticulationReducedCoordinate;
-	class PxArticulationJointReducedCoordinate;
-	class PxArticulationLink;
-	class PxRigidDynamic;
-	class PxArticulationMimicJoint;
-
-	class PxDeformableMaterial;
-	class PxDeformableSurfaceMaterial;
-	class PxDeformableVolumeMaterial;
+	class PxFEMClothMaterial;
+	class PxFEMMaterial;
+	class PxFEMSoftBodyMaterial;
+	class PxFLIPMaterial;
+	class PxMPMMaterial;
+	class PxParticleMaterial;
 	class PxPBDMaterial;
-	class PxDiffuseParticleParams;
 
 	struct OmniPvdPxCoreRegistrationData;
 
@@ -67,19 +60,16 @@ namespace physx
 
 void streamActorName(const physx::PxActor & a, const char* name);
 void streamSceneName(const physx::PxScene & s, const char* name);
-void streamArticulationName(const physx::PxArticulationReducedCoordinate & art, const char* name);
-void streamArticulationJointName(const physx::PxArticulationJointReducedCoordinate& joint, const char* name);
 
 void streamShapeMaterials(const physx::PxShape&, physx::PxMaterial* const * mats, physx::PxU32 nbrMaterials);
-
-void streamShapeMaterials(const physx::PxShape&, physx::PxDeformableMaterial* const * mats, physx::PxU32 nbrMaterials);
-void streamShapeMaterials(const physx::PxShape&, physx::PxDeformableSurfaceMaterial* const * mats, physx::PxU32 nbrMaterials);
-void streamShapeMaterials(const physx::PxShape&, physx::PxDeformableVolumeMaterial* const * mats, physx::PxU32 nbrMaterials);
+void streamShapeMaterials(const physx::PxShape&, physx::PxFEMClothMaterial* const * mats, physx::PxU32 nbrMaterials);
+void streamShapeMaterials(const physx::PxShape&, physx::PxFEMMaterial* const * mats, physx::PxU32 nbrMaterials);
+void streamShapeMaterials(const physx::PxShape&, physx::PxFEMSoftBodyMaterial* const * mats, physx::PxU32 nbrMaterials);
+void streamShapeMaterials(const physx::PxShape&, physx::PxFLIPMaterial* const * mats, physx::PxU32 nbrMaterials);
+void streamShapeMaterials(const physx::PxShape&, physx::PxMPMMaterial* const * mats, physx::PxU32 nbrMaterials);
+void streamShapeMaterials(const physx::PxShape&, physx::PxParticleMaterial* const * mats, physx::PxU32 nbrMaterials);
 void streamShapeMaterials(const physx::PxShape&, physx::PxPBDMaterial* const * mats, physx::PxU32 nbrMaterials);
 
-void streamDiffuseParticleParamsAttributes(const physx::PxDiffuseParticleParams& diffuseParams);
-
-void streamArticulationMimicJoint(const physx::PxArticulationMimicJoint& mj);
 
 enum OmniPvdSharedMeshEnum {
 	eOmniPvdTriMesh     = 0,
@@ -88,92 +78,32 @@ enum OmniPvdSharedMeshEnum {
 };
 
 class OmniPvdWriter;
+class OmniPvdPxScene;
 
-namespace physx
-{
 
-class NpOmniPvdSceneClient : public physx::PxUserAllocated
-{
-public:
-	NpOmniPvdSceneClient(physx::PxScene& scene);
-	~NpOmniPvdSceneClient();	
-
-	////////////////////////////////////////////////////////////////////////////////
-	// Regarding the frame sampling strategy, the OVD frames start at (1:odd) with the first
-	// one being a pre-Sim frame, for the setup calls done on the NpScene, in the constructor
-	// as well as any user set operations once the scene was created, but not yet simulated.
-	// 
-	// After the first simulate call, the second frame (2:even), considers all the data recorded
-	// up until the end of fetchresults as post-Sim.
-	// 
-	// Once fetchresults has exited, all the subsequent data is considered as pre-Sim data (odd frames)
-	// 
-	// Similarly for any subsequent simulate call, the data is considered post-Sim (evem frames)
-	// 
-	// A diagram of how this is layed out
-	// 
-	//  NpScene::NpScene()
-	//    [pre-Sim data]  : frame 1   (odd frame)
-	//  NpScene::simulate()
-	//    [post-Sim data] : frame 2   (even frame)
-	//  NpScene::fetchresults()
-	//    [pre-Sim data]  : frame n+1 (odd frame)
-	//  NpScene::simulate()
-	//    [post-Sim data] : frame n+2 (even frame)
-	//  NpScene::fetchresults()
-	// 
-	////////////////////////////////////////////////////////////////////////////////
-
-	void startFirstFrame(OmniPvdWriter& pvdWriter);
-	void incrementFrame(OmniPvdWriter& pvdWriter, bool recordProfileFrame = false); // stopFrame (frameID), then startFrame (frameID + 1)
-	void stopLastFrame(OmniPvdWriter& pvdWriter);
-	
-	void addRigidDynamicReset(const physx::PxRigidDynamic* rigidDynamic);
-	void addRigidDynamicForceReset(const physx::PxRigidDynamic* rigidDynamic);
-	void addRigidDynamicTorqueReset(const physx::PxRigidDynamic* rigidDynamic);
-	void removeRigidDynamicReset(const physx::PxRigidDynamic* rigidDynamic);
-	
-	void addArticulationFromLinkFlagChangeReset(const physx::PxArticulationLink* link);
-	void addArticulationLinksForceReset(const physx::PxArticulationReducedCoordinate* articulation);
-	void addArticulationLinksTorqueReset(const physx::PxArticulationReducedCoordinate* articulation);
-	void addArticulationJointsForceReset(const physx::PxArticulationReducedCoordinate* articulation);
-	void removeArticulationReset(const physx::PxArticulationReducedCoordinate* articulation);
-	
-	void resetForces();
-
-private:
-	physx::PxScene& mScene;
-	physx::PxU64 mFrameId;
-
-	physx::PxHashSet<const PxRigidDynamic*> mResetRigidDynamicForce;
-	physx::PxHashSet<const PxRigidDynamic*> mResetRigidDynamicTorque;
-
-	physx::PxHashSet<const PxArticulationReducedCoordinate*> mResetArticulationLinksForce;
-	physx::PxHashSet<const PxArticulationReducedCoordinate*> mResetArticulationLinksTorque;
-	physx::PxHashSet<const PxArticulationReducedCoordinate*> mResetArticulationJointsForce;
-};
-
-}
-
-class OmniPvdPxSampler : public physx::PxUserAllocated, public physx::PxErrorCallback
+class OmniPvdPxSampler : public physx::PxUserAllocated
 {
 public:
 	OmniPvdPxSampler();
 	~OmniPvdPxSampler();
-	bool startSampling();
+	void startSampling();
 	bool isSampling();
 	void setOmniPvdInstance(physx::NpOmniPvd* omniPvdIntance);
 
 	// writes all contacts to the stream
 	void streamSceneContacts(physx::NpScene& scene);
 
+	// call at the end of a simulation step: 
+	void sampleScene(physx::NpScene* scene);
+
 	static OmniPvdPxSampler* getInstance();
-	static OmniPvdPxSampler* getSamplingInstance();
 
 	void onObjectAdd(const physx::PxBase& object);
 	void onObjectRemove(const physx::PxBase& object);
-	
-	virtual void reportError(physx::PxErrorCode::Enum code, const char* message, const char* file, int line) PX_OVERRIDE;
+
+
+private:
+	OmniPvdPxScene* getSampledScene(physx::NpScene* scene);
 };
 
 

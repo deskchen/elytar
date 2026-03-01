@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -36,62 +36,23 @@ namespace physx
 {
 
 #define EXT_TASK_QUEUE_ENTRY_POOL_SIZE 128
-#define EXT_TASK_QUEUE_ENTRY_HIGH_PRIORITY_POOL_SIZE 32
 
 namespace Ext
 {
 	class TaskQueueHelper
 	{
-		SharedQueueEntryPool<>	mQueueEntryPool;
-		PxSList					mJobList;
-
-		SharedQueueEntryPool<>	mHighPriorityQueueEntryPool;
-		PxSList					mHighPriorityJobList;
-
 	public:
-
-		TaskQueueHelper() : mQueueEntryPool(EXT_TASK_QUEUE_ENTRY_POOL_SIZE, "QueueEntryPool"),
-							mHighPriorityQueueEntryPool(EXT_TASK_QUEUE_ENTRY_HIGH_PRIORITY_POOL_SIZE, "HighPriorityQueueEntryPool")
-		{}
-
-		PX_FORCE_INLINE	bool	tryAcceptJobToQueue(PxBaseTask& task)
+		static PxBaseTask* fetchTask(PxSList& taskQueue, Ext::SharedQueueEntryPool<>& entryPool)
 		{
-			if(task.isHighPriority())
-			{
-				SharedQueueEntry* entry = mHighPriorityQueueEntryPool.getEntry(&task);
-				if(entry)
-				{
-					mHighPriorityJobList.push(*entry);
-					return true;
-				}
-			}
-
-			SharedQueueEntry* entry = mQueueEntryPool.getEntry(&task);
-			if(entry)
-			{
-				mJobList.push(*entry);
-				return true;
-			}
-			else
-			{
-				return false;	// PT: we never actually reach this
-			}
-		}
-
-		template<const bool highPriorityT>
-		PxBaseTask* fetchTask()
-		{
-			SharedQueueEntry* entry = highPriorityT ? static_cast<SharedQueueEntry*>(mHighPriorityJobList.pop()) : static_cast<SharedQueueEntry*>(mJobList.pop());
-			if(entry)
+			SharedQueueEntry* entry = static_cast<SharedQueueEntry*>(taskQueue.pop());
+			if (entry)
 			{
 				PxBaseTask* task = reinterpret_cast<PxBaseTask*>(entry->mObjectRef);
-				if(highPriorityT)
-					mHighPriorityQueueEntryPool.putEntry(*entry);
-				else
-					mQueueEntryPool.putEntry(*entry);
+				entryPool.putEntry(*entry);
 				return task;
 			}
-			return NULL;
+			else
+				return NULL;
 		}
 	};
 

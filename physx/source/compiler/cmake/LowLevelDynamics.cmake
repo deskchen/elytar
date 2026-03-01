@@ -22,7 +22,7 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
-## Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+## Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
 #
 # Build LowLevelDynamics common
@@ -36,17 +36,16 @@ include(${PHYSX_ROOT_DIR}/${PROJECT_CMAKE_FILES_DIR}/${TARGET_BUILD_PLATFORM}/Lo
 
 
 SET(LLDYNAMICS_BASE_DIR ${PHYSX_ROOT_DIR}/source/lowleveldynamics)
-
 SET(LLDYNAMICS_INCLUDES
 	${LLDYNAMICS_BASE_DIR}/include/DyArticulationCore.h
-	${LLDYNAMICS_BASE_DIR}/include/DyVArticulation.h
+	${LLDYNAMICS_BASE_DIR}/include/DyVArticulation.h		
 	${LLDYNAMICS_BASE_DIR}/include/DyArticulationTendon.h
-	${LLDYNAMICS_BASE_DIR}/include/DyArticulationMimicJointCore.h
-	${LLDYNAMICS_BASE_DIR}/include/DyDeformableBodyCore.h
-	${LLDYNAMICS_BASE_DIR}/include/DyDeformableSurface.h
-	${LLDYNAMICS_BASE_DIR}/include/DyDeformableSurfaceCore.h
-	${LLDYNAMICS_BASE_DIR}/include/DyDeformableVolume.h
-	${LLDYNAMICS_BASE_DIR}/include/DyDeformableVolumeCore.h
+	${LLDYNAMICS_BASE_DIR}/include/DySoftBodyCore.h
+	${LLDYNAMICS_BASE_DIR}/include/DySoftBody.h
+	${LLDYNAMICS_BASE_DIR}/include/DyFEMClothCore.h
+	${LLDYNAMICS_BASE_DIR}/include/DyFEMCloth.h
+    ${LLDYNAMICS_BASE_DIR}/include/DyHairSystemCore.h
+	${LLDYNAMICS_BASE_DIR}/include/DyHairSystem.h
 	${LLDYNAMICS_BASE_DIR}/include/DyFeatherstoneArticulation.h
 	${LLDYNAMICS_BASE_DIR}/include/DyFeatherstoneArticulationJointData.h
 	${LLDYNAMICS_BASE_DIR}/include/DyFeatherstoneArticulationUtils.h
@@ -58,22 +57,12 @@ SET(LLDYNAMICS_INCLUDES
 	${LLDYNAMICS_BASE_DIR}/include/DyArticulationJointCore.h
 	${LLDYNAMICS_BASE_DIR}/include/DyParticleSystemCore.h
 	${LLDYNAMICS_BASE_DIR}/include/DyParticleSystem.h
-	${LLDYNAMICS_BASE_DIR}/include/DyResidualAccumulator.h
-	${LLDYNAMICS_BASE_DIR}/include/DyIslandManager.h
 )
 SOURCE_GROUP("include" FILES ${LLDYNAMICS_INCLUDES})
 
-SET(LLDYNAMICS_SHARED
-	${LLDYNAMICS_BASE_DIR}/shared/DyCpuGpuArticulation.h
-	${LLDYNAMICS_BASE_DIR}/shared/DyCpuGpu1dConstraint.h
-)
-SOURCE_GROUP("shared" FILES ${LLDYNAMICS_SHARED})
-
 SET(LLDYNAMICS_SOURCE		
-	${LLDYNAMICS_BASE_DIR}/src/DyAllocator.h
-	${LLDYNAMICS_BASE_DIR}/src/DyAllocator.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyArticulationContactPrep.cpp
-	${LLDYNAMICS_BASE_DIR}/src/DyArticulationMimicJoint.cpp
+	${LLDYNAMICS_BASE_DIR}/src/DyArticulationContactPrepPF.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyFeatherstoneArticulation.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyFeatherstoneForwardDynamic.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyFeatherstoneInverseDynamic.cpp
@@ -82,13 +71,17 @@ SET(LLDYNAMICS_SOURCE
 	${LLDYNAMICS_BASE_DIR}/src/DyConstraintSetupBlock.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyContactPrep.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyContactPrep4.cpp
-	${LLDYNAMICS_BASE_DIR}/src/DyDynamicsBase.cpp
+	${LLDYNAMICS_BASE_DIR}/src/DyContactPrep4PF.cpp
+	${LLDYNAMICS_BASE_DIR}/src/DyContactPrepPF.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyDynamics.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyFrictionCorrelation.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyRigidBodyToSolverBody.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DySolverConstraints.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DySolverConstraintsBlock.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DySolverControl.cpp
+	${LLDYNAMICS_BASE_DIR}/src/DySolverControlPF.cpp
+	${LLDYNAMICS_BASE_DIR}/src/DySolverPFConstraints.cpp
+	${LLDYNAMICS_BASE_DIR}/src/DySolverPFConstraintsBlock.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DySolverConstraint1DStep.h
 	${LLDYNAMICS_BASE_DIR}/src/DyThreadContext.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyThresholdTable.cpp
@@ -96,6 +89,7 @@ SET(LLDYNAMICS_SOURCE
 	${LLDYNAMICS_BASE_DIR}/src/DyTGSContactPrep.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyTGSContactPrepBlock.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DyArticulationContactPrep.h
+	${LLDYNAMICS_BASE_DIR}/src/DyArticulationCpuGpu.h
 	${LLDYNAMICS_BASE_DIR}/src/DyArticulationPImpl.h
 	${LLDYNAMICS_BASE_DIR}/src/DyArticulationUtils.h
 	${LLDYNAMICS_BASE_DIR}/src/DyFeatherstoneArticulationLink.h
@@ -106,7 +100,6 @@ SET(LLDYNAMICS_SOURCE
 	${LLDYNAMICS_BASE_DIR}/src/DyContactPrepShared.h
 	${LLDYNAMICS_BASE_DIR}/src/DyContactReduction.h
 	${LLDYNAMICS_BASE_DIR}/src/DyCorrelationBuffer.h
-	${LLDYNAMICS_BASE_DIR}/src/DyDynamicsBase.h
 	${LLDYNAMICS_BASE_DIR}/src/DyDynamics.h
 	${LLDYNAMICS_BASE_DIR}/src/DyFrictionPatch.h
 	${LLDYNAMICS_BASE_DIR}/src/DyFrictionPatchStreamPair.h
@@ -119,10 +112,12 @@ SET(LLDYNAMICS_SOURCE
 	${LLDYNAMICS_BASE_DIR}/src/DySolverConstraintTypes.h
 	${LLDYNAMICS_BASE_DIR}/src/DySolverContact.h
 	${LLDYNAMICS_BASE_DIR}/src/DySolverContact4.h
+	${LLDYNAMICS_BASE_DIR}/src/DySolverContactPF.h
+	${LLDYNAMICS_BASE_DIR}/src/DySolverContactPF4.h
 	${LLDYNAMICS_BASE_DIR}/src/DySolverContext.h
 	${LLDYNAMICS_BASE_DIR}/src/DySolverControl.h
+	${LLDYNAMICS_BASE_DIR}/src/DySolverControlPF.h
 	${LLDYNAMICS_BASE_DIR}/src/DySolverCore.h
-	${LLDYNAMICS_BASE_DIR}/src/DySolverCore.cpp
 	${LLDYNAMICS_BASE_DIR}/src/DySolverExt.h
 	${LLDYNAMICS_BASE_DIR}/src/DyThreadContext.h
 	${LLDYNAMICS_BASE_DIR}/src/DyTGSDynamics.h
@@ -136,7 +131,6 @@ SOURCE_GROUP("src" FILES ${LLDYNAMICS_SOURCE})
 
 ADD_LIBRARY(LowLevelDynamics ${LOWLEVELDYNAMICS_LIBTYPE}
 	${LLDYNAMICS_INCLUDES}
-	${LLDYNAMICS_SHARED}
 	${LLDYNAMICS_SOURCE}
 )
 
@@ -162,7 +156,6 @@ TARGET_INCLUDE_DIRECTORIES(LowLevelDynamics
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowlevel/software/include
 
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowleveldynamics/include
-	PRIVATE ${PHYSX_SOURCE_DIR}/lowleveldynamics/shared
 	PRIVATE ${PHYSX_SOURCE_DIR}/lowleveldynamics/src
 	
 	PRIVATE ${PHYSX_SOURCE_DIR}/physxgpu/include
@@ -202,7 +195,6 @@ ENDIF()
 
 IF(PX_GENERATE_SOURCE_DISTRO)
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${LLDYNAMICS_INCLUDES})
-	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${LLDYNAMICS_SHARED})
 	LIST(APPEND SOURCE_DISTRO_FILE_LIST ${LLDYNAMICS_SOURCE})	
 ENDIF()
 

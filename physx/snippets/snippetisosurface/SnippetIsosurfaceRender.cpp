@@ -22,11 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifdef RENDER_SNIPPET
+
+#include <vector>
 
 #include "PxPhysicsAPI.h"
 #include "cudamanager/PxCudaContext.h"
@@ -38,7 +40,7 @@
 #include "PxIsosurfaceExtraction.h"
 #include "foundation/PxArray.h"
 
-#define USE_CUDA_INTEROP (PX_SUPPORT_GPU_PHYSX)
+#define USE_CUDA_INTEROP (!PX_PUBLIC_RELEASE)
 
 #define CUDA_SUCCESS 0
 #define SHOW_SOLID_SDF_SLICE 0
@@ -106,11 +108,6 @@ namespace
 
 	void renderParticles()
 	{
-		PxPBDParticleSystem* particleSystem = getParticleSystem();
-		if (!particleSystem)
-		{
-			return;
-		}
 		sParticlePosBuffer.unmap();
 		sPosBuffer.unmap();
 		sNormalBuffer.unmap();
@@ -153,37 +150,36 @@ namespace
 		PxScene* scene;
 		PxGetPhysics().getScenes(&scene, 1);
 		PxCudaContextManager* cudaContextManager = scene->getCudaContextManager();
-		if (cudaContextManager)
+
+		//PxPBDParticleSystem* particleSystem = getParticleSystem();
+		PxU32 maxVertices = gIsosurfaceExtractor->getMaxVertices();
+		PxU32 maxIndices = gIsosurfaceExtractor->getMaxTriangles() * 3;
+
+		sParticlePosBuffer.initialize(cudaContextManager);
+		sParticlePosBuffer.allocate(gIsosurfaceExtractor->getMaxParticles() * sizeof(PxVec4));
+
+		sPosBuffer.initialize(cudaContextManager);
+		sPosBuffer.allocate(maxVertices * sizeof(PxVec4));
+		gVerticesGpu = sPosBuffer.map();
+		sNormalBuffer.initialize(cudaContextManager);
+		sNormalBuffer.allocate(maxVertices * sizeof(PxVec4));
+		gNormalsGpu = sNormalBuffer.map();
+		sTriangleBuffer.initialize(cudaContextManager);
+		sTriangleBuffer.allocate(maxIndices * sizeof(PxU32));
+
+		sInterleavedPosNormalBuffer.initialize(cudaContextManager);
+		sInterleavedPosNormalBuffer.allocate(2 * maxVertices * sizeof(PxVec3));
+		gInterleavedVerticesAndNormalsGpu = sInterleavedPosNormalBuffer.map();
+
+		if (directGpuRendering) 
 		{
-			PxU32 maxVertices = gIsosurfaceExtractor->getMaxVertices();
-			PxU32 maxIndices = gIsosurfaceExtractor->getMaxTriangles() * 3;
-
-			sParticlePosBuffer.initialize(cudaContextManager);
-			sParticlePosBuffer.allocate(gIsosurfaceExtractor->getMaxParticles() * sizeof(PxVec4));
-
-			sPosBuffer.initialize(cudaContextManager);
-			sPosBuffer.allocate(maxVertices * sizeof(PxVec4));
-			gVerticesGpu = sPosBuffer.map();
-			sNormalBuffer.initialize(cudaContextManager);
-			sNormalBuffer.allocate(maxVertices * sizeof(PxVec4));
-			gNormalsGpu = sNormalBuffer.map();
-			sTriangleBuffer.initialize(cudaContextManager);
-			sTriangleBuffer.allocate(maxIndices * sizeof(PxU32));
-
-			sInterleavedPosNormalBuffer.initialize(cudaContextManager);
-			sInterleavedPosNormalBuffer.allocate(2 * maxVertices * sizeof(PxVec3));
-			gInterleavedVerticesAndNormalsGpu = sInterleavedPosNormalBuffer.map();
-
-			if (directGpuRendering) 
-			{
-				gIsosurfaceExtractor->setResultBufferDevice(reinterpret_cast<PxVec4*>(sPosBuffer.map()),
-					reinterpret_cast<PxU32*>(sTriangleBuffer.map()), reinterpret_cast<PxVec4*>(sNormalBuffer.map()));
-			}
-			else
-			{
-				gIsosurfaceExtractor->setResultBufferHost(gIsosurfaceVertices.begin(), gIsosurfaceIndices.begin(), gIsosurfaceNormals.begin());
-				gInterleavedVerticesAndNormalsGpu = NULL;
-			}		
+			gIsosurfaceExtractor->setResultBufferDevice(reinterpret_cast<PxVec4*>(sPosBuffer.map()),
+				reinterpret_cast<PxU32*>(sTriangleBuffer.map()), reinterpret_cast<PxVec4*>(sNormalBuffer.map()));
+		}
+		else
+		{
+			gIsosurfaceExtractor->setResultBufferHost(gIsosurfaceVertices.begin(), gIsosurfaceIndices.begin(), gIsosurfaceNormals.begin());
+			gInterleavedVerticesAndNormalsGpu = NULL;
 		}
 	}
 
@@ -226,7 +222,7 @@ namespace
 		PxU32 nbActors = scene->getNbActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC);
 		if (nbActors)
 		{
-			PxArray<PxRigidActor*> actors(nbActors);
+			std::vector<PxRigidActor*> actors(nbActors);
 			scene->getActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC, reinterpret_cast<PxActor**>(&actors[0]), nbActors);
 			Snippets::renderActors(&actors[0], static_cast<PxU32>(actors.size()), true);
 		}
@@ -249,7 +245,7 @@ namespace
 		cleanupPhysics(true);
 	}
 
-	void exitCallback()
+	void exitCallback(void)
 	{
 
 	}
@@ -263,7 +259,6 @@ void renderLoop()
 	Snippets::setupDefault("PhysX Snippet Isosurface", sCamera, keyPress, renderCallback, exitCallback);
 
 	initPhysics(true);
-
 	Snippets::initFPS();
 
 	allocParticleBuffers();

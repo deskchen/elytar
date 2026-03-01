@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -56,7 +56,7 @@ void Sc::ArticulationJointCore::setSimDirty()
 		sim->setDirty();
 
 	ArticulationSim* artiSim = mArticulation->getSim();
-	if (artiSim && artiSim->isLLArticulationInitialized())
+	if (artiSim && artiSim->getLLArticulationInitialized())
 	{
 		Dy::FeatherstoneArticulation* llarticulation = artiSim->getLowLevelArticulation();
 		llarticulation->mJcalcDirty = true;
@@ -72,7 +72,7 @@ void Sc::ArticulationJointCore::setParentPose(const PxTransform& t)
 	{
 		mCore.parentPose = t;
 
-		setDirty();
+		setDirty(Dy::ArticulationJointCoreDirtyFlag::eFRAME);
 	}
 }
 
@@ -82,7 +82,7 @@ void Sc::ArticulationJointCore::setChildPose(const PxTransform& t)
 	{
 		mCore.childPose = t;
 
-		setDirty();
+		setDirty(Dy::ArticulationJointCoreDirtyFlag::eFRAME);
 	}
 }
 
@@ -94,7 +94,7 @@ void Sc::ArticulationJointCore::setTargetP(PxArticulationAxis::Enum axis, PxReal
 	// this sets the target position in the ll articulation. This needs to happen immediately because we might
 	// look up the value using the cache API again, and that one is reading directly from the llArticulation.
 	ArticulationSim* artiSim = mArticulation->getSim();
-	if (artiSim && artiSim->isLLArticulationInitialized())
+	if (artiSim && artiSim->getLLArticulationInitialized())
 	{
 		Dy::FeatherstoneArticulation* llarticulation = artiSim->getLowLevelArticulation();
 		Dy::ArticulationData& data = llarticulation->getArticulationData();
@@ -126,7 +126,7 @@ void Sc::ArticulationJointCore::setTargetV(PxArticulationAxis::Enum axis, PxReal
 	// this sets the target velocity in the ll articulation. This needs to happen immediately because we might
 	// look up the value using the cache API again, and that one is reading directly from the llArticulation.
 	ArticulationSim* artiSim = mArticulation->getSim();
-	if (artiSim && artiSim->isLLArticulationInitialized())
+	if (artiSim && artiSim->getLLArticulationInitialized())
 	{
 		Dy::FeatherstoneArticulation* llarticulation = artiSim->getLowLevelArticulation();
 		Dy::ArticulationData& data = llarticulation->getArticulationData();
@@ -156,7 +156,7 @@ void Sc::ArticulationJointCore::setArmature(PxArticulationAxis::Enum axis, PxRea
 	{
 		mCore.armature[axis] = armature;
 
-		setSimDirty();
+		setDirty(Dy::ArticulationJointCoreDirtyFlag::eARMATURE);
 	}
 }
 
@@ -168,7 +168,7 @@ void Sc::ArticulationJointCore::setJointPosition(PxArticulationAxis::Enum axis, 
 	// this sets the position in the ll articulation. This needs to happen immediately because we might
 	// look up the value using the cache API again, and that one is reading directly from the llArticulation.
 	ArticulationSim* artiSim = mArticulation->getSim();
-	if (artiSim && artiSim->isLLArticulationInitialized())
+	if (artiSim && artiSim->getLLArticulationInitialized())
 	{
 		Dy::FeatherstoneArticulation* llarticulation = artiSim->getLowLevelArticulation();
 		Dy::ArticulationData& data = llarticulation->getArticulationData();
@@ -195,7 +195,7 @@ PxReal Sc::ArticulationJointCore::getJointPosition(PxArticulationAxis::Enum axis
 {
 	PxReal jointPos = mCore.jointPos[axis];
 	ArticulationSim* artiSim = mArticulation->getSim();
-	if (artiSim && artiSim->isLLArticulationInitialized())
+	if (artiSim && artiSim->getLLArticulationInitialized())
 	{
 		const Dy::FeatherstoneArticulation* llarticulation = artiSim->getLowLevelArticulation();
 		const Dy::ArticulationData& data = llarticulation->getArticulationData();
@@ -219,7 +219,7 @@ void Sc::ArticulationJointCore::setJointVelocity(PxArticulationAxis::Enum axis, 
 	mCore.jointVel[axis] = jointVel;
 
 	ArticulationSim* artiSim = mArticulation->getSim();
-	if (artiSim && artiSim->isLLArticulationInitialized())
+	if (artiSim && artiSim->getLLArticulationInitialized())
 	{
 		Dy::FeatherstoneArticulation* llarticulation = artiSim->getLowLevelArticulation();
 		Dy::ArticulationData& data = llarticulation->getArticulationData();
@@ -245,7 +245,7 @@ PxReal Sc::ArticulationJointCore::getJointVelocity(PxArticulationAxis::Enum axis
 {
 	PxReal jointVel = mCore.jointVel[axis];
 	ArticulationSim* artiSim = mArticulation->getSim();
-	if (artiSim && artiSim->isLLArticulationInitialized())
+	if (artiSim && artiSim->getLLArticulationInitialized())
 	{
 		const Dy::FeatherstoneArticulation* llarticulation = artiSim->getLowLevelArticulation();
 		const Dy::ArticulationData& data = llarticulation->getArticulationData();
@@ -265,42 +265,14 @@ PxReal Sc::ArticulationJointCore::getJointVelocity(PxArticulationAxis::Enum axis
 
 void Sc::ArticulationJointCore::setLimit(PxArticulationAxis::Enum axis, const PxArticulationLimit& limit)
 {
-	mCore.setLimit(axis, limit);
+	mCore.initLimit(axis, limit);
 	
 	setSimDirty();
 }
 
 void Sc::ArticulationJointCore::setDrive(PxArticulationAxis::Enum axis, const PxArticulationDrive& drive)
 {
-	mCore.setDrive(axis, drive);
+	mCore.initDrive(axis, drive);
 	
-	setSimDirty();
-}
-
-void Sc::ArticulationJointCore::setFrictionCoefficient(PxReal frictionCoefficient)
-{
-	mCore.setFrictionCoefficient(frictionCoefficient);
-
-	setSimDirty();
-}
-
-void Sc::ArticulationJointCore::setFrictionParams(PxArticulationAxis::Enum axis, const PxJointFrictionParams& jointFrictionParams)
-{
-	mCore.setFrictionParams(axis, jointFrictionParams);
-
-	setSimDirty();
-}
-
-void Sc::ArticulationJointCore::setMaxJointVelocity(PxReal maxJointV)
-{
-	mCore.setMaxJointVelocity(maxJointV);
-
-	setSimDirty();
-}
-
-void Sc::ArticulationJointCore::setMaxJointVelocity(PxArticulationAxis::Enum axis, PxReal maxJointV)
-{
-	mCore.setMaxJointVelocity(axis, maxJointV);
-
 	setSimDirty();
 }

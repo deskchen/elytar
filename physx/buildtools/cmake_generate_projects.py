@@ -7,100 +7,58 @@ import subprocess
 import xml.etree.ElementTree
 
 
+def packmanExt():
+    if sys.platform == 'win32':
+        return 'cmd'
+    return 'sh'
+
+
 def cmakeExt():
     if sys.platform == 'win32':
         return '.exe'
     return ''
 
 
-def filterPreset(presetPath):
-    # If this is a file path, extract the actual preset name from XML or filename
-    if os.path.isfile(presetPath):
-        try:
-            presetXml = xml.etree.ElementTree.parse(presetPath).getroot()
-            presetName = presetXml.get('name')
-        except:
-            # Fall back to just using the basename without extension if XML parsing fails
-            basename = os.path.basename(presetPath)
-            presetName = os.path.splitext(basename)[0]
-    else:
-        # If not a file path, assume it's already a preset name
-        presetName = presetPath
-    
-    # Platform-specific filtering
+def filterPreset(presetName):
     winPresetFilter = ['win','switch','crosscompile']
     if sys.platform == 'win32':
-        # On Windows, include presets that contain win, switch, or crosscompile 
-        # (but not windows-crosscompile)
-        if any((presetName.find(elem) != -1 and 'windows-crosscompile' not in presetName) for elem in winPresetFilter):
+        if any(presetName.find(elem) != -1 for elem in winPresetFilter):
             return True
     else:
-        # On non-Windows, include Linux presets and windows-crosscompile
-        # Check for Linux or other Unix/macOS presets (those not containing Windows-specific terms)
-        # Special case: include windows-crosscompile, which is for cross-compiling Windows targets
-        if 'linux' in presetName.lower() or 'mac' in presetName.lower() or 'windows-crosscompile' in presetName:
-            return True
-        if all(presetName.find(elem) == -1 for elem in ['win', 'switch']):
+        if all(presetName.find(elem) == -1 for elem in winPresetFilter):
             return True
     return False
 
-def noPresetProvided(physx_root_dir):
+def noPresetProvided():
     global input
     print('Preset parameter required, available presets:')
-    presets_dir = os.path.join(physx_root_dir, "buildtools", "presets")
-    internal_presets = os.path.join(presets_dir, "*.xml")
-    public_presets = os.path.join(presets_dir, "public", "*.xml")
-    
-    # Get all XML files in the presets directory
-    internal_preset_files = glob.glob(internal_presets)
-    
-    # Check if we have any non-directory XML files directly in presets folder
     presetfiles = []
-    for file in internal_preset_files:
-        if not os.path.isdir(file):  # Make sure it's a file, not a directory
-            basename = os.path.basename(file)
-            dirname = os.path.dirname(file)
-            if os.path.basename(dirname) != "public":  # Skip files in public subdirectory
-                presetfiles.append(file)
-    
-    # If no XML files in main presets directory, we're in public distribution
-    # So use the files from public directory
-    if len(presetfiles) == 0:
-        print("No presets in main folder, using public presets")
-        presetfiles = glob.glob(public_presets)
+    for file in glob.glob("buildtools/presets/*.xml"):
+        presetfiles.append(file)
 
     if len(presetfiles) == 0:
-        print("Error: No preset files found. Make sure the directory structure is correct.")
-        exit(1)
+        for file in glob.glob("buildtools/presets/public/*.xml"):
+            presetfiles.append(file)
 
     counter = 0
     presetList = []
     for preset in presetfiles:
         if filterPreset(preset):
-            try:
-                presetXml = xml.etree.ElementTree.parse(preset).getroot()
-                if preset.find('user') == -1:
-                    print('(' + str(counter) + ') ' + presetXml.get('name') +
-                        ' <--- ' + presetXml.get('comment'))
-                    presetList.append(presetXml.get('name'))
-                else:
-                    print('(' + str(counter) + ') ' + presetXml.get('name') +
-                        '.user <--- ' + presetXml.get('comment'))
-                    presetList.append(presetXml.get('name') + '.user')
-                counter = counter + 1
-            except Exception as e:
-                print(f"Warning: Could not parse preset file {preset}: {e}")
-                continue
-    
-    if counter == 0:
-        print("Error: No valid presets found for this platform.")
-        exit(1)
-        
+            presetXml = xml.etree.ElementTree.parse(preset).getroot()
+            if(preset.find('user') == -1):
+                print('(' + str(counter) + ') ' + presetXml.get('name') +
+                    ' <--- ' + presetXml.get('comment'))
+                presetList.append(presetXml.get('name'))
+            else:
+                print('(' + str(counter) + ') ' + presetXml.get('name') +
+                    '.user <--- ' + presetXml.get('comment'))
+                presetList.append(presetXml.get('name') + '.user')
+            counter = counter + 1
     # Fix Python 2.x.
     try:
-        input = raw_input
+    	input = raw_input
     except NameError:
-        pass
+    	pass
     mode = int(eval(input('Enter preset number: ')))
     return presetList[mode]
 
@@ -112,12 +70,12 @@ class CMakePreset:
     cmakeSwitches = []
     cmakeParams = []
 
-    def __init__(self, presetName, physx_root_dir):
-        xmlPath = os.path.join(physx_root_dir, "buildtools", "presets", f"{presetName}.xml")
+    def __init__(self, presetName):
+        xmlPath = "buildtools/presets/"+presetName+'.xml'
         if os.path.isfile(xmlPath):
             print('Using preset xml: '+xmlPath)
         else:
-            xmlPath = os.path.join(physx_root_dir, "buildtools", "presets", "public", f"{presetName}.xml")
+            xmlPath = "buildtools/presets/public/"+presetName+'.xml'
             if os.path.isfile(xmlPath):
                 print('Using preset xml: '+xmlPath)
             else:
@@ -159,54 +117,17 @@ class CMakePreset:
             return False
         elif self.targetPlatform == 'linuxAarch64':
             return False
-        elif self.compiler == 'x86_64-w64-mingw32-g++':
-            return False
         return True
-
 
     def getCMakeSwitches(self):
         outString = ''
-        # We need to check both GPU-related switches
-        gpuProjectsEnabled = False
-        gpuProjectsOnlyEnabled = False
-        
-        # Define the switch names for clarity and consistency
-        GPU_PROJECTS_SWITCH = 'PX_GENERATE_GPU_PROJECTS'
-        GPU_PROJECTS_ONLY_SWITCH = 'PX_GENERATE_GPU_PROJECTS_ONLY'
-        
-        # First pass: Check the state of GPU-related switches
-        gpu_projects_found = False
-        gpu_projects_only_found = False
-        
-        for cmakeSwitch in self.cmakeSwitches:
-            # Format of cmakeSwitch is "-DSWITCH_NAME=VALUE"
-            # Use a more flexible approach to match switches
-            if f'-D{GPU_PROJECTS_SWITCH}=' in cmakeSwitch:
-                gpu_projects_found = True
-                gpuProjectsEnabled = cmakeSwitch.endswith('=TRUE')
-            elif f'-D{GPU_PROJECTS_ONLY_SWITCH}=' in cmakeSwitch:
-                gpu_projects_only_found = True
-                gpuProjectsOnlyEnabled = cmakeSwitch.endswith('=TRUE')
-        
-        # Log the state of GPU switches for debugging
-        if not gpu_projects_found:
-            print(f"Warning: {GPU_PROJECTS_SWITCH} switch not found in preset. Defaulting to disabled.")
-        if not gpu_projects_only_found:
-            print(f"Warning: {GPU_PROJECTS_ONLY_SWITCH} switch not found in preset. Defaulting to disabled.")
-            
-        # Determine if we need to add CUDA paths
-        gpuEnabled = gpuProjectsEnabled or gpuProjectsOnlyEnabled
-        
-        # Log GPU status
-        print(f"GPU projects enabled: {gpuEnabled} ({GPU_PROJECTS_SWITCH}={gpuProjectsEnabled}, {GPU_PROJECTS_ONLY_SWITCH}={gpuProjectsOnlyEnabled})")
-                
-        # Second pass: Add all switches to output
+        # We need gpuProjectsFound flag to avoid issues when we have both
+        # PX_GENERATE_GPU_PROJECTS and PX_GENERATE_GPU_PROJECTS_ONLY switches
+        gpuProjectsFound = False  # initialize flag
         for cmakeSwitch in self.cmakeSwitches:
             outString = outString + ' ' + cmakeSwitch
-            
-        # Only add CUDA paths if GPU is enabled
-        if gpuEnabled:
-            if os.environ.get('PM_CUDA_PATH') is not None:
+            if not gpuProjectsFound and cmakeSwitch.find('PX_GENERATE_GPU_PROJECTS') != -1:
+                gpuProjectsFound = True  # set flag to True when keyword found
                 if os.environ.get('PM_CUDA_PATH') is not None:
                     outString = outString + ' -DCUDAToolkit_ROOT_DIR=' + \
                             os.environ['PM_CUDA_PATH']
@@ -217,7 +138,6 @@ class CMakePreset:
                         if os.environ.get('PM_clang_PATH') is not None:
                             outString = outString + ' -DCMAKE_CUDA_HOST_COMPILER=' + \
                                 os.environ['PM_clang_PATH'] + '/bin/clang++'
-                        
         return outString
 
     def getCMakeParams(self):
@@ -240,9 +160,6 @@ class CMakePreset:
         if self.compiler in vs_versions:
             generator = '-G \"Ninja Multi-Config\"' if self.generator == 'ninja' else '-G ' + vs_versions[self.compiler]
             outString += generator
-        # Windows crosscompile
-        elif self.compiler == 'x86_64-w64-mingw32-g++':
-            outString = outString + '-G \"Ninja\"'
         # mac
         elif self.compiler == 'xcode':
             outString = outString + '-G Xcode'
@@ -259,9 +176,6 @@ class CMakePreset:
                 outString = outString + ' -Ax64'
             outString = outString + ' -DTARGET_BUILD_PLATFORM=windows'
             outString = outString + ' -DPX_OUTPUT_ARCH=x86'
-            if self.compiler == 'x86_64-w64-mingw32-g++':
-                outString = outString + ' -DCMAKE_TOOLCHAIN_FILE=' + \
-                    cmake_modules_root + '/linux/WindowsCrossToolchain.linux-unknown-x86_64.cmake'
             return outString
         elif self.targetPlatform == 'switch64':
             outString = outString + ' -DTARGET_BUILD_PLATFORM=switch'
@@ -298,16 +212,6 @@ class CMakePreset:
                 # host compiler for CUDA above.
                 outString = outString + ' -DCMAKE_TOOLCHAIN_FILE=\"' + \
                     cmake_modules_root + '/linux/LinuxAarch64.cmake\"'
-            elif self.compiler == 'clang':
-                if os.environ.get('PM_clang_PATH') is not None:
-                    outString = outString + ' -DCMAKE_C_COMPILER=' + \
-                        os.environ['PM_clang_PATH'] + '/bin/clang'
-                    outString = outString + ' -DCMAKE_CXX_COMPILER=' + \
-                        os.environ['PM_clang_PATH'] + '/bin/clang++'
-                else:
-                    outString = outString + ' -DCMAKE_C_COMPILER=clang'
-                    outString = outString + ' -DCMAKE_CXX_COMPILER=clang++'
-            
             return outString
         elif self.targetPlatform == 'mac64':
             outString = outString + ' -DTARGET_BUILD_PLATFORM=mac'
@@ -338,8 +242,8 @@ def cleanupCompilerDir(compilerDirName):
     if os.path.exists(compilerDirName) == False:
         os.makedirs(compilerDirName)
 
-def presetProvided(pName, physx_root_dir):
-    parsedPreset = CMakePreset(pName, physx_root_dir)
+def presetProvided(pName):
+    parsedPreset = CMakePreset(pName)
 
     print('PM_PATHS: ' + os.environ['PM_PATHS'])
 
@@ -356,35 +260,35 @@ def presetProvided(pName, physx_root_dir):
     cmakeParams = cmakeParams + ' ' + parsedPreset.getCMakeParams()
     # print(cmakeParams)
 
-    if os.path.isfile(physx_root_dir + '/compiler/internal/CMakeLists.txt'):
+    if os.path.isfile(os.environ['PHYSX_ROOT_DIR'] + '/compiler/internal/CMakeLists.txt'):
         cmakeMasterDir = 'internal'
     else:
         cmakeMasterDir = 'public'
     if parsedPreset.isMultiConfigPlatform():
         # cleanup and create output directory
-        outputDir = os.path.join(physx_root_dir, 'compiler', parsedPreset.presetName)
+        outputDir = os.path.join('compiler', parsedPreset.presetName)
         cleanupCompilerDir(outputDir)
 
         # run the cmake script
         #print('Cmake params:' + cmakeParams)
-        os.chdir(outputDir)
+        os.chdir(os.path.join(os.environ['PHYSX_ROOT_DIR'], outputDir))
         os.system(cmakeExec + ' \"' +
-                  physx_root_dir + '/compiler/' + cmakeMasterDir + '\"' + cmakeParams)
-        os.chdir(physx_root_dir)
+                  os.environ['PHYSX_ROOT_DIR'] + '/compiler/' + cmakeMasterDir + '\"' + cmakeParams)
+        os.chdir(os.environ['PHYSX_ROOT_DIR'])
     else:
         configs = ['debug', 'checked', 'profile', 'release']
         for config in configs:
             # cleanup and create output directory
-            outputDir = os.path.join(physx_root_dir, 'compiler', parsedPreset.presetName + '-' + config)
+            outputDir = os.path.join('compiler', parsedPreset.presetName + '-' + config)
             cleanupCompilerDir(outputDir)
 
             # run the cmake script
             #print('Cmake params:' + cmakeParams)
-            os.chdir(outputDir)
-            # print(cmakeExec + ' \"' + physx_root_dir + '/compiler/' + cmakeMasterDir + '\"' + cmakeParams + ' -DCMAKE_BUILD_TYPE=' + config)
-            os.system(cmakeExec + ' \"' + physx_root_dir + '/compiler/' +
+            os.chdir(os.path.join(os.environ['PHYSX_ROOT_DIR'], outputDir))
+            # print(cmakeExec + ' \"' + os.environ['PHYSX_ROOT_DIR'] + '/compiler/' + cmakeMasterDir + '\"' + cmakeParams + ' -DCMAKE_BUILD_TYPE=' + config)
+            os.system(cmakeExec + ' \"' + os.environ['PHYSX_ROOT_DIR'] + '/compiler/' +
                       cmakeMasterDir + '\"' + cmakeParams + ' -DCMAKE_BUILD_TYPE=' + config)
-            os.chdir(physx_root_dir)
+            os.chdir(os.environ['PHYSX_ROOT_DIR'])
     pass
 
 
@@ -392,28 +296,26 @@ def main():
     if (sys.version_info[0] < 3) or (sys.version_info[0] == 3 and sys.version_info[1] < 5):
         print("You are using Python {}. You must use Python 3.5 and up. Please read README.md for requirements.").format(sys.version)
         exit()
-
     physx_root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
     os.environ['PHYSX_ROOT_DIR'] = physx_root_dir.replace("\\", "/")
-
     if len(sys.argv) != 2:
-        presetName = noPresetProvided(physx_root_dir)  # Ensure this function returns the preset name
+        presetName = noPresetProvided()
         if sys.platform == 'win32':
             print('Running generate_projects.bat ' + presetName)
-            cmd_path = os.path.join(physx_root_dir, 'generate_projects.bat')
-            cmd = f'"{cmd_path}" {presetName}'
-            result = subprocess.run(cmd, cwd=physx_root_dir, check=True, shell=True, universal_newlines=True)
+            cmd = 'generate_projects.bat {}'.format(presetName)
+            result = subprocess.run(cmd, cwd=os.environ['PHYSX_ROOT_DIR'], check=True, universal_newlines=True)
             # TODO: catch exception and add capture errors
         else:
             print('Running generate_projects.sh ' + presetName)
-            cmd_path = os.path.join(physx_root_dir, 'generate_projects.sh')
-            cmd = [cmd_path, presetName]
-            result = subprocess.run(cmd, cwd=physx_root_dir, check=True, universal_newlines=True)
+            # TODO: once we have Python 3.7.2 for linux, add the text=True instead of universal_newlines
+            cmd = './generate_projects.sh {}'.format(presetName)
+            result = subprocess.run(['bash', './generate_projects.sh', presetName], cwd=os.environ['PHYSX_ROOT_DIR'], check=True, universal_newlines=True)
             # TODO: catch exception and add capture errors
     else:
         presetName = sys.argv[1]
         if filterPreset(presetName):
-            presetProvided(presetName, physx_root_dir)
+            presetProvided(presetName)
         else:
             print('Preset not supported on this build platform.')
+
 main()

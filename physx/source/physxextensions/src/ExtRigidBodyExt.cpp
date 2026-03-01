@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -169,14 +169,6 @@ static bool computeMassAndInertia(Ext::InertiaTensorComputer& inertiaComp, bool 
 				PxTransform temp(shapes[i]->getLocalPose());
 
 				it.setCapsule(0, g.radius, g.halfHeight, &temp);
-			}
-			break;
-
-		case PxGeometryType::eCONVEXCORE:
-			{
-				PxMassProperties mp(shapes[i]->getGeometry());
-				it = Ext::InertiaTensorComputer(mp.inertiaTensor, mp.centerOfMass, mp.mass);
-				it.transform(shapes[i]->getLocalPose());
 			}
 			break;
 

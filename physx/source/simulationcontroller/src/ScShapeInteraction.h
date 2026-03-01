@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -42,28 +42,16 @@
 
 namespace physx
 {
+static PX_FORCE_INLINE bool isParticleSystem(const PxActorType::Enum actorType)
+{
+	return actorType == PxActorType::ePBD_PARTICLESYSTEM || actorType == PxActorType::eFLIP_PARTICLESYSTEM
+		|| actorType == PxActorType::eMPM_PARTICLESYSTEM;
+}
 
 class PxsContactManagerOutputIterator;
 namespace Sc
 {
 	class ContactReportAllocationManager;
-
-	PX_FORCE_INLINE IG::Edge::EdgeType getInteractionEdgeType(PxActorType::Enum actorTypeLargest)
-	{
-		IG::Edge::EdgeType type = IG::Edge::eCONTACT_MANAGER;
-#if PX_SUPPORT_GPU_PHYSX
-		if(actorTypeLargest == PxActorType::eDEFORMABLE_VOLUME)
-			type = IG::Edge::eSOFT_BODY_CONTACT;
-		else if(actorTypeLargest == PxActorType::eDEFORMABLE_SURFACE)
-			type = IG::Edge::eFEM_CLOTH_CONTACT;
-		else if(actorTypeLargest == PxActorType::ePBD_PARTICLESYSTEM)
-			type = IG::Edge::ePARTICLE_SYSTEM_CONTACT;
-#else
-		PX_UNUSED(actorTypeLargest);
-#endif
-		return type;
-	}
-
 	/*
 	Description: A ShapeInteraction represents a pair of objects which _may_ have contacts. Created by the broadphase
 	and processed by the NPhaseCore.
@@ -114,21 +102,20 @@ namespace Sc
 																			PxsContactManagerOutputIterator& outputs, ContactReportAllocationManager* alloc = NULL);  // ccdPass is 0 for discrete collision and then 1,2,... for the CCD passes
 
 						void					visualize(	PxRenderOutput&, PxsContactManagerOutputIterator&,
-															float scale, float contactImpulse, float contactNormal, float contactError, float contactPoint,
-															float frictionImpulse, float frictionNormal, float frictionPoint);
+															float scale, float param_contactForce, float param_contactNormal, float param_contactError, float param_contactPoint
+															);
 
 						PxU32					getContactPointData(const void*& contactPatches, const void*& contactPoints, PxU32& contactDataSize, PxU32& contactPointCount, PxU32& patchCount, const PxReal*& impulses, PxU32 startOffset, PxsContactManagerOutputIterator& outputs);
-						PxU32					getContactPointData(const void*& contactPatches, const void*& contactPoints, PxU32& contactDataSize, PxU32& contactPointCount, PxU32& patchCount, const PxReal*& impulses, PxU32 startOffset, PxsContactManagerOutputIterator& outputs, const void*& frictionPatches);
 
-						bool					managerLostTouch(PxU32 ccdPass, PxsContactManagerOutputIterator& outputs);
-						void					managerNewTouch(PxU32 ccdPass, PxsContactManagerOutputIterator& outputs);
+						bool					managerLostTouch(PxU32 ccdPass, bool adjustCounters, PxsContactManagerOutputIterator& outputs);
+						void					managerNewTouch(PxU32 ccdPass, bool adjustCounters, PxsContactManagerOutputIterator& outputs);
 
 		PX_FORCE_INLINE	void					adjustCountersOnLostTouch();
 		PX_FORCE_INLINE	void					adjustCountersOnNewTouch();
 
 		PX_FORCE_INLINE	void					sendCCDRetouch(PxU32 ccdPass, PxsContactManagerOutputIterator& outputs);
 						void					setContactReportPostSolverVelocity(ContactStreamManager& cs);
-						void					sendLostTouchReport(bool shapeVolumeRemoved, PxU32 ccdPass, PxsContactManagerOutputIterator& ouptuts);
+		PX_FORCE_INLINE	void					sendLostTouchReport(bool shapeVolumeRemoved, PxU32 ccdPass, PxsContactManagerOutputIterator& ouptuts);
 						void					resetManagerCachedState()	const;
 	
 		PX_FORCE_INLINE	ActorPair*				getActorPair()				const	{ return mActorPair;							}
@@ -150,32 +137,30 @@ namespace Sc
 
 		PX_FORCE_INLINE	PxIntBool				hasKnownTouchState() const;
 
-						bool					onActivate(PxsContactManager* contactManager);
+						bool					onActivate(void* data);
 						bool					onDeactivate();
 
 						void					updateState(const PxU8 externalDirtyFlags);
 
 					const PxsContactManager*	getContactManager() const { return mManager; }
 
-						void					clearIslandGenData(IG::SimpleIslandManager& islandManager);
+						void					clearIslandGenData();
 
-		PX_FORCE_INLINE IG::EdgeIndex			getEdgeIndex() const { return mEdgeIndex;  }
+		PX_FORCE_INLINE PxU32					getEdgeIndex() const { return mEdgeIndex;  }
 
 		PX_FORCE_INLINE	Sc::ShapeSimBase&		getShape0()	const { return static_cast<ShapeSimBase&>(getElement0()); }
 		PX_FORCE_INLINE	Sc::ShapeSimBase&		getShape1()	const { return static_cast<ShapeSimBase&>(getElement1()); }
-
-		PX_FORCE_INLINE	Sc::ActorSim&			getActor0()	{ return getActorSim0();			}
-		PX_FORCE_INLINE	Sc::ActorSim&			getActor1()	{ return getActorSim1();			}
 
 	private:
 						ActorPair*				mActorPair;
 						PxsContactManager*		mManager;
 						PxU32					mContactReportStamp;
 						PxU32					mReportPairIndex;	// Owned by NPhaseCore for its report pair list
-						PxU32					mReportStreamIndex;  // position of this pair in the contact report stream
+						PxU32					mEdgeIndex;
+						PxU16					mReportStreamIndex;  // position of this pair in the contact report stream
 
-						void					createManager(PxsContactManager* contactManager);
-		PX_INLINE		bool					updateManager(PxsContactManager* contactManager);
+						void					createManager(void* contactManager);
+		PX_INLINE		bool					updateManager(void* contactManager);
 		PX_INLINE		void					destroyManager();
 		PX_FORCE_INLINE	bool					activeManagerAllowed() const;
 		PX_FORCE_INLINE	PxU32					getManagerContactState()		const	{ return mFlags & LL_MANAGER_RECREATE_EVENT; }
@@ -204,6 +189,39 @@ namespace Sc
 	};
 
 } // namespace Sc
+
+// PT: TODO: is there a reason for force-inlining all that stuff?
+
+PX_FORCE_INLINE void Sc::ShapeInteraction::sendLostTouchReport(bool shapeVolumeRemoved, PxU32 ccdPass, PxsContactManagerOutputIterator& outputs)
+{
+	PX_ASSERT(hasTouch());
+	PX_ASSERT(isReportPair());
+
+	const PxU32 pairFlags = getPairFlags();
+	const PxU32 notifyTouchLost = pairFlags & PxU32(PxPairFlag::eNOTIFY_TOUCH_LOST);
+	const PxIntBool thresholdExceeded = readFlag(ShapeInteraction::FORCE_THRESHOLD_EXCEEDED_NOW);
+	const PxU32 notifyThresholdLost = thresholdExceeded ? (pairFlags & PxU32(PxPairFlag::eNOTIFY_THRESHOLD_FORCE_LOST)) : 0;
+	if(!notifyTouchLost && !notifyThresholdLost)
+		return;
+
+	PxU16 infoFlag = 0;
+	if(mActorPair->getTouchCount() == 1)  // this code assumes that the actor pair touch count does get decremented afterwards
+		infoFlag |= PxContactPairFlag::eACTOR_PAIR_LOST_TOUCH;
+
+	//Lost touch is processed after solver, so we should use the previous transform to update the pose for objects if user request eCONTACT_EVENT_POSE
+	const bool useCurrentTransform = false;
+
+	const PxU32 triggeredFlags = notifyTouchLost | notifyThresholdLost;
+	PX_ASSERT(triggeredFlags); 
+	processUserNotification(triggeredFlags, infoFlag, true, ccdPass, useCurrentTransform, outputs);
+
+	if(shapeVolumeRemoved)
+	{
+		ActorPairReport& apr = getActorPairReport();
+		ContactStreamManager& cs = apr.getContactStreamManager();
+		cs.raiseFlags(ContactStreamManagerFlag::eTEST_FOR_REMOVED_SHAPES);
+	}
+}
 
 PX_FORCE_INLINE void Sc::ShapeInteraction::setPairFlags(PxPairFlags flags)
 {
@@ -254,7 +272,7 @@ PX_FORCE_INLINE	void Sc::ShapeInteraction::removeFromReportPairList()
 	}
 }
 
-PX_INLINE bool Sc::ShapeInteraction::updateManager(PxsContactManager* contactManager)
+PX_INLINE bool Sc::ShapeInteraction::updateManager(void* contactManager)
 {
 	if (activeManagerAllowed())
 	{
@@ -285,24 +303,27 @@ PX_INLINE void Sc::ShapeInteraction::destroyManager()
 
 PX_FORCE_INLINE bool Sc::ShapeInteraction::activeManagerAllowed() const
 {
-	ActorSim& bodySim0 = getActorSim0();
-	ActorSim& bodySim1 = getActorSim1();
+	ShapeSimBase& shape0 = getShape0();
+	ShapeSimBase& shape1 = getShape1();
 
-	// the first shape always belongs to a dynamic body or deformable volume
+	ActorSim& bodySim0 = shape0.getActor();
+	ActorSim& bodySim1 = shape1.getActor();
+
+	// the first shape always belongs to a dynamic body or soft body
 #if PX_SUPPORT_GPU_PHYSX
-	PX_ASSERT(bodySim0.isDynamicRigid() || bodySim0.isDeformableSurface() || bodySim0.isDeformableVolume() || bodySim0.isParticleSystem());
+	PX_ASSERT(bodySim0.isDynamicRigid() || bodySim0.isSoftBody() || bodySim0.isFEMCloth() || bodySim0.isParticleSystem() || bodySim0.isHairSystem());
 #else
 	PX_ASSERT(bodySim0.isDynamicRigid());
 #endif
 
-	// PT: try to prevent OM-103695 / PX-4509
-	// ### DEFENSIVE
+	// PT: try to prevent https://omniverse-jirasw.nvidia.com/browse/OM-103695
 	if(!bodySim0.getNodeIndex().isValid())
-		return PxGetFoundation().error(PxErrorCode::eINTERNAL_ERROR, PX_FL, "ShapeInteraction::activeManagerAllowed: found invalid node!");
+		return false;
 
 	const IG::IslandSim& islandSim = getScene().getSimpleIslandManager()->getSpeculativeIslandSim();
 
 	//check whether active in the speculative sim!
+
 	return (islandSim.getNode(bodySim0.getNodeIndex()).isActive() ||
 		(!bodySim1.isStaticRigid() && islandSim.getNode(bodySim1.getNodeIndex()).isActive()));
 }

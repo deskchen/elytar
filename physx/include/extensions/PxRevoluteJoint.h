@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_REVOLUTE_JOINT_H
 #define PX_REVOLUTE_JOINT_H
+/** \addtogroup extensions
+  @{
+*/
 
 #include "extensions/PxJoint.h"
 #include "extensions/PxJointLimit.h"
@@ -48,14 +51,14 @@ class PxRevoluteJoint;
  \param[in] actor1		An actor to which the joint is attached. NULL may be used to attach the joint to a specific point in the world frame
  \param[in] localFrame1	The position and orientation of the joint relative to actor1 
 
-\see PxRevoluteJoint
+@see PxRevoluteJoint
 */
 PxRevoluteJoint*	PxRevoluteJointCreate(PxPhysics& physics, PxRigidActor* actor0, const PxTransform& localFrame0, PxRigidActor* actor1, const PxTransform& localFrame1);
 
 /**
 \brief Flags specific to the Revolute Joint.
 
-\see PxRevoluteJoint
+@see PxRevoluteJoint
 */
 struct PxRevoluteJointFlag
 {
@@ -84,11 +87,13 @@ PX_FLAGS_OPERATORS(PxRevoluteJointFlag::Enum, PxU16)
  \image html revoluteJoint.png
 
  A revolute joint can be given a motor, so that it can apply a force to rotate the attached actors.
- It may also be given a limit, to restrict the revolute motion to within a certain range.
+ It may also be given a limit, to restrict the revolute motion to within a certain range. In
+ addition, the bodies may be projected together if the distance or angle between them exceeds
+ a given threshold.
  
- Drive and limits are activated by setting the appropriate flags on the joint.
+ Projection, drive and limits are activated by setting the appropriate flags on the joint.
 
- \see PxRevoluteJointCreate() PxJoint
+ @see PxRevoluteJointCreate() PxJoint
 */
 class PxRevoluteJoint : public PxJoint
 {
@@ -113,7 +118,7 @@ public:
 
 	\param[in] limits The joint limit parameters. 
 
-	\see PxJointAngularLimitPair getLimit()
+	@see PxJointAngularLimitPair getLimit()
 	*/
 	virtual void			setLimit(const PxJointAngularLimitPair& limits)	= 0;
 
@@ -122,7 +127,7 @@ public:
 
 	\return the joint limit parameters
 
-	\see PxJointAngularLimitPair setLimit()
+	@see PxJointAngularLimitPair setLimit()
 	*/
 	virtual PxJointAngularLimitPair getLimit()	const	= 0;
 
@@ -143,7 +148,7 @@ public:
 	<b>Range:</b> (-PX_MAX_F32, PX_MAX_F32)<br>
 	<b>Default:</b> 0.0
 
-	\see PxRevoluteFlags::eDRIVE_FREESPIN
+	@see PxRevoluteFlags::eDRIVE_FREESPIN
 	*/
 	virtual void			setDriveVelocity(PxReal velocity, bool autowake = true)	= 0;
 
@@ -152,7 +157,7 @@ public:
 
 	\return the drive target velocity
 
-	\see setDriveVelocity()
+	@see setDriveVelocity()
 	*/
 	virtual PxReal			getDriveVelocity()	const	= 0;
 
@@ -164,7 +169,7 @@ public:
 	<b>Range:</b> [0, PX_MAX_F32)<br>
 	<b>Default:</b> PX_MAX_F32
 
-	\see setDriveVelocity()
+	@see setDriveVelocity()
 	*/
 	virtual void			setDriveForceLimit(PxReal limit)	= 0;
 
@@ -173,7 +178,7 @@ public:
 	
 	\return the torque limit
 
-	\see setDriveVelocity()
+	@see setDriveVelocity()
 	*/
 	virtual PxReal			getDriveForceLimit()	const	= 0;
 
@@ -188,7 +193,7 @@ public:
 
 	\param[in] ratio the drive gear ratio
 
-	\see getDriveGearRatio()
+	@see getDriveGearRatio()
 	*/
 	virtual void			setDriveGearRatio(PxReal ratio)	= 0;
 
@@ -197,7 +202,7 @@ public:
 	
 	\return the drive gear ratio
 
-	\see setDriveGearRatio()
+	@see setDriveGearRatio()
 	*/
 	virtual PxReal			getDriveGearRatio()		const	= 0;
 
@@ -208,7 +213,7 @@ public:
 
 	\param[in] flags The joint flags.
 
-	\see PxRevoluteJointFlag setFlag() getFlags()
+	@see PxRevoluteJointFlag setFlag() getFlags()
 	*/
 	virtual void			setRevoluteJointFlags(PxRevoluteJointFlags flags) = 0;
 
@@ -218,7 +223,7 @@ public:
 	\param[in] flag The flag to set or clear.
 	\param[in] value the value to which to set the flag
 
-	\see PxRevoluteJointFlag, getFlags() setFlags()
+	@see PxRevoluteJointFlag, getFlags() setFlags()
 	*/
 	virtual void			setRevoluteJointFlag(PxRevoluteJointFlag::Enum flag, bool value) = 0;
 
@@ -227,14 +232,14 @@ public:
 
 	\return the joint flags
 
-	\see PxRevoluteJoint::flags, PxRevoluteJointFlag setFlag() setFlags()
+	@see PxRevoluteJoint::flags, PxRevoluteJointFlag setFlag() setFlags()
 	*/
 	virtual PxRevoluteJointFlags	getRevoluteJointFlags()	const	= 0;
 
 	/**
 	\brief Returns string name of PxRevoluteJoint, used for serialization
 	*/
-	virtual	const char*			getConcreteTypeName() const	PX_OVERRIDE	{ return "PxRevoluteJoint"; }
+	virtual	const char*			getConcreteTypeName() const { return "PxRevoluteJoint"; }
 
 protected:
 
@@ -262,4 +267,5 @@ protected:
 } // namespace physx
 #endif
 
+/** @} */
 #endif

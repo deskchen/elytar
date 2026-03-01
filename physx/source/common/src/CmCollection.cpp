@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -112,7 +112,7 @@ void Collection::add(PxCollection& _collection)
 	Collection& collection = static_cast<Collection&>(_collection);
 	PX_CHECK_AND_RETURN(this != &collection, "PxCollection::add(PxCollection&) called with itself!");
 
-	mObjects.reserve(mObjects.size() + collection.mObjects.size());
+	mObjects.reserve(mObjects.capacity() + collection.mObjects.size());
 	const ObjectToIdMap::Entry* e = collection.mObjects.getEntries();
 	for (PxU32 i = 0; i < collection.mObjects.size(); ++i)
 	{

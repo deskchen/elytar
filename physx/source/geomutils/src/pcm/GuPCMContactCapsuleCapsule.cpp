@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.     
 
@@ -104,7 +104,7 @@ bool Gu::pcmContactCapsuleCapsule(GU_CONTACT_METHOD_ARGS)
 
 	const FloatV cDist = FLoad(params.mContactDistance);
 
-	const Vec3V positionOffset = V3Scale(V3Add(_p0, _p1), FHalf());
+	const Vec3V positionOffset = V3Scale(V3Add(_p0, _p1),  FHalf());
 	const Vec3V p0 = V3Sub(_p0, positionOffset);
 	const Vec3V p1 = V3Sub(_p1, positionOffset);
 
@@ -155,7 +155,7 @@ bool Gu::pcmContactCapsuleCapsule(GU_CONTACT_METHOD_ARGS)
 		if(FAllGrtr(cos, parallelTolerance))//paralle
 		{
 			//project s, e into s1e1
-			const Vec4V t = pcmDistancePointSegmentTValue22(s0, e0, s1, e1,
+			const Vec4V t= pcmDistancePointSegmentTValue22(s0, e0, s1, e1,
 															s1, e1, s0, e0);
 
 			const BoolV con = BAnd(V4IsGrtrOrEq(t, zeroV4), V4IsGrtrOrEq(oneV4, t));

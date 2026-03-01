@@ -22,13 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef DY_ARTICULATION_INTERFACE_H
 #define DY_ARTICULATION_INTERFACE_H
 
+#include "DyArticulationUtils.h"
 #include "DyFeatherstoneArticulation.h"
 
 namespace physx
@@ -45,9 +46,11 @@ public:
 											PxReal dt,
 											PxU32& acCount,
 											const PxVec3& gravity, 
+											Cm::SpatialVectorF* Z, 
+											Cm::SpatialVectorF* deltaV,
 											const PxReal invLengthScale)
 	{
-		return FeatherstoneArticulation::computeUnconstrainedVelocities(desc, dt, acCount, gravity, invLengthScale);
+		return FeatherstoneArticulation::computeUnconstrainedVelocities(desc, dt,  acCount, gravity, Z, deltaV, invLengthScale);
 	}
 
 	static void	updateBodies(const ArticulationSolverDesc& desc, Cm::SpatialVectorF* tempDeltaV,
@@ -74,16 +77,15 @@ public:
 
 	static void computeUnconstrainedVelocitiesTGS(const ArticulationSolverDesc& desc,
 		PxReal dt,
-		const PxVec3& gravity,
-		PxReal invLengthScale,
-		bool externalForcesEveryTgsIterationEnabled)
+		const PxVec3& gravity, PxU64 contextID, Cm::SpatialVectorF* Z, Cm::SpatialVectorF* DeltaV,
+		const PxReal invLengthScale)
 	{
-		FeatherstoneArticulation::computeUnconstrainedVelocitiesTGS(desc, dt, gravity, invLengthScale, externalForcesEveryTgsIterationEnabled);
+		FeatherstoneArticulation::computeUnconstrainedVelocitiesTGS(desc, dt, gravity, contextID, Z, DeltaV, invLengthScale);
 	}
 
-	static void	updateDeltaMotion(const ArticulationSolverDesc& desc, const PxReal dt, Cm::SpatialVectorF* DeltaV)
+	static void	updateDeltaMotion(const ArticulationSolverDesc& desc, const PxReal dt, Cm::SpatialVectorF* DeltaV, const PxReal totalInvDt)
 	{
-		FeatherstoneArticulation::recordDeltaMotion(desc, dt, DeltaV);
+		FeatherstoneArticulation::recordDeltaMotion(desc, dt, DeltaV, totalInvDt);
 	}
 
 	static void	deltaMotionToMotionVel(const ArticulationSolverDesc& desc, const PxReal invDt)
@@ -94,9 +96,11 @@ public:
 	static PxU32 setupSolverInternalConstraintsTGS(const ArticulationSolverDesc& desc,
 		PxReal dt,
 		PxReal invDt,
-		PxReal totalDt)
+		PxReal totalDt,
+		PxU32& acCount,
+		Cm::SpatialVectorF* Z)
 	{
-		return FeatherstoneArticulation::setupSolverConstraintsTGS(desc, dt, invDt, totalDt);
+		return FeatherstoneArticulation::setupSolverConstraintsTGS(desc,  dt, invDt, totalDt, acCount,  Z);
 	}
 };
 

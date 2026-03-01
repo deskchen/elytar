@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -163,12 +163,56 @@ public:
 		return mContactPoints[index];
 	}
 	
+	PX_FORCE_INLINE aos::FloatV maxTransformdelta(const aos::PxTransformV& curTransform)	const
+	{
+		using namespace aos;
+		const Vec4V p0 = Vec4V_From_Vec3V(mRelativeTransform.p);
+		const Vec4V q0 = mRelativeTransform.q;
+		const Vec4V p1 = Vec4V_From_Vec3V(curTransform.p);
+		const Vec4V q1 = curTransform.q;
+
+		const Vec4V dp = V4Abs(V4Sub(p1, p0));
+		const Vec4V dq = V4Abs(V4Sub(q1, q0));
+
+		const Vec4V max0 = V4Max(dp, dq);
+
+		//need to work out max from a single vector...
+		return V4ExtractMax(max0);
+	}
+
+	PX_FORCE_INLINE aos::Vec4V maxTransformdelta2(const aos::PxTransformV& curTransform)	const
+	{
+		using namespace aos;
+		const Vec4V p0 = Vec4V_From_Vec3V(mRelativeTransform.p);
+		const Vec4V q0 = mRelativeTransform.q;
+		const Vec4V p1 = Vec4V_From_Vec3V(curTransform.p);
+		const Vec4V q1 = curTransform.q;
+
+		const Vec4V dp = V4Abs(V4Sub(p1, p0));
+		const Vec4V dq = V4Abs(V4Sub(q1, q0));
+
+		const Vec4V max0 = V4Max(dp, dq);
+
+		//need to work out max from a single vector...
+		return max0;
+	}
+
 	PX_FORCE_INLINE aos::FloatV maxTransformPositionDelta(const aos::Vec3V& curP)	const
 	{
 		using namespace aos;
 	
 		const Vec3V deltaP = V3Sub(curP, mRelativeTransform.p);
 		const Vec4V delta = Vec4V_From_Vec3V(V3Abs(deltaP));
+		//need to work out max from a single vector...
+		return V4ExtractMax(delta);
+	}
+
+	PX_FORCE_INLINE aos::FloatV maxTransformQuatDelta(const aos::QuatV& curQ)	const
+	{
+		using namespace aos;
+	
+		const Vec4V deltaQ = V4Sub(curQ, mRelativeTransform.q);
+		const Vec4V delta = V4Abs(deltaQ);
 		//need to work out max from a single vector...
 		return V4ExtractMax(delta);
 	}
@@ -496,6 +540,16 @@ public:
 		return V4ExtractMax(delta);
 	}
 
+	PX_FORCE_INLINE aos::FloatV maxTransformQuatDelta(const aos::QuatV& curQ)	const
+	{
+		using namespace aos;
+	
+		const Vec4V deltaQ = V4Sub(curQ, mRelativeTransform.q);
+		const Vec4V delta = V4Abs(deltaQ);
+		//need to work out max from a single vector...
+		return V4ExtractMax(delta);
+	}
+
 	PX_FORCE_INLINE PxU32 invalidate(const aos::PxTransformV& curRTrans, const aos::FloatVArg minMargin, const aos::FloatVArg ratio)	const
 	{
 		using namespace aos;
@@ -676,7 +730,7 @@ public:
 	static void drawLine(PxRenderOutput& out, const aos::Vec3VArg p0, const aos::Vec3VArg p1, PxU32 color = 0xff00ffff);
 	static void drawLine(PxRenderOutput& out, const PxVec3 p0, const PxVec3 p1, PxU32 color = 0xff00ffff);
 	static void drawPoint(PxRenderOutput& out, const aos::Vec3VArg p, const PxF32 size, PxU32 color = 0x00ff0000);
-	static void drawPolygon(PxRenderOutput& out, const aos::PxTransformV& transform, aos::Vec3V* points, PxU32 numVerts, PxU32 color = 0xff00ffff);
+	static void drawPolygon(PxRenderOutput& out, const aos::PxTransformV& transform,  aos::Vec3V* points, PxU32 numVerts, PxU32 color = 0xff00ffff);
 
 	aos::PxTransformV mRelativeTransform;//aToB
 	PxF32 mMaxPen[GU_MAX_MANIFOLD_SIZE];
@@ -698,12 +752,14 @@ PX_FORCE_INLINE aos::Vec3V PersistentContactManifold::getWorldNormal(const aos::
 	
 	Vec4V nPen = mContactPoints[0].mLocalNormalPen;
 	for(PxU32 i=1; i<mNumContacts; ++i)
+	{
 		nPen = V4Add(nPen, mContactPoints[i].mLocalNormalPen);
+	}
 
 	const Vec3V n = Vec3V_From_Vec4V(nPen);
 	const FloatV sqLength = V3Dot(n, n);
 	const Vec3V nn = V3Sel(FIsGrtr(sqLength, FEps()), n, Vec3V_From_Vec4V(mContactPoints[0].mLocalNormalPen));
-	return trB.rotateAndNormalize(nn);
+	return V3Normalize(trB.rotate(nn));
 }
 
 // This function calculates the average normal in the manifold in local B space
@@ -713,8 +769,9 @@ PX_FORCE_INLINE aos::Vec3V PersistentContactManifold::getLocalNormal()	const
 	
 	Vec4V nPen = mContactPoints[0].mLocalNormalPen;
 	for(PxU32 i=1; i<mNumContacts; ++i)
+	{
 		nPen = V4Add(nPen, mContactPoints[i].mLocalNormalPen);
-
+	}
 	return V3Normalize(Vec3V_From_Vec4V(nPen));
 }
 

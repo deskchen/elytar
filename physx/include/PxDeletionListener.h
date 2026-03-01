@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_DELETION_LISTENER_H
 #define PX_DELETION_LISTENER_H
+/** \addtogroup physics
+@{
+*/
 
 #include "PxPhysXConfig.h"
 #include "common/PxBase.h"
@@ -41,7 +44,7 @@ namespace physx
 /**
 \brief Flags specifying deletion event types.
 
-\see PxDeletionListener::onRelease PxPhysics.registerDeletionListener()
+@see PxDeletionListener::onRelease PxPhysics.registerDeletionListener()
 */
 struct PxDeletionEventFlag
 {
@@ -55,7 +58,7 @@ struct PxDeletionEventFlag
 /**
 \brief Collection of set bits defined in PxDeletionEventFlag.
 
-\see PxDeletionEventFlag
+@see PxDeletionEventFlag
 */
 typedef PxFlags<PxDeletionEventFlag::Enum,PxU8> PxDeletionEventFlags;
 PX_FLAGS_OPERATORS(PxDeletionEventFlag::Enum,PxU8)
@@ -97,4 +100,5 @@ protected:
 } // namespace physx
 #endif
 
+/** @} */
 #endif

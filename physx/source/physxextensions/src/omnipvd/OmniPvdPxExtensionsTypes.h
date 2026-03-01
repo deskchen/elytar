@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -70,7 +70,6 @@ OMNI_PVD_ENUM_END		(PxSphericalJointFlag)
 
 OMNI_PVD_ENUM_BEGIN		(PxD6JointDriveFlag)
 OMNI_PVD_ENUM_VALUE		(PxD6JointDriveFlag,		eACCELERATION)
-OMNI_PVD_ENUM_VALUE		(PxD6JointDriveFlag,		eOUTPUT_FORCE)
 OMNI_PVD_ENUM_END		(PxD6JointDriveFlag)
 
 OMNI_PVD_ENUM_BEGIN		(PxJointConcreteType)
@@ -80,6 +79,7 @@ OMNI_PVD_ENUM_VALUE		(PxJointConcreteType,		ePRISMATIC)
 OMNI_PVD_ENUM_VALUE		(PxJointConcreteType,		eFIXED)
 OMNI_PVD_ENUM_VALUE		(PxJointConcreteType,		eDISTANCE)
 OMNI_PVD_ENUM_VALUE		(PxJointConcreteType,		eD6)
+OMNI_PVD_ENUM_VALUE		(PxJointConcreteType,		eCONTACT)
 OMNI_PVD_ENUM_VALUE		(PxJointConcreteType,		eGEAR)
 OMNI_PVD_ENUM_VALUE		(PxJointConcreteType,		eRACK_AND_PINION)
 OMNI_PVD_ENUM_END		(PxJointConcreteType)
@@ -90,12 +90,6 @@ OMNI_PVD_ENUM_VALUE		(PxD6Motion,				eLIMITED)
 OMNI_PVD_ENUM_VALUE		(PxD6Motion,				eFREE)
 OMNI_PVD_ENUM_END		(PxD6Motion)
 
-OMNI_PVD_ENUM_BEGIN		(PxD6AngularDriveConfig)
-OMNI_PVD_ENUM_VALUE		(PxD6AngularDriveConfig,	eSWING_TWIST)
-OMNI_PVD_ENUM_VALUE		(PxD6AngularDriveConfig,	eSLERP)
-OMNI_PVD_ENUM_VALUE		(PxD6AngularDriveConfig,	eLEGACY)
-OMNI_PVD_ENUM_END		(PxD6AngularDriveConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 // Classes
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +98,6 @@ OMNI_PVD_ENUM_END		(PxD6AngularDriveConfig)
 // PxJoint
 ////////////////////////////////////////////////////////////////////////////////
 OMNI_PVD_CLASS_BEGIN					(PxJoint)
-OMNI_PVD_ATTRIBUTE						(PxJoint, constraint,				PxConstraint* const, OmniPvdDataType::eOBJECT_HANDLE)
 OMNI_PVD_ATTRIBUTE_FLAG					(PxJoint, type,						PxJointConcreteType::Enum, PxJointConcreteType)
 OMNI_PVD_ATTRIBUTE						(PxJoint, actor0,					PxRigidActor* const, OmniPvdDataType::eOBJECT_HANDLE)
 OMNI_PVD_ATTRIBUTE						(PxJoint, actor1,					PxRigidActor* const, OmniPvdDataType::eOBJECT_HANDLE)
@@ -188,6 +181,16 @@ OMNI_PVD_ATTRIBUTE				(PxDistanceJoint, damping,			PxReal, OmniPvdDataType::eFLO
 OMNI_PVD_ATTRIBUTE_FLAG			(PxDistanceJoint, jointFlags,		PxDistanceJointFlags, PxDistanceJointFlag)
 OMNI_PVD_CLASS_END				(PxDistanceJoint)
 
+////////////////////////////////////////////////////////////////////////////////
+// PxContactJoint
+////////////////////////////////////////////////////////////////////////////////
+OMNI_PVD_CLASS_DERIVED_BEGIN		(PxContactJoint, PxJoint)
+OMNI_PVD_ATTRIBUTE_ARRAY_FIXED_SIZE	(PxContactJoint, point,				PxVec3, OmniPvdDataType::eFLOAT32, 3)
+OMNI_PVD_ATTRIBUTE_ARRAY_FIXED_SIZE	(PxContactJoint, normal,			PxVec3, OmniPvdDataType::eFLOAT32, 3)
+OMNI_PVD_ATTRIBUTE					(PxContactJoint, penetration,		PxReal, OmniPvdDataType::eFLOAT32)
+OMNI_PVD_ATTRIBUTE					(PxContactJoint, restitution,		PxReal, OmniPvdDataType::eFLOAT32)
+OMNI_PVD_ATTRIBUTE					(PxContactJoint, bounceThreshold,	PxReal, OmniPvdDataType::eFLOAT32)
+OMNI_PVD_CLASS_END					(PxContactJoint)
 
 ////////////////////////////////////////////////////////////////////////////////
 // PxGearJoint
@@ -204,16 +207,6 @@ OMNI_PVD_CLASS_DERIVED_BEGIN			(PxRackAndPinionJoint, PxJoint)
 OMNI_PVD_ATTRIBUTE						(PxRackAndPinionJoint, ratio,	PxReal, OmniPvdDataType::eFLOAT32)
 OMNI_PVD_ATTRIBUTE_ARRAY_VARIABLE_SIZE	(PxRackAndPinionJoint, joints,	PxBase* const, OmniPvdDataType::eOBJECT_HANDLE)
 OMNI_PVD_CLASS_END						(PxRackAndPinionJoint)
-
-////////////////////////////////////////////////////////////////////////////////
-// PxD6JointDrive
-////////////////////////////////////////////////////////////////////////////////
-OMNI_PVD_CLASS_BEGIN					(PxD6JointDrive)
-OMNI_PVD_ATTRIBUTE						(PxD6JointDrive, stiffness,		PxReal, OmniPvdDataType::eFLOAT32)
-OMNI_PVD_ATTRIBUTE						(PxD6JointDrive, damping,		PxReal, OmniPvdDataType::eFLOAT32)
-OMNI_PVD_ATTRIBUTE						(PxD6JointDrive, forceLimit,	PxReal, OmniPvdDataType::eFLOAT32)
-OMNI_PVD_ATTRIBUTE_FLAG					(PxD6JointDrive, flags,			PxD6JointDriveFlags, PxD6JointDriveFlag)
-OMNI_PVD_CLASS_END						(PxD6JointDrive)
 
 ////////////////////////////////////////////////////////////////////////////////
 // PxD6Joint
@@ -254,18 +247,13 @@ OMNI_PVD_ATTRIBUTE						(PxD6Joint,	pyramidSwingLimitRestitution,		PxReal, OmniP
 OMNI_PVD_ATTRIBUTE						(PxD6Joint,	pyramidSwingLimitBounceThreshold,	PxReal, OmniPvdDataType::eFLOAT32)
 OMNI_PVD_ATTRIBUTE						(PxD6Joint,	pyramidSwingLimitStiffness,			PxReal, OmniPvdDataType::eFLOAT32)
 OMNI_PVD_ATTRIBUTE						(PxD6Joint,	pyramidSwingLimitDamping,			PxReal, OmniPvdDataType::eFLOAT32)
-OMNI_PVD_ATTRIBUTE						(PxD6Joint,	driveX,								PxD6JointDrive* const, OmniPvdDataType::eOBJECT_HANDLE)
-OMNI_PVD_ATTRIBUTE						(PxD6Joint,	driveY,								PxD6JointDrive* const, OmniPvdDataType::eOBJECT_HANDLE)
-OMNI_PVD_ATTRIBUTE						(PxD6Joint,	driveZ,								PxD6JointDrive* const, OmniPvdDataType::eOBJECT_HANDLE)
-OMNI_PVD_ATTRIBUTE						(PxD6Joint,	driveSwing,							PxD6JointDrive* const, OmniPvdDataType::eOBJECT_HANDLE)
-OMNI_PVD_ATTRIBUTE						(PxD6Joint,	driveTwist,							PxD6JointDrive* const, OmniPvdDataType::eOBJECT_HANDLE)
-OMNI_PVD_ATTRIBUTE						(PxD6Joint,	driveSlerp,							PxD6JointDrive* const, OmniPvdDataType::eOBJECT_HANDLE)
-OMNI_PVD_ATTRIBUTE						(PxD6Joint,	driveSwing1,						PxD6JointDrive* const, OmniPvdDataType::eOBJECT_HANDLE)
-OMNI_PVD_ATTRIBUTE						(PxD6Joint,	driveSwing2,						PxD6JointDrive* const, OmniPvdDataType::eOBJECT_HANDLE)
+OMNI_PVD_ATTRIBUTE_ARRAY_VARIABLE_SIZE	(PxD6Joint,	driveForceLimit,					PxReal, OmniPvdDataType::eFLOAT32)
+OMNI_PVD_ATTRIBUTE_ARRAY_VARIABLE_SIZE	(PxD6Joint,	driveFlags,							PxD6JointDriveFlags, OmniPvdDataType::eUINT32)
+OMNI_PVD_ATTRIBUTE_ARRAY_VARIABLE_SIZE	(PxD6Joint,	driveStiffness,						PxReal, OmniPvdDataType::eFLOAT32)
+OMNI_PVD_ATTRIBUTE_ARRAY_VARIABLE_SIZE	(PxD6Joint,	driveDamping,						PxReal, OmniPvdDataType::eFLOAT32)
 OMNI_PVD_ATTRIBUTE_ARRAY_FIXED_SIZE		(PxD6Joint,	drivePosition,						PxTransform, OmniPvdDataType::eFLOAT32, 7)
 OMNI_PVD_ATTRIBUTE_ARRAY_FIXED_SIZE		(PxD6Joint,	driveLinVelocity,					PxVec3, OmniPvdDataType::eFLOAT32, 3)
 OMNI_PVD_ATTRIBUTE_ARRAY_FIXED_SIZE		(PxD6Joint,	driveAngVelocity,					PxVec3, OmniPvdDataType::eFLOAT32, 3)
-OMNI_PVD_ATTRIBUTE_FLAG					(PxD6Joint, angularDriveConfig,					PxD6AngularDriveConfig::Enum, PxD6AngularDriveConfig)
 OMNI_PVD_CLASS_END						(PxD6Joint)
 
 ////////////////////////////////////////////////////////////////////////////////

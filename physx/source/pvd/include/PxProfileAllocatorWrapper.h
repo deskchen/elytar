@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -91,9 +91,8 @@ namespace physx { namespace profile {
 			return *this;
 		}
 		PxAllocatorCallback& getAllocator() { return mWrapper->getAllocator(); }
-		void* allocate(size_t size, const char* filename, int line, uint32_t* cookie=NULL)
+		void* allocate(size_t size, const char* filename, int line)
 		{
-			PX_UNUSED(cookie);
 #if PX_CHECKED // checked and debug builds
 			if(!size)
 				return 0;
@@ -102,9 +101,8 @@ namespace physx { namespace profile {
 			return getAllocator().allocate(size, "<no allocation names in this config>", filename, line);
 #endif
 		}
-		void deallocate(void* ptr, uint32_t* cookie=NULL)
+		void deallocate(void* ptr)
 		{
-			PX_UNUSED(cookie);
 			if(ptr)
 				getAllocator().deallocate(ptr);
 		}
@@ -133,16 +131,14 @@ namespace physx { namespace profile {
 			return *this;
 		}
 		PxAllocatorCallback& getAllocator() { return mWrapper->getAllocator(); }
-		void* allocate(size_t size, const char* filename, int line, uint32_t* cookie=NULL)
+		void* allocate(size_t size, const char* filename, int line)
 		{
-			PX_UNUSED(cookie);
 			if(!size)
 				return 0;
 			return getAllocator().allocate(size, mAllocationName, filename, line);
 		}
-		void deallocate(void* ptr, uint32_t* cookie=NULL)
+		void deallocate(void* ptr)
 		{
-			PX_UNUSED(cookie);
 			if(ptr)
 				getAllocator().deallocate(ptr);
 		}

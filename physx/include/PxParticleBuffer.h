@@ -22,12 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_PARTICLE_BUFFER_H
 #define PX_PARTICLE_BUFFER_H
+/** \addtogroup physics
+@{ */
 
 #include "common/PxBase.h"
 #include "common/PxPhysXCommonConfig.h"
@@ -56,11 +58,9 @@ struct PxParticleRigidAttachment;
 /**
 \brief Particle volume structure. Used to track the bounding volume of a user-specified set of particles. The particles are required
 to be laid out contiguously within the same PxParticleBuffer.
-
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 */
 PX_ALIGN_PREFIX(16)
-struct PX_DEPRECATED PxParticleVolume
+struct PxParticleVolume
 {
 	PxBounds3	bound;					//!< The current bounds of the particles contained in this #PxParticleVolume.
 	PxU32		particleIndicesOffset;	//!< The index into the particle list of the #PxParticleBuffer for the first particle of this volume.
@@ -96,7 +96,7 @@ public:
 	/**
 	\brief Get phases for this particle buffer.
 
-	See #PxParticlePhaseFlag
+	See #PxParticlePhase
 
 	\return A pointer to a device buffer containing the per-particle phases for this particle buffer.
 	*/
@@ -105,12 +105,11 @@ public:
 	/**
 	\brief Get particle volumes for this particle buffer.
 
-	\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 	See #PxParticleVolume
 
 	\return A pointer to a device buffer containing the #PxParticleVolume s for this particle buffer.
 	*/
-	PX_DEPRECATED virtual PxParticleVolume* getParticleVolumes() const = 0;
+	virtual PxParticleVolume*	getParticleVolumes() const = 0;
 
 	/**
 	\brief Set the number of active particles for this particle buffer.
@@ -138,48 +137,44 @@ public:
 
 	/**
 	\brief Get the number of particle volumes in this particle buffer.
-	\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 	\return The number of #PxParticleVolume s for this particle buffer.
 	*/
-	PX_DEPRECATED virtual PxU32 getNbParticleVolumes() const = 0;
+	virtual PxU32				getNbParticleVolumes() const = 0;
 
 	/**
 	\brief Set the number of #PxParticleVolume s for this particle buffer.
-	\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 	\param[in] nbParticleVolumes The number of particle volumes in this particle buffer.
 	*/
-	PX_DEPRECATED virtual void setNbParticleVolumes(PxU32 nbParticleVolumes) = 0;
+	virtual void				setNbParticleVolumes(PxU32 nbParticleVolumes) = 0;
 
 	/**
 	\brief Get the maximum number of particle volumes this particle buffer can hold.
-	\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 
 	See #PxParticleVolume.
 
 	\return The maximum number of particle volumes this particle buffer can hold.
 	*/
-	PX_DEPRECATED virtual PxU32 getMaxParticleVolumes() const = 0;
+	virtual PxU32				getMaxParticleVolumes() const = 0;
 
 	/**
 	\brief Set the #PxParticleRigidFilterPair s for collision filtering of particles in this buffer with rigid bodies.
-	\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
+
 	See #PxParticleRigidFilterPair
 
 	\param[in] filters A device buffer containing #PxParticleRigidFilterPair s.
 	\param[in] nbFilters The number of particle-rigid body collision filtering pairs.
 	*/
-	PX_DEPRECATED virtual void setRigidFilters(PxParticleRigidFilterPair* filters, PxU32 nbFilters) = 0;
+	virtual void				setRigidFilters(PxParticleRigidFilterPair* filters, PxU32 nbFilters) = 0;
 
 	/**
 	\brief Set the particle-rigid body attachments for particles in this particle buffer.
-	\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 
 	See #PxParticleRigidAttachment
 
 	\param[in] attachments A device buffer containing #PxParticleRigidAttachment s.
 	\param[in] nbAttachments The number of particle-rigid body attachments.
 	*/
-	PX_DEPRECATED virtual void setRigidAttachments(PxParticleRigidAttachment* attachments, PxU32 nbAttachments) = 0;
+	virtual void				setRigidAttachments(PxParticleRigidAttachment* attachments, PxU32 nbAttachments) = 0;
 
 	/**
 	\brief Get the start index for the first particle of this particle buffer in the complete list of
@@ -207,23 +202,30 @@ public:
 	virtual void				release() = 0;
 
 	/**
-	\deprecated Will be removed in a future version, use getUniqueId() instead.
-	\brief Unique index that does not change over the lifetime of a PxParticleBuffer.
+	\brief Cleanup helper used in case a particle system is released before the particle buffers have been removed.
 	*/
-	PX_DEPRECATED PxU32			bufferUniqueId;
+	virtual void				onParticleSystemDestroy() = 0;
 
 	/**
-	\brief Retrieve unique index that does not change over the lifetime of a PxParticleBuffer.
+	\brief Reserved for internal use.
 	*/
-	virtual PxU32				getUniqueId() const = 0;
+	virtual void				setInternalData(void* data) = 0;
 
-	//public variables:
-	void*						userData;	//!< user can assign this to whatever, usually to create a 1:1 relationship with a user object.
+	/**
+	\brief Index of this buffer in the particle system it is assigned to.
+	*/
+	PxU32						bufferIndex;
+
+	/**
+	\brief Unique index that does not change over the lifetime of a PxParticleBuffer.
+	*/
+	const PxU32					bufferUniqueId;
 
 protected:
 
 	virtual						~PxParticleBuffer() { }
-	PX_INLINE 					PxParticleBuffer(PxType type) : PxBase(type, PxBaseFlag::eOWNS_MEMORY | PxBaseFlag::eIS_RELEASABLE), bufferUniqueId(PX_INVALID_U32), userData(NULL) {}
+	PX_INLINE 					PxParticleBuffer(PxU32 uniqueId) : PxBase(PxConcreteType::ePARTICLE_BUFFER, PxBaseFlag::eOWNS_MEMORY | PxBaseFlag::eIS_RELEASABLE), bufferIndex(0xffffffff), bufferUniqueId(uniqueId){}
+	PX_INLINE 					PxParticleBuffer(PxU32 uniqueId, PxType type) : PxBase(type, PxBaseFlag::eOWNS_MEMORY | PxBaseFlag::eIS_RELEASABLE), bufferIndex(0xffffffff), bufferUniqueId(uniqueId){}
 
 private:
 	PX_NOCOPY(PxParticleBuffer)
@@ -288,12 +290,6 @@ public:
 	virtual PxVec4*					getDiffusePositionLifeTime() const = 0;
 
 	/**
-	\brief Get a device buffer of velocities for the diffuse particles.
-	\return A device buffer containing velocities of diffuse particles.
-	*/
-	virtual PxVec4*					getDiffuseVelocities() const = 0;
-
-	/**
 	\brief Get number of currently active diffuse particles.
 	\return The number of currently active diffuse particles.
 	*/
@@ -330,7 +326,7 @@ public:
 protected:
 
 	virtual 						~PxParticleAndDiffuseBuffer() {}
-	PX_INLINE 						PxParticleAndDiffuseBuffer(PxType type) : PxParticleBuffer(type){}
+	PX_INLINE 						PxParticleAndDiffuseBuffer(PxU32 uniqueId) : PxParticleBuffer(uniqueId, PxConcreteType::ePARTICLE_DIFFUSE_BUFFER){}
 
 private:
 	PX_NOCOPY(PxParticleAndDiffuseBuffer)
@@ -338,10 +334,8 @@ private:
 
 /**
 \brief Holds all the information for a spring constraint between two particles. Used for particle cloth simulation.
-
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 */
-struct PX_DEPRECATED PX_ALIGN_PREFIX(8) PxParticleSpring
+struct PX_ALIGN_PREFIX(8) PxParticleSpring
 {
 	PxU32 ind0;			//!< particle index of first particle
 	PxU32 ind1;			//!< particle index of second particle
@@ -353,10 +347,8 @@ struct PX_DEPRECATED PX_ALIGN_PREFIX(8) PxParticleSpring
 
 /**
 \brief Particle cloth structure. Holds information about a single piece of cloth that is part of a #PxParticleClothBuffer.
-
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 */
-struct PX_DEPRECATED PxParticleCloth
+struct PxParticleCloth
 {
 	PxU32	startVertexIndex;	//!< Index of the first particle of this cloth in the position/velocity buffers of the parent #PxParticleClothBuffer
 	PxU32	numVertices;		//!< The number of particles of this piece of cloth
@@ -375,10 +367,8 @@ struct PX_DEPRECATED PxParticleCloth
 
 /**
 \brief Structure to describe the set of particle cloths in the same #PxParticleClothBuffer. Used an input for the cloth preprocessing.
-
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 */
-struct PX_DEPRECATED PxParticleClothDesc
+struct PxParticleClothDesc
 {
 	PxParticleClothDesc() : cloths(NULL), triangles(NULL), springs(NULL), restPositions(NULL), 
 		nbCloths(0), nbSprings(0), nbTriangles(0), nbParticles(0)
@@ -399,11 +389,9 @@ struct PX_DEPRECATED PxParticleClothDesc
 \brief Structure to describe the output of the particle cloth preprocessing. Used as an input to specify cloth data for a #PxParticleClothBuffer.
 All the pointers point to pinned host memory.
 
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
-
 See #PxParticleClothPreProcessor
 */
-struct PX_DEPRECATED PX_PHYSX_CORE_API PxPartitionedParticleCloth
+struct PX_PHYSX_CORE_API PxPartitionedParticleCloth
 {
 	PxU32*						accumulatedSpringsPerPartitions;	//!< The number of springs in each partition. Size: numPartitions.
 	PxU32*						accumulatedCopiesPerParticles;		//!< Start index for each particle in the accumulation buffer. Size: numParticles.
@@ -435,11 +423,9 @@ struct PX_DEPRECATED PX_PHYSX_CORE_API PxPartitionedParticleCloth
 /**
 \brief A particle buffer used to simulate particle cloth.
 
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
-
 See #PxPhysics::createParticleClothBuffer.
 */
-class PX_DEPRECATED PxParticleClothBuffer : public PxParticleBuffer
+class PxParticleClothBuffer : public PxParticleBuffer
 {
 public:
 
@@ -490,7 +476,7 @@ public:
 protected:
 
 	virtual						~PxParticleClothBuffer() {}
-	PX_INLINE 					PxParticleClothBuffer(PxType type) : PxParticleBuffer(type) {}
+	PX_INLINE 					PxParticleClothBuffer(PxU32 uniqueId) : PxParticleBuffer(uniqueId, PxConcreteType::ePARTICLE_CLOTH_BUFFER) {}
 
 private:
 	PX_NOCOPY(PxParticleClothBuffer)
@@ -499,11 +485,9 @@ private:
 /**
 \brief A particle buffer used to simulate rigid bodies using shape matching with particles.
 
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
-
 See #PxPhysics::createParticleRigidBuffer.
 */
-class PX_DEPRECATED PxParticleRigidBuffer : public PxParticleBuffer
+class PxParticleRigidBuffer : public PxParticleBuffer
 {
 public:
 	/**
@@ -566,24 +550,22 @@ public:
 protected:
 
 	virtual			~PxParticleRigidBuffer() {}
-	PX_INLINE 		PxParticleRigidBuffer(PxType type) : PxParticleBuffer(type) {}
+	PX_INLINE 		PxParticleRigidBuffer(PxU32 uniqueId) : PxParticleBuffer(uniqueId, PxConcreteType::ePARTICLE_RIGID_BUFFER) {}
 
 private:
 	PX_NOCOPY(PxParticleRigidBuffer)
 };
 
 /**
-\brief Preprocessor to prepare particle cloths for simulation.
-
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
+@brief Preprocessor to prepare particle cloths for simulation.
 
 Preprocessing is done by calling #PxParticleClothPreProcessor::partitionSprings() on an instance of this class. This will allocate the memory in the 
 output object, partition the springs and fill all the members of the ouput object. The output can then be passed without 
 any further modifications to #PxParticleClothBuffer::setCloths().
 
-See #PxParticleClothDesc, #PxPartitionedParticleCloth
+See #PxCreateParticleClothPreprocessor, #PxParticleClothDesc, #PxPartitionedParticleCloth
 */
-class PX_DEPRECATED PxParticleClothPreProcessor
+class PxParticleClothPreProcessor
 {
 public:
 
@@ -615,12 +597,12 @@ protected:
 
 /**
 \brief Create a particle cloth preprocessor.
-\deprecated Particle-cloth, -rigids, -attachments and -volumes have been deprecated.
 \param[in] cudaContextManager A cuda context manager.
 
 See #PxParticleClothDesc, #PxPartitionedParticleCloth.
 */
-PX_DEPRECATED PX_C_EXPORT PX_PHYSX_CORE_API physx::PxParticleClothPreProcessor* PX_CALL_CONV PxCreateParticleClothPreProcessor(physx::PxCudaContextManager* cudaContextManager);
+PX_C_EXPORT PX_PHYSX_CORE_API physx::PxParticleClothPreProcessor* PX_CALL_CONV PxCreateParticleClothPreProcessor(physx::PxCudaContextManager* cudaContextManager);
 
 
+  /** @} */
 #endif

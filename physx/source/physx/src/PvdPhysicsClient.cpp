@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -176,35 +176,45 @@ void PvdPhysicsClient::destroyPvdInstance(const PxMaterial* mat)
 {
 	mMetaDataBinding.destroyInstance(*mPvdDataStream, *mat, PxGetPhysics());
 }
-#if PX_SUPPORT_GPU_PHYSX
-void PvdPhysicsClient::createPvdInstance(const PxDeformableSurfaceMaterial* mat)
+
+void PvdPhysicsClient::createPvdInstance(const PxFEMSoftBodyMaterial* mat)
 {
 	mMetaDataBinding.createInstance(*mPvdDataStream, *mat, PxGetPhysics());
 }
 
-void PvdPhysicsClient::updatePvdProperties(const PxDeformableSurfaceMaterial* mat)
+void PvdPhysicsClient::updatePvdProperties(const PxFEMSoftBodyMaterial* mat)
 {
 	mMetaDataBinding.sendAllProperties(*mPvdDataStream, *mat);
 }
 
-void PvdPhysicsClient::destroyPvdInstance(const PxDeformableSurfaceMaterial* mat)
+void PvdPhysicsClient::destroyPvdInstance(const PxFEMSoftBodyMaterial* mat)
 {
 	mMetaDataBinding.destroyInstance(*mPvdDataStream, *mat, PxGetPhysics());
 }
 
-void PvdPhysicsClient::createPvdInstance(const PxDeformableVolumeMaterial* mat)
+
+void PvdPhysicsClient::createPvdInstance(const PxFEMClothMaterial* /*mat*/)
 {
-	mMetaDataBinding.createInstance(*mPvdDataStream, *mat, PxGetPhysics());
+	// jcarius: Commented-out until FEMCloth is not under construction anymore
+	PX_ASSERT(0);
+
+	// mMetaDataBinding.createInstance(*mPvdDataStream, *mat, PxGetPhysics());
 }
 
-void PvdPhysicsClient::updatePvdProperties(const PxDeformableVolumeMaterial* mat)
+void PvdPhysicsClient::updatePvdProperties(const PxFEMClothMaterial* /*mat*/)
 {
-	mMetaDataBinding.sendAllProperties(*mPvdDataStream, *mat);
+	// jcarius: Commented-out until FEMCloth is not under construction anymore
+	PX_ASSERT(0);
+
+	// mMetaDataBinding.sendAllProperties(*mPvdDataStream, *mat);
 }
 
-void PvdPhysicsClient::destroyPvdInstance(const PxDeformableVolumeMaterial* mat)
+void PvdPhysicsClient::destroyPvdInstance(const PxFEMClothMaterial* /*mat*/)
 {
-	mMetaDataBinding.destroyInstance(*mPvdDataStream, *mat, PxGetPhysics());
+	// jcarius: Commented-out until FEMCloth is not under construction anymore
+	PX_ASSERT(0);
+
+	// mMetaDataBinding.destroyInstance(*mPvdDataStream, *mat, PxGetPhysics());
 }
 
 void PvdPhysicsClient::createPvdInstance(const PxPBDMaterial* mat)
@@ -221,7 +231,6 @@ void PvdPhysicsClient::destroyPvdInstance(const PxPBDMaterial* mat)
 {
 	mMetaDataBinding.destroyInstance(*mPvdDataStream, *mat, PxGetPhysics());
 }
-#endif
 
 void PvdPhysicsClient::onMeshFactoryBufferRelease(const PxBase* object, PxType typeID)
 {

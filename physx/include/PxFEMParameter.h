@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -39,50 +39,43 @@ namespace physx
 #endif
 
 	/**
-	\brief Deprecated. Set of parameters to control the sleeping and collision behavior of FEM based objects
-	\deprecated See methods of PxDeformableBody.
+	\brief Set of parameters to control the sleeping and collision behavior of FEM based objects
 	*/
-	struct PX_DEPRECATED PxFEMParameters
+	struct PxFEMParameters
 	{
 	public:
 		/**
 		\brief Velocity damping value. After every timestep the velocity is reduced while the magnitude of the reduction depends on velocityDamping
 		<b>Default:</b> 0.05
-		\deprecated See PxDeformableBody.setLinearDamping
 		*/
-		PX_DEPRECATED PxReal	velocityDamping;
+		PxReal	velocityDamping;
 		/**
 		\brief Threshold that defines the maximal magnitude of the linear motion a fem body can move in one second before it becomes a candidate for sleeping
 		<b>Default:</b> 0.1
-		\deprecated See PxDeformableBody.setSettlingThreshold
 		*/
-		PX_DEPRECATED PxReal	settlingThreshold;
+		PxReal	settlingThreshold;
 		/**
 		\brief Threshold that defines the maximal magnitude of the linear motion a fem body can move in one second such that it can go to sleep in the next frame
 		<b>Default:</b> 0.05
-		\deprecated See PxDeformableBody.setSleepThreshold
 		*/
-		PX_DEPRECATED PxReal	sleepThreshold;
+		PxReal	sleepThreshold;
 		/**
 		\brief Damping value that damps the motion of bodies that move slow enough to be candidates for sleeping (see settlingThreshold)
 		<b>Default:</b> 10
-		\deprecated See PxDeformableBody.setSettlingDamping
 		*/
-		PX_DEPRECATED PxReal	sleepDamping;
+		PxReal	sleepDamping;
 		/**
 		\brief Penetration value that needs to get exceeded before contacts for self collision are generated. Will only have an effect if self collisions are enabled.
 		<b>Default:</b> 0.1
-		\deprecated See PxDeformableBody.setSelfCollisionFilterDistance
 		*/
-		PX_DEPRECATED PxReal	selfCollisionFilterDistance;
+		PxReal	selfCollisionFilterDistance;
 		/**
 		\brief Stress threshold to deactivate collision contacts in case the tetrahedron's stress magnitude exceeds the threshold
 		<b>Default:</b> 0.9
-		\deprecated See PxDeformableVolume.setSelfCollisionStressTolerance
 		*/
-		PX_DEPRECATED PxReal	selfCollisionStressTolerance;
+		PxReal	selfCollisionStressTolerance;
 
-#if !PX_CUDA_COMPILER
+#ifndef __CUDACC__
 		PxFEMParameters()
 		{
 			velocityDamping = 0.05f;

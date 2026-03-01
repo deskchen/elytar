@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #pragma once
 
+/** \addtogroup vehicle2
+  @{
+*/
 
 #include "foundation/PxFoundation.h"
 #include "common/PxCoreUtilityTypes.h"
@@ -118,7 +121,7 @@ struct PxVehicleClutchCommandResponseParams
 
 /**
 \brief Choose between a potentially more expensive but more accurate solution to the clutch model or a potentially cheaper but less accurate solution.
-\see PxVehicleClutchParams
+@see PxVehicleClutchParams
 */
 struct PxVehicleClutchAccuracyMode
 {
@@ -462,7 +465,7 @@ public:
 };
 
 /**
-\deprecated This API was introduced with the new Vehicle API for transition purposes but will be removed in a future version.
+@deprecated
 */
 struct PX_DEPRECATED PxVehicleFourWheelDriveDifferentialLegacyParams
 {
@@ -879,7 +882,7 @@ struct PxVehicleTankDriveDifferentialParams : public PxVehicleMultiWheelDriveDif
 	/**
 	\brief Return the number of tracks.
 	\return The number of tracks.
-	\see getNbWheelsInTrack()
+	@see getNbWheelsInTrack()
 	*/
 	PX_FORCE_INLINE PxU32 getNbTracks() const
 	{
@@ -890,7 +893,7 @@ struct PxVehicleTankDriveDifferentialParams : public PxVehicleMultiWheelDriveDif
 	\brief Return the number of wheels in the ith track.
 	\param[in] i specifies the track to be queried for its wheel count.
 	\return The number of wheels in the specified track.
-	\see getWheelInTrack()
+	@see getWheelInTrack()
 	*/
 	PX_FORCE_INLINE PxU32 getNbWheelsInTrack(const PxU32 i) const
 	{
@@ -912,7 +915,7 @@ struct PxVehicleTankDriveDifferentialParams : public PxVehicleMultiWheelDriveDif
 	\param[in] j specifies that the wheel id to be returned is the jth wheel in the list of wheels on the specified track.
 	\param[in] i specifies the track to be queried.
 	\return The wheel id of the jth wheel in the ith track.
-	\see getNbWheelsInTrack()
+	@see getNbWheelsInTrack()
 	*/
 	PX_FORCE_INLINE PxU32 getWheelInTrack(const PxU32 j, const PxU32 i) const
 	{
@@ -990,4 +993,5 @@ struct PxVehicleTankDriveDifferentialParams : public PxVehicleMultiWheelDriveDif
 } // namespace physx
 #endif
 
+/** @} */
 

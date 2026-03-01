@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -77,12 +77,6 @@ void GeometryUnion::set(const PxGeometry& g)
 		}
 		break;
 
-		case PxGeometryType::eCONVEXCORE:
-		{
-			reinterpret_cast<PxConvexCoreGeometry&>(mGeometry) = static_cast<const PxConvexCoreGeometry&>(g);
-		}
-		break;
-
 		case PxGeometryType::eCONVEXMESH:
 		{
 			reinterpret_cast<PxConvexMeshGeometry&>(mGeometry) = static_cast<const PxConvexMeshGeometry&>(g);
@@ -115,6 +109,12 @@ void GeometryUnion::set(const PxGeometry& g)
 		{
 			reinterpret_cast<PxHeightFieldGeometry&>(mGeometry) = static_cast<const PxHeightFieldGeometry&>(g);
 			reinterpret_cast<PxHeightFieldGeometryLL&>(mGeometry).materialsLL = MaterialIndicesStruct();
+		}
+		break;
+
+		case PxGeometryType::eHAIRSYSTEM:
+		{
+			reinterpret_cast<PxHairSystemGeometry&>(mGeometry) = static_cast<const PxHairSystemGeometry&>(g);
 		}
 		break;
 
@@ -163,14 +163,15 @@ static PxHeightFieldGeometryLL extendForLL(const PxHeightFieldGeometry& hlGeom)
 	return llGeom;
 }
 
-ShapeCore::ShapeCore(const PxGeometry& geometry, PxShapeFlags shapeFlags, const PxU16* materialIndices, PxU16 materialCount, bool isExclusive, PxShapeCoreFlag::Enum coreFlags) :
+ShapeCore::ShapeCore(const PxGeometry& geometry, PxShapeFlags shapeFlags, const PxU16* materialIndices, PxU16 materialCount, bool isExclusive,
+	PxShapeCoreFlag::Enum softOrClothFlags) :
 	mExclusiveSim(NULL)
 {
 	mCore.mShapeCoreFlags |= PxShapeCoreFlag::eOWNS_MATERIAL_IDX_MEMORY;
 	if(isExclusive)
 		mCore.mShapeCoreFlags |= PxShapeCoreFlag::eIS_EXCLUSIVE;
 
-	mCore.mShapeCoreFlags |= coreFlags;
+	mCore.mShapeCoreFlags |= softOrClothFlags;
 
 	PX_ASSERT(materialCount > 0);
 
@@ -306,8 +307,10 @@ void ShapeCore::setContactOffset(const PxReal offset)
 	mCore.mContactOffset = offset;
 
 	ShapeSim* exclusiveSim = getExclusiveSim();
-	if(exclusiveSim)
+	if (exclusiveSim)
+	{
 		exclusiveSim->getScene().updateContactDistance(exclusiveSim->getElementID(), offset);
+	}
 }
 
 // PX_SERIALIZATION
@@ -380,6 +383,7 @@ void ShapeCore::resolveReferences(PxDeserializationContext& context)
 	break;
 	case PxGeometryType::eTETRAHEDRONMESH:
 	case PxGeometryType::ePARTICLESYSTEM:
+	case PxGeometryType::eHAIRSYSTEM:
 	case PxGeometryType::eCUSTOM:
 	{
 		// implement
@@ -390,11 +394,15 @@ void ShapeCore::resolveReferences(PxDeserializationContext& context)
 	case PxGeometryType::ePLANE:
 	case PxGeometryType::eCAPSULE:
 	case PxGeometryType::eBOX:
-	case PxGeometryType::eCONVEXCORE:
 	case PxGeometryType::eGEOMETRY_COUNT:
 	case PxGeometryType::eINVALID:
 	break;
 	}	
+}
+
+PxU32 ShapeCore::getInternalShapeIndex(PxsSimulationController& simulationController) const
+{
+	return simulationController.getInternalShapeIndex(getCore());
 }
 
 //~PX_SERIALIZATION

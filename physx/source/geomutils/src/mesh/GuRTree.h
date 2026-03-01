@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -33,7 +33,6 @@
 #include "foundation/PxVec4.h"
 #include "foundation/PxBounds3.h"
 #include "foundation/PxAssert.h"
-#include "foundation/PxIO.h"
 #include "common/PxSerialFramework.h"
 #include "geometry/PxTriangleMesh.h"
 
@@ -115,6 +114,7 @@ namespace Gu {
 		RTree(const PxEMPTY);
 		void	exportExtraData(PxSerializationContext&);
 		void	importExtraData(PxDeserializationContext& context);
+		static	void	getBinaryMetaData(PxOutputStream& stream);
 		//~PX_SERIALIZATION
 
 		PX_INLINE RTree(); // offline static rtree constructor used with cooking

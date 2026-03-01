@@ -22,11 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 #ifndef SN_JOINT_REPX_SERIALIZER_H
 #define SN_JOINT_REPX_SERIALIZER_H
+/** \addtogroup RepXSerializers
+  @{
+*/
 
 #include "extensions/PxRepXSimpleType.h"
 #include "SnRepXSerializerImpl.h"
@@ -54,6 +57,7 @@ namespace physx
 	// explicit template instantiations declarations
 	extern template struct PX_DEPRECATED PxJointRepXSerializer<PxD6Joint>;
 	extern template struct PX_DEPRECATED PxJointRepXSerializer<PxDistanceJoint>;
+	extern template struct PX_DEPRECATED PxJointRepXSerializer<PxContactJoint>;
 	extern template struct PX_DEPRECATED PxJointRepXSerializer<PxFixedJoint>;
 	extern template struct PX_DEPRECATED PxJointRepXSerializer<PxPrismaticJoint>;
 	extern template struct PX_DEPRECATED PxJointRepXSerializer<PxRevoluteJoint>;
@@ -64,4 +68,5 @@ namespace physx
 } // namespace physx
 #endif
 
+/** @} */
 #endif

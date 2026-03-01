@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -44,19 +44,20 @@ Allocator for pools of data structures
 Also decodes indices (which can be computed from handles) into objects. To make this
 faster, the EltsPerSlab must be a power of two
 */
-template <class T> 
+template <class T, class ArgumentType> 
 class PoolList : public PxAllocatorTraits<T>::Type
 {
 	typedef typename PxAllocatorTraits<T>::Type Alloc;
 	PX_NOCOPY(PoolList)
 public:
-	PX_INLINE PoolList(const Alloc& alloc, PxU32 eltsPerSlab)
+	PX_INLINE PoolList(const Alloc& alloc, ArgumentType* argument, PxU32 eltsPerSlab)
 		: Alloc(alloc),
 		mEltsPerSlab(eltsPerSlab), 
 		mSlabCount(0),
 		mFreeList(0), 
 		mFreeCount(0), 
-		mSlabs(NULL)
+		mSlabs(NULL),
+		mArgument(argument)
 	{
 		PX_ASSERT(mEltsPerSlab>0);
 		PX_ASSERT((mEltsPerSlab & (mEltsPerSlab-1)) == 0);
@@ -161,14 +162,14 @@ public:
 
 				for (; idx >= PxI32(nbToAllocate); --idx)
 				{
-					mFreeList[freeCount++] = PX_PLACEMENT_NEW(mAddr + idx, T(baseIndex + idx));
+					mFreeList[freeCount++] = PX_PLACEMENT_NEW(mAddr + idx, T(mArgument, baseIndex + idx));
 				}
 
 				PxU32 origElements = nbElements;
 				T** writeIdx = elements + nbElements;
 				for (; idx >= 0; --idx)
 				{
-					writeIdx[idx] = PX_PLACEMENT_NEW(mAddr + idx, T(baseIndex + idx));
+					writeIdx[idx] = PX_PLACEMENT_NEW(mAddr + idx, T(mArgument, baseIndex + idx));
 					nbElements++;
 				}
 
@@ -262,7 +263,7 @@ public:
 		PxU32 baseIndex = (mSlabCount-1) * mEltsPerSlab;
 		PxU32 freeCount = mFreeCount;
 		for(PxI32 i=PxI32(mEltsPerSlab-1);i>=0;i--)
-			mFreeList[freeCount++] = PX_PLACEMENT_NEW(mAddr+i, T(baseIndex+ i));
+			mFreeList[freeCount++] = PX_PLACEMENT_NEW(mAddr+i, T(mArgument, baseIndex+ i));
 
 		mFreeCount = freeCount;
 
@@ -286,6 +287,7 @@ private:
 	T**						mFreeList;
 	PxU32					mFreeCount;
 	T**						mSlabs;
+	ArgumentType*			mArgument;
 	PxBitMap				mUseBitmap;
 };
 

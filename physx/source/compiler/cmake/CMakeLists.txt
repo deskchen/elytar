@@ -22,21 +22,13 @@
 ## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ##
-## Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+## Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.7)
 
 project(PhysX C CXX)
 
 CMAKE_POLICY(SET CMP0057 NEW) # Enable IN_LIST
-
-# Check if this is a public release build
-IF(NOT DEFINED PUBLIC_RELEASE)
-    SET(PUBLIC_RELEASE 0) # Default to private release
-ENDIF()
-IF(PUBLIC_RELEASE)
-    MESSAGE("Building for PUBLIC RELEASE")
-ENDIF()
 
 OPTION(PX_SCALAR_MATH "Disable SIMD math" OFF)
 OPTION(PX_GENERATE_STATIC_LIBRARIES "Generate static libraries" OFF)

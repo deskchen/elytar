@@ -151,6 +151,10 @@ def build_sapien(sapien_source_dir, sapien_build_dir):
     deps_dir = os.path.join(sapien_build_dir, "_sapien_deps")
     cmake_args += [f"-DFETCHCONTENT_BASE_DIR={deps_dir}"]
 
+    physx5_dir = os.environ.get("SAPIEN_PHYSX5_DIR", "")
+    if physx5_dir:
+        cmake_args += [f"-DSAPIEN_PHYSX5_DIR={physx5_dir}"]
+
     env = os.environ.copy()
     subprocess.check_call(
         ["cmake", sapien_source_dir] + cmake_args, cwd=build_dir, env=env

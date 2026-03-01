@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -219,7 +219,7 @@ static void drawManifoldPoint(const PersistentContact& manifold, const PxTransfo
 	const PxVec3 right2(size2, 0.f, 0.f);
 	const PxVec3 forwards2(0.f, 0.f, size2);
 	
-	const PxMat44 m(PxIdentity);
+	const PxMat44 m = PxMat44(PxIdentity);
 	
 	out << m << PxRenderOutput::LINES;
 
@@ -266,7 +266,7 @@ static void drawManifoldPoint(const PersistentContact& manifold, const PxTransfo
 	const PxVec3 right2(size2, 0.f, 0.f);
 	const PxVec3 forwards2(0.f, 0.f, size2);
 	
-	const PxMat44 m(PxIdentity);
+	PxMat44 m = PxMat44(PxIdentity);
 	
 	out << 0xffff00ff << m << PxRenderOutput::LINES  << a << e;
 	out << 0xff00ffff << m << PxRenderOutput::LINES << a + up << a - up;
@@ -681,7 +681,7 @@ PxU32 PersistentContactManifold::reduceContactsForPCM(const Vec3VArg localPointA
 			const FloatV sqDif = distancePointTriangleSquaredLocal(	tempContacts[i].mLocalPointB, mContactPoints[0].mLocalPointB, mContactPoints[1].mLocalPointB, mContactPoints[2].mLocalPointB); 
 			if(FAllGrtr(sqDif, maxDist))
 			{
-				maxDist = sqDif;
+				maxDist= sqDif;
 				index = i;
 			}
 		}
@@ -1868,9 +1868,9 @@ FloatV SinglePersistentContactManifold::refreshContactPoints(const PxMatTransfor
 		const Vec3V v = V3Sub(localAInB, localBInB); 
 
 		const Vec3V localNormal = Vec3V_From_Vec4V(manifoldPoint.mLocalNormalPen); // normal in b space
-		const FloatV dist = V3Dot(v, localNormal);
+		const FloatV dist= V3Dot(v, localNormal);
 
-		const Vec3V projectedPoint = V3NegScaleSub(localNormal, dist, localAInB);//manifoldPoint.worldPointA - manifoldPoint.worldPointB * manifoldPoint.m_distance1;
+		const Vec3V projectedPoint = V3NegScaleSub(localNormal,  dist, localAInB);//manifoldPoint.worldPointA - manifoldPoint.worldPointB * manifoldPoint.m_distance1;
 		const Vec3V projectedDifference = V3Sub(localBInB, projectedPoint);
 
 		const FloatV distance2d = V3Dot(projectedDifference, projectedDifference);
@@ -1925,7 +1925,7 @@ void MultiplePersistentContactManifold::drawLine(PxRenderOutput& out, const Vec3
 	V3StoreU(p0, a);
 	V3StoreU(p1, b);
 
-	const PxMat44 m(PxIdentity);
+	PxMat44 m = PxMat44(PxIdentity);
 	out << color << m << PxRenderOutput::LINES << a << b;
 #else
 	PX_UNUSED(out);
@@ -1938,7 +1938,7 @@ void MultiplePersistentContactManifold::drawLine(PxRenderOutput& out, const Vec3
 void MultiplePersistentContactManifold::drawLine(PxRenderOutput& out, const PxVec3 p0, const PxVec3 p1, PxU32 color)
 {
 #if VISUALIZE_PERSISTENT_CONTACT
-	const PxMat44 m(PxIdentity);
+	PxMat44 m = PxMat44(PxIdentity);
 	out << color << m << PxRenderOutput::LINES << p0 << p1;
 #else
 	PX_UNUSED(out);
@@ -1958,7 +1958,7 @@ void MultiplePersistentContactManifold::drawPoint(PxRenderOutput& out, const Vec
 	PxVec3 a;
 	V3StoreU(p, a);
 
-	const PxMat44 m(PxIdentity);
+	PxMat44 m = PxMat44(PxIdentity);
 	
 	out << color << m << PxRenderOutput::LINES << a + up << a - up;
 	out << color << m << PxRenderOutput::LINES << a + right << a - right;
@@ -1995,7 +1995,7 @@ static FloatV addBatchManifoldContactsToSingleManifold(SinglePersistentContactMa
 	switch(maxContactsPerManifold)
 	{
 	case GU_SPHERE_MANIFOLD_CACHE_SIZE://sphere
-		return manifold->addBatchManifoldContactsSphere(manifoldContact, numManifoldContacts, *patch, sqReplaceBreakingThreshold);
+		return manifold->addBatchManifoldContactsSphere(manifoldContact, numManifoldContacts, *patch,  sqReplaceBreakingThreshold);
 	case GU_CAPSULE_MANIFOLD_CACHE_SIZE://capsule, need to implement keep two deepest
 		return manifold->addBatchManifoldContactsCapsule(manifoldContact, numManifoldContacts, *patch, sqReplaceBreakingThreshold);
 	default://cache size GU_SINGLE_MANIFOLD_CACHE_SIZE
@@ -2144,7 +2144,7 @@ bool MultiplePersistentContactManifold::addManifoldContactsToContactBuffer(PxCon
 		{
 			const MeshPersistentContact& p = manifold.getContactPoint(j);
 			
-			const Vec3V worldP = meshTransform.transform(p.mLocalPointB);
+			const Vec3V worldP =meshTransform.transform(p.mLocalPointB);
 			const FloatV dist = V4GetW(p.mLocalNormalPen);
 			
 			outputPCMContact(contactBuffer, contactCount, worldP, normal, dist, p.mFaceIndex);
@@ -2200,7 +2200,7 @@ void MultiplePersistentContactManifold::fromBuffer(PxU8* PX_RESTRICT buffer)
 	{
 		PX_ASSERT(((uintptr_t(buffer)) & 0xF) == 0);
 		PxU8* PX_RESTRICT buff = buffer;
-		const MultiPersistentManifoldHeader* PX_RESTRICT header = reinterpret_cast<const MultiPersistentManifoldHeader*>(buff);
+		MultiPersistentManifoldHeader* PX_RESTRICT header = reinterpret_cast<MultiPersistentManifoldHeader*>(buff);
 		buff += sizeof(MultiPersistentManifoldHeader);
 
 		numManifolds = header->mNumManifolds;
@@ -2211,14 +2211,14 @@ void MultiplePersistentContactManifold::fromBuffer(PxU8* PX_RESTRICT buffer)
 		for (PxU32 a = 0; a < numManifolds; ++a)
 		{
 			mManifoldIndices[a] = PxU8(a);
-			const SingleManifoldHeader* PX_RESTRICT manHeader = reinterpret_cast<const SingleManifoldHeader*>(buff);
+			SingleManifoldHeader* PX_RESTRICT manHeader = reinterpret_cast<SingleManifoldHeader*>(buff);
 			buff += sizeof(SingleManifoldHeader);
-			const PxU32 numContacts = manHeader->mNumContacts;
+			PxU32 numContacts = manHeader->mNumContacts;
 			PX_ASSERT(numContacts <= GU_SINGLE_MANIFOLD_CACHE_SIZE);
 			SinglePersistentContactManifold& manifold = mManifolds[a];
 			manifold.mNumContacts = numContacts;
 			PX_ASSERT((uintptr_t(buff) & 0xf) == 0);
-			const CachedMeshPersistentContact* contacts = reinterpret_cast<const CachedMeshPersistentContact*>(buff);
+			CachedMeshPersistentContact* contacts = reinterpret_cast<CachedMeshPersistentContact*>(buff);
 			for (PxU32 b = 0; b < manifold.mNumContacts; ++b)
 			{
 				manifold.mContactPoints[b].mLocalPointA = Vec3V_From_Vec4V(V4LoadA(&contacts[b].mLocalPointA.x));

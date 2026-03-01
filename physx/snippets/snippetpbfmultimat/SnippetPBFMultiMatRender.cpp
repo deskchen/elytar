@@ -22,11 +22,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifdef RENDER_SNIPPET
+
+#include <vector>
 
 #include "PxPhysicsAPI.h"
 #include "cudamanager/PxCudaContext.h"
@@ -135,18 +137,19 @@ void onBeforeRenderParticles()
 
 void renderParticles()
 {
-	if (sPosBuffer3H && sColorBuffer3H)
-	{
-		Snippets::DrawPoints(*sPosBuffer3H, *sColorBuffer3H, 2.0f);
-	}
+
+	Snippets::DrawPoints(*sPosBuffer3H, *sColorBuffer3H, 2.0f);
 }
 
 void allocParticleBuffers()
 {
-	PxParticleBuffer* userBuffer = getParticleBuffer();
-	if (userBuffer)
+	PxParticleSystem* particleSystem = getParticleSystem();
+	//const PxU32 maxParticles = particleSystem->getMaxParticles();
+	if (particleSystem)
 	{
+		PxParticleBuffer* userBuffer = getParticleBuffer();
 		const PxU32 maxParticles = userBuffer->getMaxParticles();
+
 		sPosBufferH = new PxArray<PxVec4>(maxParticles);
 		sPosBuffer3H = new PxArray<PxVec3>(maxParticles);
 		sVelBufferH = new PxArray<PxVec4>(maxParticles);
@@ -177,7 +180,7 @@ void renderCallback()
 	PxU32 nbActors = scene->getNbActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC);
 	if(nbActors)
 	{
-		PxArray<PxRigidActor*> actors(nbActors);
+		std::vector<PxRigidActor*> actors(nbActors);
 		scene->getActors(PxActorTypeFlag::eRIGID_DYNAMIC | PxActorTypeFlag::eRIGID_STATIC, reinterpret_cast<PxActor**>(&actors[0]), nbActors);
 		Snippets::renderActors(&actors[0], static_cast<PxU32>(actors.size()), true);
 	}
@@ -194,7 +197,7 @@ void cleanup()
 	cleanupPhysics(true);
 }
 
-void exitCallback()
+void exitCallback(void)
 {
 }
 }
@@ -203,7 +206,7 @@ void renderLoop()
 {
 	sCamera = new Snippets::Camera(PxVec3(15.0f, 10.0f, 15.0f), PxVec3(-0.6f,-0.2f,-0.6f));
 
-	Snippets::setupDefault("PhysX Snippet PBFFluid MultiMat", sCamera, keyPress, renderCallback, exitCallback);
+	Snippets::setupDefault("PhysX Snippet PBFFluid", sCamera, keyPress, renderCallback, exitCallback);
 
 	initPhysics(true);
 

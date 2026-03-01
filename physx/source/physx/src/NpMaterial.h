@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -42,13 +42,14 @@ namespace physx
 // of having a buffered interface for it. Scenes will have copies of the SDK material table and there
 // the materials will be buffered.
 
-class NpMaterial : public PxMaterial, public PxUserAllocated
+class NpMaterial : public PxMaterial,  public PxUserAllocated
 {
 public:
 // PX_SERIALIZATION            
 									NpMaterial(PxBaseFlags baseFlags) : PxMaterial(baseFlags), mMaterial(PxEmpty) {}								
 	virtual		void				resolveReferences(PxDeserializationContext& context);
 	static		NpMaterial*			createObject(PxU8*& address, PxDeserializationContext& context);
+	static		void				getBinaryMetaData(PxOutputStream& stream);
 
 				void				preExportDataReset() { Cm::RefCountable_preExportDataReset(*this); }
 				void				exportExtraData(PxSerializationContext&) {}
@@ -84,9 +85,6 @@ public:
 	virtual		PxCombineMode::Enum	getFrictionCombineMode() const	PX_OVERRIDE;
 	virtual		void				setRestitutionCombineMode(PxCombineMode::Enum)	PX_OVERRIDE;
 	virtual		PxCombineMode::Enum	getRestitutionCombineMode() const	PX_OVERRIDE;
-	virtual		void				setDampingCombineMode(PxCombineMode::Enum combMode) PX_OVERRIDE;
-	virtual		PxCombineMode::Enum	getDampingCombineMode() const PX_OVERRIDE;
-
 	//~PxMaterial
 
 	PX_FORCE_INLINE static void		getMaterialIndices(PxMaterial*const* materials, PxU16* materialIndices, PxU32 materialCount);

@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #pragma once
 
+/** \addtogroup vehicle2
+  @{
+*/
 
 #include "vehicle2/PxVehicleLimits.h"
 #include "vehicle2/PxVehicleComponent.h"
@@ -112,7 +115,7 @@ namespace vehicle2
 
 	\param foundation a PxFoundation object
 
-	\see PxCloseVehicleExtension PxFoundation 
+	@see PxCloseVehicleExtension PxFoundation 
 	*/
 	PX_FORCE_INLINE bool PxInitVehicleExtension(physx::PxFoundation& foundation)
 	{
@@ -128,7 +131,7 @@ namespace vehicle2
 
 	\note This function is required to be called to release foundation usage.
 
-	\see PxInitVehicleExtension
+	@see PxInitVehicleExtension
 	*/
 	PX_FORCE_INLINE void PxCloseVehicleExtension()
 	{
@@ -141,3 +144,4 @@ namespace vehicle2
 } // namespace physx
 #endif
 
+/** @} */

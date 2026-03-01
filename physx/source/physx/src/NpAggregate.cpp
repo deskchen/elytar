@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -75,7 +75,7 @@ PX_IMPLEMENT_OUTPUT_ERROR
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static PX_FORCE_INLINE void setAggregate(NpAggregate* aggregate, PxActor& actor)
+PX_FORCE_INLINE void setAggregate(NpAggregate* aggregate, PxActor& actor)
 {
 	NpActor& np = NpActor::getFromPxActor(actor);
 	np.setAggregate(aggregate, actor);
@@ -90,7 +90,6 @@ NpAggregate::NpAggregate(PxU32 maxActors, PxU32 maxShapes, PxAggregateFilterHint
 	mMaxNbActors	(maxActors),
 	mMaxNbShapes	(maxShapes),
 	mFilterHint		(filterHint),
-	mEnvID			(PX_INVALID_U32),
 	mNbActors		(0),
 	mNbShapes		(0)
 {
@@ -230,7 +229,7 @@ bool NpAggregate::addActor(PxActor& actor, const PxBVH* bvh)
 	PX_SIMD_GUARD;
 
 	if(mNbActors==mMaxNbActors)
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add actor to aggregate, max number of actors reached.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add actor to aggregate, max number of actors reached");
 
 	PxRigidActor* rigidActor = actor.is<PxRigidActor>();
 
@@ -239,38 +238,21 @@ bool NpAggregate::addActor(PxActor& actor, const PxBVH* bvh)
 	{
 		numShapes = rigidActor->getNbShapes();
 		if ((mNbShapes + numShapes) > mMaxNbShapes)
-			return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add actor to aggregate, max number of shapes reached.");
-
-		const PxU32 actorEnvID = rigidActor->getEnvironmentID();
-		if(actorEnvID!=PX_INVALID_U32)
-		{
-			// PT:aggregated and aggregate must be in the same env, and the only supported case involving aggregates
-			// is when aggregates have an env ID and the aggregated do not (because internally we use the same spot for
-			// aggregate & env IDs in aggregated actors).
-
-			// Case			| Aggregate env ID	| Actor env ID	|
-			// -------------|-------------------|---------------|
-			//	legal		| default			| default		| => not using env IDs
-			//	legal		| non-default		| default		| => using env ID of aggregates
-			//	illegal		| default			| non-default	|
-			//	illegal		| non-default		| non-default	|
-
-			return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add actor to aggregate, it must have a default environment ID.");
-		}
+			return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add actor to aggregate, max number of shapes reached");
 	}
 
 	if(actor.getAggregate())
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add actor to aggregate, actor already belongs to an aggregate.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add actor to aggregate, actor already belongs to an aggregate");
 
 	if(actor.getScene())
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add actor to aggregate, actor already belongs to a scene.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add actor to aggregate, actor already belongs to a scene");
 
 	const PxType ctype = actor.getConcreteType();
 	if(ctype == PxConcreteType::eARTICULATION_LINK)
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add articulation link to aggregate, only whole articulations can be added.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add articulation link to aggregate, only whole articulations can be added");
 
 	if(PxGetAggregateType(mFilterHint)==PxAggregateType::eSTATIC && ctype != PxConcreteType::eRIGID_STATIC)
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add non-static actor to static aggregate.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add non-static actor to static aggregate");
 
 	if(PxGetAggregateType(mFilterHint)==PxAggregateType::eKINEMATIC)
 	{	
@@ -281,7 +263,7 @@ bool NpAggregate::addActor(PxActor& actor, const PxBVH* bvh)
 			isKine = dyna.getRigidBodyFlags().isSet(PxRigidBodyFlag::eKINEMATIC);
 		}
 		if(!isKine)
-			return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add non-kinematic actor to kinematic aggregate.");
+			return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add non-kinematic actor to kinematic aggregate");
 	}
 
 	setAggregate(this, actor);
@@ -376,34 +358,23 @@ bool NpAggregate::addArticulation(PxArticulationReducedCoordinate& art)
 	PX_SIMD_GUARD;
 
 	if((mNbActors+art.getNbLinks()) > mMaxNbActors)
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add articulation links, max number of actors reached.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add articulation links, max number of actors reached");
 
 	const PxU32 numShapes = art.getNbShapes();
 	if((mNbShapes + numShapes) > mMaxNbShapes)
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add articulation, max number of shapes reached.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add articulation, max number of shapes reached");
 
 	if(art.getAggregate())
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add articulation to aggregate, articulation already belongs to an aggregate.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add articulation to aggregate, articulation already belongs to an aggregate");
 
 	if(art.getScene())
-		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add articulation to aggregate, articulation already belongs to a scene.");
+		return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: can't add articulation to aggregate, articulation already belongs to a scene");
 
 	NpArticulationReducedCoordinate* impl = static_cast<NpArticulationReducedCoordinate*>(&art);
+	impl->setAggregate(this);
 	NpArticulationLink* const* links = impl->getLinks();
 
-	const PxU32 nbLinks = impl->getNbLinks();
-
-	// PT: test the links first so that we don't have to undo anything in case of an early exit.
-	for(PxU32 i=0; i<nbLinks; i++)
-	{
-		const PxU32 actorEnvID = links[i]->getEnvironmentID();
-		if(actorEnvID!=PX_INVALID_U32)
-			return outputError<PxErrorCode::eDEBUG_WARNING>(__LINE__, "PxAggregate: cannot add articulation to aggregate, all links must have a default environment ID.");
-	}
-
-	impl->setAggregate(this);
-
-	for(PxU32 i=0; i<nbLinks; i++)
+	for(PxU32 i=0; i < impl->getNbLinks(); i++)
 	{
 		NpArticulationLink& l = *links[i];
 
@@ -495,30 +466,6 @@ bool NpAggregate::getSelfCollision() const
 {
 	NP_READ_CHECK(getNpScene());
 	return getSelfCollideFast();
-}
-
-bool NpAggregate::setEnvironmentID(PxU32 envID)
-{
-	if(envID>=SC_FILTERING_ID_MAX && envID!=PX_INVALID_U32)
-		return outputError<PxErrorCode::eINVALID_PARAMETER>(__LINE__, "PxAggregate::setEnvironmentID: environment ID must be smaller than 1<<24.");
-
-	NpScene* npScene = getNpScene();
-	if(npScene)
-		return outputError<PxErrorCode::eINVALID_OPERATION>(__LINE__, "PxAggregate::setEnvironmentID: environment ID cannot be set while the aggregate is in a scene.");
-
-	NP_WRITE_CHECK(npScene);
-
-	mEnvID = envID;
-
-	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxAggregate, environmentID, static_cast<PxAggregate&>(*this), envID)
-
-	return true;
-}
-
-PxU32 NpAggregate::getEnvironmentID() const
-{
-	NP_READ_CHECK(getNpScene());
-	return mEnvID;
 }
 
 // PX_SERIALIZATION

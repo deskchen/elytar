@@ -5,50 +5,13 @@ endif()
 set(PHYSX_VERSION 105.1-physx-5.3.1.patch0)
 
 if (IS_DIRECTORY ${SAPIEN_PHYSX5_DIR})
-  # Use provided PhysX5
   set(physx5_SOURCE_DIR ${SAPIEN_PHYSX5_DIR})
 else()
-  # We provide a precompiled physx5 here
-  include(FetchContent)
-  if (APPLE)
-    FetchContent_Declare(
-      physx5
-      URL https://github.com/sapien-sim/physx-precompiled/releases/download/${PHYSX_VERSION}/macOS-universal-release.zip
-      URL_HASH MD5=3156af2509410dffaffa84c84cbae188
-    )
-  elseif (UNIX)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-
-      FetchContent_Declare(
-        physx5
-        URL https://github.com/sapien-sim/physx-precompiled/releases/download/${PHYSX_VERSION}/linux-aarch64-release.zip
-        URL_HASH MD5=21cbdce291de6bfed4eb14832b64087a
-      )
-
-    else ()
-      if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        FetchContent_Declare(
-          physx5
-          URL https://github.com/sapien-sim/physx-precompiled/releases/download/${PHYSX_VERSION}/linux-checked.zip
-          URL_HASH MD5=8379bf7ba4d6a0866404fd8a11cc10c2
-        )
-      else ()
-        FetchContent_Declare(
-          physx5
-          URL https://github.com/sapien-sim/physx-precompiled/releases/download/${PHYSX_VERSION}/linux-release.zip
-          URL_HASH MD5=020222e5441b9ae2779dc05b1f04539c
-        )
-      endif ()
-    endif ()
-
-  elseif (WIN32)
-    FetchContent_Declare(
-      physx5
-      URL https://github.com/sapien-sim/physx-precompiled/releases/download/${PHYSX_VERSION}/windows-release.zip
-      URL_HASH MD5=77299ac291e17df438c090d565167d93
-    )
-  endif()
-  FetchContent_MakeAvailable(physx5)
+  message(FATAL_ERROR
+    "SAPIEN_PHYSX5_DIR is not set or does not point to a valid directory.\n"
+    "  SAPIEN_PHYSX5_DIR='${SAPIEN_PHYSX5_DIR}'\n"
+    "Set SAPIEN_PHYSX5_DIR to the local PhysX source/install directory "
+    "(must contain include/ and bin/ subdirectories).")
 endif()
 
 add_library(physx5 INTERFACE)
@@ -71,23 +34,32 @@ elseif(UNIX)
     target_link_directories(physx5 INTERFACE $<BUILD_INTERFACE:${physx5_SOURCE_DIR}/bin/linux.aarch64/release>)
   else()
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-      set(_physx_config_dir checked)
+      set(_physx_config_search_order checked debug profile release)
     else()
-      set(_physx_config_dir release)
+      set(_physx_config_search_order release profile checked)
     endif()
 
-    # Local PhysX source builds output to linux.x86_64, while precompiled bundles use linux.clang.
-    set(_physx_linux_local_dir "${physx5_SOURCE_DIR}/bin/linux.x86_64/${_physx_config_dir}")
-    set(_physx_linux_prebuilt_dir "${physx5_SOURCE_DIR}/bin/linux.clang/${_physx_config_dir}")
+    # Local PhysX source builds output to linux.clang (5.3) or linux.x86_64 (5.4+).
+    # Verify actual library presence, not just directory existence.
+    set(_physx_lib_dir "")
+    set(_physx_probe_lib "libPhysX_static_64.a")
+    foreach(_cfg ${_physx_config_search_order})
+      foreach(_arch linux.x86_64 linux.clang)
+        if (NOT _physx_lib_dir)
+          set(_candidate "${physx5_SOURCE_DIR}/bin/${_arch}/${_cfg}")
+          if (EXISTS "${_candidate}/${_physx_probe_lib}")
+            set(_physx_lib_dir "${_candidate}")
+          endif()
+        endif()
+      endforeach()
+    endforeach()
 
-    if (EXISTS "${_physx_linux_local_dir}")
-      target_link_directories(physx5 INTERFACE $<BUILD_INTERFACE:${_physx_linux_local_dir}>)
-    elseif (EXISTS "${_physx_linux_prebuilt_dir}")
-      target_link_directories(physx5 INTERFACE $<BUILD_INTERFACE:${_physx_linux_prebuilt_dir}>)
+    if (_physx_lib_dir)
+      target_link_directories(physx5 INTERFACE $<BUILD_INTERFACE:${_physx_lib_dir}>)
     else()
       message(FATAL_ERROR
-        "Unable to locate PhysX libraries. Expected one of: "
-        "${_physx_linux_local_dir} or ${_physx_linux_prebuilt_dir}")
+        "Unable to locate PhysX libraries under ${physx5_SOURCE_DIR}/bin/. "
+        "Searched configs: ${_physx_config_search_order}")
     endif()
   endif()
 

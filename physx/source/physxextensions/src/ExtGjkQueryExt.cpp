@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -31,12 +31,9 @@
 #include "geometry/PxBoxGeometry.h"
 #include "geometry/PxPlaneGeometry.h"
 #include "geometry/PxCapsuleGeometry.h"
-#include "geometry/PxConvexCoreGeometry.h"
 #include "geometry/PxConvexMeshGeometry.h"
 #include "foundation/PxAllocator.h"
 #include "geomutils/PxContactBuffer.h"
-#include "GuConvexSupport.h"
-#include "GuConvexGeometry.h"
 
 using namespace physx;
 
@@ -115,33 +112,6 @@ PxVec3 PxGjkQueryExt::BoxSupport::supportLocal(const PxVec3& dir) const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-PxGjkQueryExt::ConvexCoreSupport::ConvexCoreSupport()
-{
-}
-
-PxGjkQueryExt::ConvexCoreSupport::ConvexCoreSupport(const PxConvexCoreGeometry& geom, PxReal margin)
-{
-	PX_COMPILE_TIME_ASSERT(sizeof(shapeData) >= sizeof(Gu::ConvexShape));
-
-	Gu::ConvexShape& convex = *reinterpret_cast<Gu::ConvexShape*>(shapeData);
-	Gu::makeConvexShape(geom, PxTransform(PxIdentity), convex);
-	convex.margin += margin;
-}
-
-PxReal PxGjkQueryExt::ConvexCoreSupport::getMargin() const
-{
-	const Gu::ConvexShape& convex = *reinterpret_cast<const Gu::ConvexShape*>(shapeData);
-	return convex.margin;
-}
-
-PxVec3 PxGjkQueryExt::ConvexCoreSupport::supportLocal(const PxVec3& dir) const
-{
-	const Gu::ConvexShape& convex = *reinterpret_cast<const Gu::ConvexShape*>(shapeData);
-	return convex.supportLocal(dir);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
 PxGjkQueryExt::ConvexMeshSupport::ConvexMeshSupport() :
 	convexMesh		(NULL),
 	scale			(0.0f),
@@ -176,7 +146,7 @@ PxVec3 PxGjkQueryExt::ConvexMeshSupport::supportLocal(const PxVec3& dir) const
 	if (convexMesh == NULL)
 		return PxVec3(0.0f);
 
-	PxVec3 d = scaleRotation.rotateInv(scaleRotation.rotate(dir).multiply(scale));
+	PxVec3 d = scaleRotation.rotateInv(scaleRotation.rotate(dir).multiply(PxVec3(1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z)));
 	const PxVec3* verts = convexMesh->getVertices();
 	int count = int(convexMesh->getNbVertices());
 	float maxDot = -FLT_MAX;
@@ -226,12 +196,6 @@ PxGjkQueryExt::ConvexGeomSupport::ConvexGeomSupport(const PxGeometry& geom, PxRe
 	{
 		mType = PxGeometryType::eBOX;
 		PX_PLACEMENT_NEW(&mSupport, BoxSupport(static_cast<const PxBoxGeometry&>(geom), margin));
-		break;
-	}
-	case PxGeometryType::eCONVEXCORE:
-	{
-		mType = PxGeometryType::eCONVEXCORE;
-		PX_PLACEMENT_NEW(&mSupport, ConvexCoreSupport(static_cast<const PxConvexCoreGeometry&>(geom), margin));
 		break;
 	}
 	case PxGeometryType::eCONVEXMESH:

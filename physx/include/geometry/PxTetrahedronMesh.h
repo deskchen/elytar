@@ -22,12 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef PX_TETRAHEDRON_MESH_H
 #define PX_TETRAHEDRON_MESH_H
+/** \addtogroup geomutils
+@{ */
 
 #include "foundation/PxVec3.h"
 #include "foundation/PxBounds3.h"
@@ -51,26 +53,26 @@ namespace physx
 	/**
 	\brief collection of set bits defined in PxTetrahedronMeshFlag.
 
-	\see PxTetrahedronMeshFlag
+	@see PxTetrahedronMeshFlag
 	*/
 	typedef PxFlags<PxTetrahedronMeshFlag::Enum, PxU8> PxTetrahedronMeshFlags;
 	PX_FLAGS_OPERATORS(PxTetrahedronMeshFlag::Enum, PxU8)
 
 	
 	/**
-	\brief A data container providing mass, rest pose and other information required for deformable simulation
+	\brief A data container providing mass, rest pose and other information required for softbody simulation
 
-	Stores properties of deformable volume like inverse mass per node, rest pose matrix per tetrahedral element etc.
+	Stores properties of softbody like inverse mass per node, rest pose matrix per tetrahedral element etc.
 	Mainly used internally to store runtime data.
 
 	*/
-	class PxDeformableVolumeAuxData : public PxRefCounted
+	class PxSoftBodyAuxData : public PxRefCounted
 	{
 	public:
 		/**
 		\brief Decrements the reference count of a tetrahedron mesh and releases it if the new reference count is zero.
 
-		\see PxPhysics.createTetrahedronMesh()
+		@see PxPhysics.createTetrahedronMesh()
 		*/
 		virtual void					release() = 0;
 
@@ -82,14 +84,12 @@ namespace physx
 		virtual PxReal*					getGridModelInvMass() = 0;
 
 	protected:
-		PX_INLINE						PxDeformableVolumeAuxData(PxType concreteType, PxBaseFlags baseFlags) : PxRefCounted(concreteType, baseFlags) {}
-		PX_INLINE						PxDeformableVolumeAuxData(PxBaseFlags baseFlags) : PxRefCounted(baseFlags) {}
-		virtual							~PxDeformableVolumeAuxData() {}
+		PX_INLINE						PxSoftBodyAuxData(PxType concreteType, PxBaseFlags baseFlags) : PxRefCounted(concreteType, baseFlags) {}
+		PX_INLINE						PxSoftBodyAuxData(PxBaseFlags baseFlags) : PxRefCounted(baseFlags) {}
+		virtual							~PxSoftBodyAuxData() {}
 
-		virtual	bool					isKindOf(const char* name) const { PX_IS_KIND_OF(name, "PxDeformableVolumeAuxData", PxRefCounted); }
+		virtual	bool					isKindOf(const char* name) const { PX_IS_KIND_OF(name, "PxSoftBodyAuxData", PxRefCounted); }
 	};
-
-	typedef PX_DEPRECATED PxDeformableVolumeAuxData PxSoftBodyAuxData;
 
 	/**
 	\brief A tetramedron mesh, also called a 'tetrahedron soup'.
@@ -116,7 +116,7 @@ namespace physx
 	\li #PxVisualizationParameter::eCOLLISION_FNORMALS
 	\li #PxVisualizationParameter::eCOLLISION_EDGES
 
-	\see PxTetrahedronMeshDesc PxTetrahedronMeshGeometry PxShape PxPhysics.createTetrahedronMesh()
+	@see PxTetrahedronMeshDesc PxTetrahedronMeshGeometry PxShape PxPhysics.createTetrahedronMesh()
 	*/
 	class PxTetrahedronMesh : public PxRefCounted
 	{
@@ -124,14 +124,14 @@ namespace physx
 		/**
 		\brief Returns the number of vertices.
 		\return	number of vertices
-		\see getVertices()
+		@see getVertices()
 		*/
 		virtual	PxU32				getNbVertices()									const = 0;
 
 		/**
 		\brief Returns the vertices
 		\return	array of vertices
-		\see getNbVertices()
+		@see getNbVertices()
 		*/
 		virtual	const PxVec3*			getVertices()									const = 0;
 
@@ -139,7 +139,7 @@ namespace physx
 		/**
 		\brief Returns the number of tetrahedrons.
 		\return	number of tetrahedrons
-		\see getTetrahedrons()
+		@see getTetrahedrons()
 		*/
 		virtual	PxU32					getNbTetrahedrons()								const = 0;
 
@@ -152,7 +152,7 @@ namespace physx
 		The number of indices is the number of tetrahedrons * 4.
 
 		\return	array of tetrahedrons
-		\see getNbTetrahedron() getTetrahedronMeshFlags() getTetrahedraRemap()
+		@see getNbTetrahedron() getTetrahedronMeshFlags() getTetrahedraRemap()
 		*/
 		virtual	const void*				getTetrahedrons()									const = 0;
 
@@ -176,7 +176,7 @@ namespace physx
 			remapTable[ internalTetrahedronIndex ] = originalTetrahedronIndex
 
 		\return	the remapping table (or NULL if 'PxCookingParams::suppressTriangleMeshRemapTable' has been used)
-		\see getNbTetrahedron() getTetrahedrons() PxCookingParams::suppressTriangleMeshRemapTable
+		@see getNbTetrahedron() getTetrahedrons() PxCookingParams::suppressTriangleMeshRemapTable
 		*/
 		virtual	const PxU32*	getTetrahedraRemap()	const = 0;
 
@@ -190,7 +190,7 @@ namespace physx
 		/**
 		\brief Decrements the reference count of a tetrahedron mesh and releases it if the new reference count is zero.
 
-		\see PxPhysics.createTetrahedronMesh()
+		@see PxPhysics.createTetrahedronMesh()
 		*/
 		virtual void					release() = 0;
 
@@ -203,108 +203,88 @@ namespace physx
 	};
 	
 	/**
-	\brief A deformable volume mesh, containing structures to store collision shape, simulation shape and deformation state
+	\brief A softbody mesh, containing structures to store collision shape, simulation shape and deformation state
 
-	The class bundles shapes and deformation state of a deformable volume that is simulated using FEM. The meshes used for 
+	The class bundles shapes and deformation state of a softbody that is simulated using FEM. The meshes used for 
 	collision detection and for the FEM calculations are both tetrahedral meshes. While collision detection requires
 	a mesh that matches the surface of the simulated body as exactly as possible, the simulation mesh has more freedom
 	such that it can be optimized for tetrahedra without small angles and nodes that aren't shared by too many elements.
 
 	<h3>Creation</h3>
 
-	To create an instance of this class call PxPhysics::createDeformableVolumeMesh(),
+	To create an instance of this class call PxPhysics::createSoftBodyMesh(),
 	and release() to delete it. This is only possible
 	once you have released all of its PxShape instances.
 
 	*/
-	class PxDeformableVolumeMesh : public PxRefCounted
+	class PxSoftBodyMesh : public PxRefCounted
 	{
 	public:
 		/**
-		\brief Const accecssor to the deformable volume's collision mesh.
+		\brief Const accecssor to the softbody's collision mesh.
 
-		\see PxTetrahedronMesh
+		@see PxTetrahedronMesh
 		*/
 		virtual const PxTetrahedronMesh* getCollisionMesh() const = 0;
 		
 		/**
-		\brief Accecssor to the deformable volume's collision mesh.
+		\brief Accecssor to the softbody's collision mesh.
 
-		\see PxTetrahedronMesh
+		@see PxTetrahedronMesh
 		*/
 		virtual PxTetrahedronMesh* getCollisionMesh() = 0;
 
 		/**
-		\brief Const accessor to the deformable volume's simulation mesh.
+		\brief Const accessor to the softbody's simulation mesh.
 
-		\see PxTetrahedronMesh
+		@see PxTetrahedronMesh
 		*/
 		virtual const PxTetrahedronMesh* getSimulationMesh() const = 0;
 		
 		/**
-		\brief Accecssor to the deformable volume's simulation mesh.
+		\brief Accecssor to the softbody's simulation mesh.
 
-		\see PxTetrahedronMesh
+		@see PxTetrahedronMesh
 		*/
 		virtual PxTetrahedronMesh* getSimulationMesh() = 0;
 
 
 		/**
-		\brief Const accessor to the deformable volume's simulation state.
+		\brief Const accessor to the softbodies simulation state.
 
-		\see PxDeformableVolumeAuxData
+		@see PxSoftBodyAuxData
 		*/
-		virtual const PxDeformableVolumeAuxData* getDeformableVolumeAuxData() const = 0;
+		virtual const PxSoftBodyAuxData* getSoftBodyAuxData() const = 0;
 
 		/**
-		\brief Deprecated
-		\see getDeformableVolumeAuxData
-		*/
-		PX_DEPRECATED PX_FORCE_INLINE const PxDeformableVolumeAuxData* getSoftBodyAuxData() const
-		{
-			return getDeformableVolumeAuxData();
-		}
+		\brief Accessor to the softbody's auxilary data like mass and rest pose information
 
-		/**
-		\brief Accessor to the deformable volume's auxilary data like mass and rest pose information
-
-		\see PxDeformableVolumeAuxData
+		@see PxSoftBodyAuxData
 		*/
-		virtual PxDeformableVolumeAuxData* getDeformableVolumeAuxData() = 0;
-
-		/**
-		\brief Deprecated
-		\see getDeformableVolumeAuxData
-		*/
-		PX_DEPRECATED PX_FORCE_INLINE PxDeformableVolumeAuxData* getSoftBodyAuxData()
-		{
-			return getDeformableVolumeAuxData();
-		}
+		virtual PxSoftBodyAuxData* getSoftBodyAuxData() = 0;
 
 		/**
 		\brief Decrements the reference count of a tetrahedron mesh and releases it if the new reference count is zero.
 
-		\see PxPhysics.createTetrahedronMesh()
+		@see PxPhysics.createTetrahedronMesh()
 		*/
 		virtual void					release() = 0;
 
 
 	protected:
-		PX_INLINE						PxDeformableVolumeMesh(PxType concreteType, PxBaseFlags baseFlags) : PxRefCounted(concreteType, baseFlags) {}
-		PX_INLINE						PxDeformableVolumeMesh(PxBaseFlags baseFlags) : PxRefCounted(baseFlags) {}
-		virtual							~PxDeformableVolumeMesh() {}
+		PX_INLINE						PxSoftBodyMesh(PxType concreteType, PxBaseFlags baseFlags) : PxRefCounted(concreteType, baseFlags) {}
+		PX_INLINE						PxSoftBodyMesh(PxBaseFlags baseFlags) : PxRefCounted(baseFlags) {}
+		virtual							~PxSoftBodyMesh() {}
 
-		virtual	bool					isKindOf(const char* name) const { PX_IS_KIND_OF(name, "PxDeformableVolumeMesh", PxRefCounted); }
+		virtual	bool					isKindOf(const char* name) const { PX_IS_KIND_OF(name, "PxSoftBodyMesh", PxRefCounted); }
 	};
-
-	typedef PX_DEPRECATED PxDeformableVolumeMesh PxSoftBodyMesh;
 
 
 	/**
 
 	\brief Contains information about how to update the collision mesh's vertices given a deformed simulation tetmesh.
 
-	\see PxTetrahedronMeshData
+	@see PxTetrahedronMeshData
 	*/
 	class PxCollisionMeshMappingData : public PxUserAllocated
 	{
@@ -318,20 +298,18 @@ namespace physx
 
 	\brief Stores data to accelerate collision detection of a tetrahedral mesh
 
-	\see PxTetrahedronMeshData
+	@see PxTetrahedronMeshData
 	*/
-	class PxDeformableVolumeCollisionData : public PxUserAllocated
+	class PxSoftBodyCollisionData : public PxUserAllocated
 	{
 
 	};
-
-	typedef PX_DEPRECATED PxDeformableVolumeCollisionData PxSoftBodyCollisionData;
 
 	/**
 
 	\brief Contains raw geometry information describing the tetmesh's vertices and its elements (tetrahedra)
 
-	\see PxTetrahedronMeshData
+	@see PxTetrahedronMeshData
 	*/
 	class PxTetrahedronMeshData : public PxUserAllocated
 	{
@@ -342,28 +320,26 @@ namespace physx
 
 	\brief Stores data to compute and store the state of a deformed tetrahedral mesh
 
-	\see PxTetrahedronMeshData
+	@see PxTetrahedronMeshData
 	*/
-	class PxDeformableVolumeSimulationData : public PxUserAllocated
+	class PxSoftBodySimulationData : public PxUserAllocated
 	{
 
 	};
 
-	typedef PX_DEPRECATED PxDeformableVolumeSimulationData PxSoftBodySimulationData;
-
 	/**
 
-	\brief Conbines PxTetrahedronMeshData and PxDeformableVolumeCollisionData
+	\brief Conbines PxTetrahedronMeshData and PxSoftBodyCollisionData
 
-	\see PxTetrahedronMeshData PxDeformableVolumeCollisionData
+	@see PxTetrahedronMeshData PxSoftBodyCollisionData
 	*/
 	class PxCollisionTetrahedronMeshData : public PxUserAllocated
 	{
 	public:
 		virtual const PxTetrahedronMeshData* getMesh() const = 0;
 		virtual PxTetrahedronMeshData* getMesh() = 0;
-		virtual const PxDeformableVolumeCollisionData* getData() const = 0;
-		virtual PxDeformableVolumeCollisionData* getData() = 0;
+		virtual const PxSoftBodyCollisionData* getData() const = 0;
+		virtual PxSoftBodyCollisionData* getData() = 0;
 		virtual void release() = 0;
 
 		virtual ~PxCollisionTetrahedronMeshData() {}
@@ -371,15 +347,15 @@ namespace physx
 
 	/**
 
-	\brief Conbines PxTetrahedronMeshData and PxDeformableVolumeSimulationData
+	\brief Conbines PxTetrahedronMeshData and PxSoftBodyCollisionData
 
-	\see PxTetrahedronMeshData PxDeformableVolumeSimulationData
+	@see PxTetrahedronMeshData PxSoftBodySimulationData
 	*/
 	class PxSimulationTetrahedronMeshData : public PxUserAllocated
 	{
 	public:
 		virtual PxTetrahedronMeshData* getMesh() = 0;
-		virtual PxDeformableVolumeSimulationData* getData() = 0;
+		virtual PxSoftBodySimulationData* getData() = 0;
 		virtual void release() = 0;
 
 		virtual ~PxSimulationTetrahedronMeshData() {}
@@ -389,4 +365,5 @@ namespace physx
 } // namespace physx
 #endif
 
+  /** @} */
 #endif

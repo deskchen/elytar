@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -31,6 +31,13 @@
 
 #include <stddef.h>
 
+/** \addtogroup foundation
+  @{
+*/
+
+#ifndef PX_ENABLE_FEATURES_UNDER_CONSTRUCTION
+#define PX_ENABLE_FEATURES_UNDER_CONSTRUCTION 0
+#endif
 
 #define PX_STRINGIZE_HELPER(X) #X
 #define PX_STRINGIZE(X) PX_STRINGIZE_HELPER(X)
@@ -77,13 +84,6 @@ Compiler defines, see http://sourceforge.net/p/predef/wiki/Compilers/
 	#define PX_GCC 1
 #else
 	#error "Unknown compiler"
-#endif
-
-// not treated as its own compiler because clang, for example, can, in theory, compile CUDA code too
-#if defined(__CUDACC__)
-	#define PX_CUDA_COMPILER 1
-#else
-	#define PX_CUDA_COMPILER 0
 #endif
 
 /**
@@ -245,7 +245,7 @@ C++ standard library defines
 Assert macro
 */
 #ifndef PX_ENABLE_ASSERTS
-	#if PX_DEBUG && !PX_CUDA_COMPILER
+	#if PX_DEBUG && !defined(__CUDACC__)
 		#define PX_ENABLE_ASSERTS 1
 	#else
 		#define PX_ENABLE_ASSERTS 0
@@ -315,8 +315,8 @@ Force inline macro
 */
 #if PX_VC
 	#define PX_FORCE_INLINE __forceinline
-#elif PX_CUDA_COMPILER
-	#define PX_FORCE_INLINE __forceinline__
+#elif PX_LINUX // Workaround; Fedora Core 3 do not agree with force inline and PxcPool
+	#define PX_FORCE_INLINE inline
 #elif PX_GCC_FAMILY
 	#define PX_FORCE_INLINE inline __attribute__((always_inline))
 #else
@@ -337,7 +337,7 @@ Noinline macro
 /**
 Restrict macro
 */
-#if PX_CUDA_COMPILER
+#if defined(__CUDACC__)
 	#define PX_RESTRICT __restrict__
 #else
 	#define PX_RESTRICT __restrict
@@ -355,7 +355,13 @@ Noalias macro
 /**
 Override macro
 */
-#define PX_OVERRIDE override
+#if PX_WINDOWS_FAMILY
+	#define PX_OVERRIDE	override
+#else
+	// PT: we don't really need to support it on all platforms, as long as
+	// we compile the code on at least one platform that supports it.
+	#define PX_OVERRIDE
+#endif
 
 /**
 Final macro
@@ -390,7 +396,7 @@ This declaration style is parsed correctly by Visual Assist.
 		#define PX_ALIGN(alignment, decl) decl __attribute__((aligned(alignment)))
 		#define PX_ALIGN_PREFIX(alignment)
 		#define PX_ALIGN_SUFFIX(alignment) __attribute__((aligned(alignment)))
-	#elif PX_CUDA_COMPILER
+	#elif defined __CUDACC__
 		#define PX_ALIGN(alignment, decl) __align__(alignment) decl
 		#define PX_ALIGN_PREFIX(alignment)
 		#define PX_ALIGN_SUFFIX(alignment) __align__(alignment))
@@ -418,7 +424,7 @@ General defines
 */
 
 
-#if PX_LINUX && PX_CLANG && !PX_CUDA_COMPILER
+#if PX_LINUX && PX_CLANG && !(defined __CUDACC__)
 #define PX_COMPILE_TIME_ASSERT(exp) \
 _Pragma(" clang diagnostic push") \
 _Pragma(" clang diagnostic ignored \"-Wc++98-compat\"") \
@@ -450,7 +456,7 @@ _Pragma(" clang diagnostic pop")
 	#error PX_CHECKED must be defined when PX_DEBUG is defined
 #endif
 
-#if PX_CUDA_COMPILER
+#ifdef __CUDACC__
 	#define PX_CUDA_CALLABLE __host__ __device__
 #else
 	#define PX_CUDA_CALLABLE
@@ -532,5 +538,6 @@ protected:                  \
 
 #define PX_FL	__FILE__, __LINE__
 
+/** @} */
 #endif
 

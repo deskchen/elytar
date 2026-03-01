@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -56,13 +56,12 @@ static void visualize(const ConstraintSim& sim, Cm::ConstraintImmediateVisualize
 }
 
 void Sc::ShapeInteraction::visualize(PxRenderOutput& out, PxsContactManagerOutputIterator& outputs,
-									float scale, float contactImpulse, float contactNormal, float contactError, float contactPoint,
-									float frictionImpulse, float frictionNormal, float frictionPoint)
+									float scale, float param_contactForce, float param_contactNormal, float param_contactError, float param_contactPoint)
 {
 	if(mManager)  // sleeping pairs have no contact points -> do not visualize
 	{
-		Sc::ActorSim* actorSim0 = &getActor0();
-		Sc::ActorSim* actorSim1 = &getActor1();
+		Sc::ActorSim* actorSim0 = &getShape0().getActor();
+		Sc::ActorSim* actorSim1 = &getShape1().getActor();
 		if(!actorSim0->isNonRigid() && !actorSim1->isNonRigid())
 		{
 			PxU32 offset;
@@ -75,14 +74,12 @@ void Sc::ShapeInteraction::visualize(PxRenderOutput& out, PxsContactManagerOutpu
 				PxU32 contactPointCount;
 				PxU32 contactPatchCount;
 				const PxReal* impulses;
-				const void* frictionPatches;
 
 				offset = nextOffset;
-				nextOffset = getContactPointData(contactPatches, contactPoints, contactDataSize, contactPointCount, contactPatchCount, impulses, offset, outputs, frictionPatches);
+				nextOffset = getContactPointData(contactPatches, contactPoints, contactDataSize, contactPointCount, contactPatchCount, impulses, offset, outputs);
 
 				const PxU32* faceIndices = reinterpret_cast<const PxU32*>(impulses + contactPointCount);
 				PxContactStreamIterator iter(reinterpret_cast<const PxU8*>(contactPatches), reinterpret_cast<const PxU8*>(contactPoints), faceIndices, contactPatchCount, contactPointCount);
-				PxFrictionAnchorStreamIterator fricIter(reinterpret_cast<const PxU8*>(contactPatches), reinterpret_cast<const PxU8*>(frictionPatches), contactPatchCount);
 
 				PxU32 i = 0;
 				while(iter.hasNextPatch())
@@ -92,23 +89,23 @@ void Sc::ShapeInteraction::visualize(PxRenderOutput& out, PxsContactManagerOutpu
 					{
 						iter.nextContact();
 
-						if((contactImpulse != 0.0f) && impulses)
+						if((param_contactForce != 0.0f) && impulses)
 						{
 							out << PxU32(PxDebugColor::eARGB_RED);
-							out.outputSegment(iter.getContactPoint(), iter.getContactPoint() + iter.getContactNormal() * (scale * contactImpulse * impulses[i]));
+							out.outputSegment(iter.getContactPoint(), iter.getContactPoint() + iter.getContactNormal() * (scale * param_contactForce * impulses[i]));
 						}
-						else if(contactNormal != 0.0f)
+						else if(param_contactNormal != 0.0f)
 						{
 							out << PxU32(PxDebugColor::eARGB_BLUE);
-							out.outputSegment(iter.getContactPoint(), iter.getContactPoint() + iter.getContactNormal() * (scale * contactNormal));
+							out.outputSegment(iter.getContactPoint(), iter.getContactPoint() + iter.getContactNormal() * (scale * param_contactNormal));
 						}
-						else if(contactError != 0.0f)
+						else if(param_contactError != 0.0f)
 						{
 							out << PxU32(PxDebugColor::eARGB_YELLOW);
-							out.outputSegment(iter.getContactPoint(), iter.getContactPoint() + iter.getContactNormal() * PxAbs(scale * contactError * PxMin(0.f, iter.getSeparation())));
+							out.outputSegment(iter.getContactPoint(), iter.getContactPoint() + iter.getContactNormal() * PxAbs(scale * param_contactError * PxMin(0.f, iter.getSeparation())));
 						}
 
-						if(contactPoint != 0.0f)
+						if(param_contactPoint != 0.0f)
 						{
 							const PxReal s = scale * 0.1f;
 							const PxVec3& point = iter.getContactPoint();
@@ -122,37 +119,6 @@ void Sc::ShapeInteraction::visualize(PxRenderOutput& out, PxsContactManagerOutpu
 							out.outputSegment(point + PxVec3(0, 0, -s), point + PxVec3(0, 0, s));
 						}
 						i++;
-					}
-
-					if (fricIter.hasNextPatch())
-					{
-						fricIter.nextPatch();
-						while (fricIter.hasNextFrictionAnchor())
-						{
-							fricIter.nextFrictionAnchor();
-
-							if (frictionImpulse != 0.0f)
-							{
-								out << PxU32(PxDebugColor::eARGB_DARKRED);
-								out.outputSegment(fricIter.getPosition(), fricIter.getPosition() + fricIter.getImpulse() * (scale * frictionImpulse));
-							}
-							else if (frictionNormal != 0.0f)
-							{
-								out << PxU32(PxDebugColor::eARGB_BLUE);
-								out.outputSegment(fricIter.getPosition(), fricIter.getPosition() + fricIter.getNormal() * (scale * frictionNormal));
-							}
-
-							if (frictionPoint != 0.0f)
-							{
-								const PxReal s = scale * 0.1f;
-								const PxVec3& p = fricIter.getPosition();
-
-								out << PxU32(PxDebugColor::eARGB_DARKRED);
-								out.outputSegment(p + PxVec3(-s, 0, 0), p + PxVec3(s, 0, 0));
-								out.outputSegment(p + PxVec3(0, -s, 0), p + PxVec3(0, s, 0));
-								out.outputSegment(p + PxVec3(0, 0, -s), p + PxVec3(0, 0, s));
-							}
-						}
 					}
 				}
 			} while (nextOffset != offset);
@@ -172,9 +138,7 @@ void Sc::Scene::visualizeStartStep()
 
 		// Update SIPs if visualization is enabled
 		if(	getVisualizationParameter(PxVisualizationParameter::eCONTACT_POINT) || getVisualizationParameter(PxVisualizationParameter::eCONTACT_NORMAL) || 
-			getVisualizationParameter(PxVisualizationParameter::eCONTACT_ERROR) || getVisualizationParameter(PxVisualizationParameter::eCONTACT_IMPULSE) ||
-			getVisualizationParameter(PxVisualizationParameter::eFRICTION_POINT) || getVisualizationParameter(PxVisualizationParameter::eFRICTION_NORMAL) ||
-			getVisualizationParameter(PxVisualizationParameter::eFRICTION_IMPULSE))
+			getVisualizationParameter(PxVisualizationParameter::eCONTACT_ERROR) || getVisualizationParameter(PxVisualizationParameter::eCONTACT_FORCE))
 			mInternalFlags |= SceneInternalFlag::eSCENE_SIP_STATES_DIRTY_VISUALIZATION;
 	}
 
@@ -217,39 +181,15 @@ void Sc::Scene::visualizeStartStep()
 			}
 		}
 	}
-#else
-	PX_CATCH_UNDEFINED_ENABLE_DEBUG_VISUALIZATION
-#endif
-}
-
-// Render contacts at the simulation frame end
-void Sc::Scene::visualizeContacts()
-{
-	PX_PROFILE_ZONE("Sim.visualizeContacts", mContextId);
-
-#if PX_ENABLE_DEBUG_VISUALIZATION
-	const PxReal scale = getVisualizationScale();
-	if (scale == 0.0f)
-	{
-		// make sure visualization inside simulate was skipped
-		PX_ASSERT(getRenderBuffer().empty());
-		return; // early out if visualization scale is 0
-	}
-
-	PxRenderOutput out(getRenderBuffer());
 
 	{
 		// PT: put common reads here to avoid doing them for each interaction
-		const PxReal contactImpulse = getVisualizationParameter(PxVisualizationParameter::eCONTACT_IMPULSE);
-		const PxReal contactNormal = getVisualizationParameter(PxVisualizationParameter::eCONTACT_NORMAL);
-		const PxReal contactError = getVisualizationParameter(PxVisualizationParameter::eCONTACT_ERROR);
-		const PxReal contactPoint = getVisualizationParameter(PxVisualizationParameter::eCONTACT_POINT);
-		const PxReal frictionImpulse = getVisualizationParameter(PxVisualizationParameter::eFRICTION_IMPULSE);
-		const PxReal frictionNormal = getVisualizationParameter(PxVisualizationParameter::eFRICTION_NORMAL);
-		const PxReal frictionPoint = getVisualizationParameter(PxVisualizationParameter::eFRICTION_POINT);
+		const PxReal param_contactForce = getVisualizationParameter(PxVisualizationParameter::eCONTACT_FORCE);
+		const PxReal param_contactNormal = getVisualizationParameter(PxVisualizationParameter::eCONTACT_NORMAL);
+		const PxReal param_contactError = getVisualizationParameter(PxVisualizationParameter::eCONTACT_ERROR);
+		const PxReal param_contactPoint = getVisualizationParameter(PxVisualizationParameter::eCONTACT_POINT);
 
-		if(contactImpulse !=0.0f || contactNormal!=0.0f || contactError!=0.0f || contactPoint!=0.0f ||
-		   frictionImpulse != 0.0f || frictionNormal != 0.0f || frictionPoint != 0.0f)
+		if(param_contactForce!=0.0f || param_contactNormal!=0.0f || param_contactError!=0.0f || param_contactPoint!=0.0f)
 		{
 			PxsContactManagerOutputIterator outputs = mLLContext->getNphaseImplementationContext()->getContactManagerOutputs();
 
@@ -257,8 +197,7 @@ void Sc::Scene::visualizeContacts()
 			PxU32 nbActiveInteractions = getNbActiveInteractions(InteractionType::eOVERLAP);
 			while(nbActiveInteractions--)
 				static_cast<ShapeInteraction*>(*interactions++)->visualize(	out, outputs,
-																			scale, contactImpulse, contactNormal, contactError, contactPoint,
-																			frictionImpulse, frictionNormal, frictionPoint);
+																			scale, param_contactForce, param_contactNormal, param_contactError, param_contactPoint);
 		}
 	}
 #else

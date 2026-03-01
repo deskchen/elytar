@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -33,8 +33,9 @@
 #include "CmVisualization.h"
 #include "CmRadixSort.h"
 
+using namespace physx::aos;
+
 using namespace physx;
-using namespace aos;
 using namespace Gu;
 
 #define INVALID_HANDLE	0xffffffff
@@ -180,7 +181,7 @@ void BucketPrunerNode::classifyBoxes(	float limitX, float limitYZ,
 {
 	const PxU32 yz = PxU32(sortAxis == 1 ? 2 : 1);
 
-	#if PX_DEBUG
+	#ifdef _DEBUG
 	{
 		float prev = boxes[0].mDebugMin;
 		for(PxU32 i=1;i<nb;i++)
@@ -258,7 +259,7 @@ void BucketPrunerNode::classifyBoxes(	float limitX, float limitYZ,
 			AlignedStore(AlignedLoad(&boxes[i].mCenter.x), &sortedBoxes[bucketOffset].mCenter.x);
 			AlignedStore(AlignedLoad(&boxes[i].mExtents.x), &sortedBoxes[bucketOffset].mExtents.x);
 
-	#if PX_DEBUG
+	#ifdef _DEBUG
 			sortedBoxes[bucketOffset].mDebugMin = boxes[i].mDebugMin;
 	#endif
 			sortedObjects[bucketOffset] = objects[i];
@@ -295,7 +296,7 @@ void BucketPrunerNode::classifyBoxes(	float limitX, float limitYZ,
 		}
 	}
 
-#if PX_DEBUG
+	#ifdef _DEBUG
 	for(PxU32 j=0;j<5;j++)
 	{
 		const PxU32 count = mCounters[j];
@@ -311,7 +312,7 @@ void BucketPrunerNode::classifyBoxes(	float limitX, float limitYZ,
 			}
 		}
 	}
-#endif
+	#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -941,7 +942,7 @@ static PxU32 sortBoxes(	PxU32 nb, const PxBounds3* PX_RESTRICT boxes, const Prun
 		AlignedStore(bucketBoxCenterV, &sortedBoxes[i].mCenter.x);
 		AlignedStore(bucketBoxExtentsV, &sortedBoxes[i].mExtents.x);
 
-	#if PX_DEBUG
+	#ifdef _DEBUG
 		sortedBoxes[i].mDebugMin = boxes[index].minimum[sortAxis];
 	#endif
 		sortedObjects[i] = objects[index];
@@ -2227,7 +2228,7 @@ void BucketPrunerCore::shiftOrigin(const PxVec3& shift)
 	{
 		mGlobalBox.mCenter -= shift;
 
-	#if PX_DEBUG
+	#ifdef _DEBUG
 		mGlobalBox.mDebugMin -= shift[mSortAxis];
 	#endif
 
@@ -2244,7 +2245,7 @@ void BucketPrunerCore::shiftOrigin(const PxVec3& shift)
 		{
 			mSortedWorldBoxes[i].mCenter -= shift;
 
-	#if PX_DEBUG
+	#ifdef _DEBUG
 			mSortedWorldBoxes[i].mDebugMin -= shift[mSortAxis];
 	#endif
 			encodeBoxMinMax(mSortedWorldBoxes[i], mSortAxis);

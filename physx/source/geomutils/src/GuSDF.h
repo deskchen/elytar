@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #ifndef GU_SDF_H
 #define GU_SDF_H
+/** \addtogroup geomutils
+@{
+*/
 
 #include "common/PxPhysXCommonConfig.h"
 #include "foundation/PxVec3.h"
@@ -40,7 +43,6 @@ namespace physx
 	class PxSDFBuilder;
 	class PxSerializationContext;
 	class PxDeserializationContext;
-	class PxOutputStream;
 
 	namespace Gu
 	{
@@ -82,31 +84,8 @@ namespace physx
 			PxU32					x;		//!< Size of X dimension
 			PxU32					y;		//!< Size of Y dimension
 			PxU32					z;		//!< Size of Z dimension
-
-			template <typename T>
-			explicit operator PxVec3T<T>() const { return PxVec3T<T>(static_cast<T>(x), static_cast<T>(y), static_cast<T>(z)); }
 		};
 
-		// Interval containing its endpoints
-		struct Interval
-		{
-			PxReal min;
-			PxReal max;
-
-			PX_CUDA_CALLABLE Interval() : min(FLT_MAX), max(-FLT_MAX) {}
-
-			PX_CUDA_CALLABLE Interval(PxReal min_, PxReal max_) : min(min_), max(max_) {}
-
-			PX_FORCE_INLINE PX_CUDA_CALLABLE bool overlaps(const Interval& i) const
-			{
-				return  !(min > i.max || i.min > max);
-			}
-
-			PX_FORCE_INLINE PX_CUDA_CALLABLE bool contains(PxReal value) const
-			{
-				return !(value < min || value > max);
-			}
-		};
 		/**
 		\brief Represents a signed distance field.
 		*/
@@ -118,6 +97,7 @@ namespace physx
 			SDF(const PxEMPTY) : mOwnsMemory(false) {}
 			void exportExtraData(PxSerializationContext& context);
 			void importExtraData(PxDeserializationContext& context);
+			static void getBinaryMetaData(PxOutputStream& stream);
 //~PX_SERIALIZATION
 			/**
 			\brief Constructor
@@ -148,8 +128,6 @@ namespace physx
 			{
 			}
 
-			// Given a SubgridStartSlot id `id`, decode the position of the start
-			// index of the corresponding subgrid in the subgrid texture
 			static PX_FORCE_INLINE void decodeTriple(PxU32 id, PxU32& x, PxU32& y, PxU32& z)
 			{
 				x = id & 0x000003FF;
@@ -159,7 +137,7 @@ namespace physx
 				z = id & 0x000003FF;
 			}
 
-			static PX_FORCE_INLINE PxReal decodeSample(const PxU8* data, PxU32 index, PxU32 bytesPerSparsePixel, PxReal subgridsMinSdfValue, PxReal subgridsMaxSdfValue)
+			static PX_FORCE_INLINE PxReal decodeSample(PxU8* data, PxU32 index, PxU32 bytesPerSparsePixel, PxReal subgridsMinSdfValue, PxReal subgridsMaxSdfValue)
 			{
 				switch (bytesPerSparsePixel)
 				{
@@ -167,14 +145,14 @@ namespace physx
 					return PxReal(data[index]) * (1.0f / 255.0f) * (subgridsMaxSdfValue - subgridsMinSdfValue) + subgridsMinSdfValue;
 				case 2:
 				{
-					const PxU16* ptr = reinterpret_cast<const PxU16*>(data);
+					PxU16* ptr = reinterpret_cast<PxU16*>(data);
 					return PxReal(ptr[index]) * (1.0f / 65535.0f) * (subgridsMaxSdfValue - subgridsMinSdfValue) + subgridsMinSdfValue;
 				}
 				case 4:
 				{
 					//If 4 bytes per subgrid pixel are available, then normal floats are used. No need to 
 					//de-normalize integer values since the floats already contain real distance values
-					const PxReal* ptr = reinterpret_cast<const PxReal*>(data);
+					PxReal* ptr = reinterpret_cast<PxReal*>(data);
 					return ptr[index];
 				}
 				default:
@@ -209,8 +187,7 @@ namespace physx
 			{
 				const PxU32 nbX = mDims.x / mSubgridSize;
 				const PxU32 nbY = mDims.y / mSubgridSize;
-
-				PX_ASSERT(sgX <= nbX && sgY <= nbY && sgZ <= mDims.z / mSubgridSize);
+				//const PxU32 nbZ = mDims.z / mSubgridSize;
 
 				PxU32 startId = mSubgridStartSlots[sgZ * (nbX) * (nbY) + sgY * (nbX) + sgX];
 				return startId != 0xFFFFFFFFu;
@@ -498,10 +475,10 @@ namespace physx
 
 			PX_FORCE_INLINE PX_CUDA_CALLABLE void initialize(PxU32 width, PxU32 height, PxU32 depth, PxReal* sdf)
 			{
-				mWidth = width;
-				mHeight = height;
-				mDepth = depth;
-				mSdf = sdf;
+				this->mWidth = width;
+				this->mHeight = height;
+				this->mDepth = depth;
+				this->mSdf = sdf;
 			}
 
 			PX_FORCE_INLINE PxU32 memoryConsumption()
@@ -515,7 +492,7 @@ namespace physx
 				const PxU32 yBase = PxClamp(PxU32(samplePoint.y), 0u, mHeight - 2);
 				const PxU32 zBase = PxClamp(PxU32(samplePoint.z), 0u, mDepth - 2);
 
-				return PxTriLerp(
+				return Interpolation::PxTriLerp(
 					mSdf[idx3D(xBase, yBase, zBase, mWidth, mHeight)],
 					mSdf[idx3D(xBase + 1, yBase, zBase, mWidth, mHeight)],
 					mSdf[idx3D(xBase, yBase + 1, zBase, mWidth, mHeight)],
@@ -529,6 +506,7 @@ namespace physx
 	}
 }
 
+/** @} */
 #endif
 
 

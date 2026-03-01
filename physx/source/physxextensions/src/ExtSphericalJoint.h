@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -57,6 +57,7 @@ namespace Ext
 										SphericalJoint(PxBaseFlags baseFlags) : SphericalJointT(baseFlags) {}
 				void					resolveReferences(PxDeserializationContext& context);
 		static	SphericalJoint*			createObject(PxU8*& address, PxDeserializationContext& context)	{ return createJointObject<SphericalJoint>(address, context);	}
+		static	void					getBinaryMetaData(PxOutputStream& stream);
 //~PX_SERIALIZATION
 										SphericalJoint(const PxTolerancesScale& /*scale*/, PxRigidActor* actor0, const PxTransform& localFrame0, PxRigidActor* actor1, const PxTransform& localFrame1);
 		// PxSphericalJoint
@@ -64,7 +65,7 @@ namespace Ext
 		virtual	PxJointLimitCone		getLimitCone() const	PX_OVERRIDE;
 		virtual	void					setSphericalJointFlags(PxSphericalJointFlags flags)	PX_OVERRIDE;
 		virtual	void					setSphericalJointFlag(PxSphericalJointFlag::Enum flag, bool value)	PX_OVERRIDE;
-		virtual	PxSphericalJointFlags	getSphericalJointFlags() const	PX_OVERRIDE;
+		virtual	PxSphericalJointFlags	getSphericalJointFlags(void) const	PX_OVERRIDE;
 		virtual PxReal					getSwingYAngle() const	PX_OVERRIDE;
 		virtual PxReal					getSwingZAngle() const	PX_OVERRIDE;
 		//~PxSphericalJoint

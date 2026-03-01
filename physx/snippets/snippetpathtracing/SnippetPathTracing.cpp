@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -337,8 +337,8 @@ bool CustomScene::shadowRay(const PxVec3& origin, const PxVec3& unitDir, float m
 				return true;
 
 			// PT: we don't need the hit position/normal for shadow rays, so we tell PhysX it can skip computing them.
-			// We also use eANY_HIT to tell the system not to look for the closest hit on triangle meshes.
-			if(PxGeometryQuery::raycast(mOrigin, mDir, obj.mGeom.any(), obj.mPose, distance, PxHitFlag::eANY_HIT, 1, &mLocalHit, sizeof(PxGeomRaycastHit), gQueryFlags))
+			// We also use eMESH_ANY to tell the system not to look for the closest hit on triangle meshes.
+			if(PxGeometryQuery::raycast(mOrigin, mDir, obj.mGeom.any(), obj.mPose, distance, PxHitFlag::eMESH_ANY, 1, &mLocalHit, sizeof(PxGeomRaycastHit), gQueryFlags))
 			{
 				mStatus = true;
 				return false;

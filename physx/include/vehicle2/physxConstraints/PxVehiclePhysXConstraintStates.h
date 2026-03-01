@@ -22,11 +22,14 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
 #pragma once
+/** \addtogroup vehicle2
+  @{
+*/
 
 #include "foundation/PxAssert.h"
 #include "foundation/PxTransform.h"
@@ -67,7 +70,7 @@ struct PxVehiclePhysXConstraintLimits
 /**
 \brief PxVehiclePhysXConstraintState is a data structure used to write 
 constraint data to the internal state of the associated PxScene.
-\see Px1dConstraint
+@see Px1dConstraint
 */
 struct PxVehiclePhysXConstraintState
 {
@@ -116,8 +119,8 @@ struct PxVehiclePhysXConstraintState
 	/**
 	\brief restitution value of the restitution model used to generate a target velocity that will resolve the geometric error.
 	\note A value of 0.0 means that the restitution model is not employed.
-	\see Px1DConstraintFlag::eRESTITUTION
-	\see Px1DConstraint::RestitutionModifiers::restitution
+	@see Px1DConstraintFlag::eRESTITUTION
+	@see Px1DConstraint::RestitutionModifiers::restitution
 	*/
 	PxReal restitution;
 
@@ -350,4 +353,5 @@ struct PxVehiclePhysXConstraints
 } // namespace physx
 #endif
 
+/** @} */
 

@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
 #ifndef PX_MAT44_H
 #define PX_MAT44_H
+/** \addtogroup foundation
+@{
+*/
 
 #include "foundation/PxQuat.h"
 #include "foundation/PxVec4.h"
@@ -44,7 +47,7 @@ namespace physx
 
 This class is layout-compatible with D3D and OpenGL matrices. More notes on layout are given in the PxMat33
 
-\see PxMat33 PxTransform
+@see PxMat33 PxTransform
 */
 
 template<class Type>
@@ -345,7 +348,7 @@ class PxMat44T
 		column3 *= p.w;
 	}
 
-	PX_CUDA_CALLABLE PX_INLINE const PxMat44T inverseRT() const
+	PX_CUDA_CALLABLE PX_INLINE const PxMat44T inverseRT(void) const
 	{
 		const PxVec3T<Type> r0(column0.x, column1.x, column2.x);
 		const PxVec3T<Type> r1(column0.y, column1.y, column2.y);
@@ -383,5 +386,6 @@ typedef PxMat44T<double>	PxMat44d;
 } // namespace physx
 #endif
 
+/** @} */
 #endif
 

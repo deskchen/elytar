@@ -22,12 +22,15 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
 #ifndef PX_BVH_33_MIDPHASE_DESC_H
 #define PX_BVH_33_MIDPHASE_DESC_H
+/** \addtogroup cooking
+@{
+*/
 
 #include "foundation/PxPreprocessor.h"
 #include "foundation/PxSimpleTypes.h"
@@ -37,11 +40,10 @@ namespace physx
 {
 #endif
 
-/**
-\deprecated This is only used for BVH33 which is deprecated and will be removed in a future version. Use BVH34 instead.
-
-\brief Enumeration for mesh cooking hints.
-*/
+/** 
+ * \brief Enumeration for mesh cooking hints. 
+ * @deprecated
+ */
 struct PX_DEPRECATED PxMeshCookingHint
 {
 	enum Enum
@@ -52,11 +54,11 @@ struct PX_DEPRECATED PxMeshCookingHint
 };
 
 /**
-\deprecated BVH33 is deprecated and will be removed in a future version. Use BVH34 instead.
 
 \brief Structure describing parameters affecting BVH33 midphase mesh structure.
 
-\see PxCookingParams, PxMidphaseDesc
+@see PxCookingParams, PxMidphaseDesc
+@deprecated
 */
 struct PX_DEPRECATED PxBVH33MidphaseDesc
 {
@@ -106,5 +108,6 @@ struct PX_DEPRECATED PxBVH33MidphaseDesc
 #endif
 
 
+  /** @} */
 #endif
 

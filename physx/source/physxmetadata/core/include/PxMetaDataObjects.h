@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
 
@@ -73,9 +73,11 @@
 #include "PxForceMode.h"
 #include "PxLockedData.h"
 #include "PxMaterial.h"
-#include "PxDeformableSurfaceMaterial.h"
-#include "PxDeformableVolumeMaterial.h"
+#include "PxFEMSoftBodyMaterial.h"
+#include "PxFEMClothMaterial.h"
 #include "PxPBDMaterial.h"
+#include "PxFLIPMaterial.h"
+#include "PxMPMMaterial.h"
 #include "PxPhysics.h"
 #include "PxPhysXConfig.h"
 #include "PxQueryFiltering.h"
@@ -98,6 +100,9 @@
 #pragma clang diagnostic ignored "-Wreserved-identifier"
 #endif
 
+/** \addtogroup physics
+@{
+*/
 
 namespace physx
 {
@@ -674,4 +679,5 @@ inline void visitInstanceProperties( TOperator inOperator )
 #pragma clang diagnostic pop
 #endif
 
+/** @} */
 #endif

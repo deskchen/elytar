@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -432,7 +432,7 @@ void Sc::BodyCore::setFlags(PxRigidBodyFlags f)
 			if (wasIntegrateGyroscopic ^ isIntegrateGyroscopic)
 			{
 				if(wasIntegrateGyroscopic)
-					sim->getLowLevelBody().mInternalFlags &= (~PxsRigidBody::eENABLE_GYROSCOPIC);
+					sim->getLowLevelBody().mInternalFlags &= (PxsRigidBody::eENABLE_GYROSCOPIC);
 				else
 					sim->getLowLevelBody().mInternalFlags |= (PxsRigidBody::eENABLE_GYROSCOPIC);				
 			}
@@ -443,7 +443,7 @@ void Sc::BodyCore::setFlags(PxRigidBodyFlags f)
 			if (wasRetainAccel ^ isRetainAccel)
 			{
 				if (wasRetainAccel)
-					sim->getLowLevelBody().mInternalFlags &= (~PxsRigidBody::eRETAIN_ACCELERATION);
+					sim->getLowLevelBody().mInternalFlags &= (PxsRigidBody::eRETAIN_ACCELERATION);
 				else
 					sim->getLowLevelBody().mInternalFlags |= (PxsRigidBody::eRETAIN_ACCELERATION);
 			}
@@ -454,12 +454,7 @@ void Sc::BodyCore::setFlags(PxRigidBodyFlags f)
 		}
 
 		if(switchToKinematic)
-		{
-			if (sim)
-				sim->getLowLevelBody().mInternalFlags |= PxsRigidBody::eVELOCITY_COPY_GPU;	
 			putToSleep();
-
-		}
 
 		if(sim)
 		{
@@ -547,7 +542,7 @@ void Sc::BodyCore::onOriginShift(const PxVec3& shift)
 		b->onOriginShift(shift, getFlags() & PxRigidBodyFlag::eKINEMATIC);  // BodySim might not exist if actor has simulation disabled (PxActorFlag::eDISABLE_SIMULATION)
 }
 
-// PT: TODO: why do we test against NULL everywhere but not in 'isFrozen' ?
+// PT: TODO: why do we test againt NULL everywhere but not in 'isFrozen' ?
 PxIntBool Sc::BodyCore::isFrozen() const
 {
 	return getSim()->isFrozen();
@@ -559,7 +554,7 @@ void Sc::BodyCore::setSolverIterationCounts(PxU16 c)
 	Sc::BodySim* sim = getSim();
 	if (sim)
 	{
-		sim->getLowLevelBody().mSolverIterationCounts = c;
+		sim->getLowLevelBody().solverIterationCounts = c;
 		sim->getScene().setDynamicsDirty();
 	}
 }

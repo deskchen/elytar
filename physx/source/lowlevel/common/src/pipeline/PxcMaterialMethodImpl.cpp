@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -40,20 +40,20 @@ using namespace Gu;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static void PxcGetMaterialShape(const PxsShapeCore* shape, const PxU32 index, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialShape(const PxsShapeCore* shape, const PxU32 index, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
 	const PxU16 materialIndex = shape->mMaterialIndex;
-	const PxU32 count = contactBuffer.count;
+	const PxU32 count = context.mContactBuffer.count;
 	PX_ASSERT(index==0 || index==1);
 	for(PxU32 i=0; i<count; i++)
 		(&materialInfo[i].mMaterialIndex0)[index] = materialIndex;
 }
 
-static void PxcGetMaterialShapeShape(const PxsShapeCore* shape0, const PxsShapeCore* shape1, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialShapeShape(const PxsShapeCore* shape0, const PxsShapeCore* shape1, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
 	const PxU16 materialIndex0 = shape0->mMaterialIndex;
 	const PxU16 materialIndex1 = shape1->mMaterialIndex;
-	const PxU32 count = contactBuffer.count;
+	const PxU32 count = context.mContactBuffer.count;
 	for(PxU32 i=0; i<count; i++)
 	{
 		materialInfo[i].mMaterialIndex0 = materialIndex0;
@@ -68,44 +68,46 @@ static PX_FORCE_INLINE const PxU16* getMaterialIndicesLL(const PxTriangleMeshGeo
 	return static_cast<const Gu::TriangleMesh*>(meshGeom.triangleMesh)->getMaterials();
 }
 
-static void PxcGetMaterialMesh(const PxsShapeCore* shape, const PxU32 index, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialMesh(const PxsShapeCore* shape, const PxU32 index, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
 	PX_ASSERT(index == 0 || index == 1);
 	const PxTriangleMeshGeometryLL& shapeMesh = shape->mGeometry.get<const PxTriangleMeshGeometryLL>();
 	if(shapeMesh.materialsLL.numIndices <= 1)
 	{
-		PxcGetMaterialShape(shape, index, contactBuffer, materialInfo);
+		PxcGetMaterialShape(shape, index, context, materialInfo);
 	}
 	else
 	{
+		PxContactBuffer& contactBuffer = context.mContactBuffer;
 		const PxU32 count = contactBuffer.count;
 		const PxU16* eaMaterialIndices = getMaterialIndicesLL(shapeMesh);
 		const PxU16* indices = shapeMesh.materialsLL.indices;
 		for(PxU32 i=0; i<count; i++)
 		{
-			const PxContactPoint& contact = contactBuffer.contacts[i];
+			PxContactPoint& contact = contactBuffer.contacts[i];
 			const PxU32 localMaterialIndex = eaMaterialIndices ? eaMaterialIndices[contact.internalFaceIndex1] : 0;//shapeMesh.triangleMesh->getTriangleMaterialIndex(contact.featureIndex1);
 			(&materialInfo[i].mMaterialIndex0)[index] = indices[localMaterialIndex];
 		}
 	}
 }
 
-static void PxcGetMaterialShapeMesh(const PxsShapeCore* shape0, const PxsShapeCore* shape1, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialShapeMesh(const PxsShapeCore* shape0, const PxsShapeCore* shape1, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
 	const PxTriangleMeshGeometryLL& shapeMesh = shape1->mGeometry.get<const PxTriangleMeshGeometryLL>();
 	if(shapeMesh.materialsLL.numIndices <= 1)
 	{
-		PxcGetMaterialShapeShape(shape0, shape1, contactBuffer, materialInfo);
+		PxcGetMaterialShapeShape(shape0, shape1, context,  materialInfo);
 	}
 	else
 	{
+		PxContactBuffer& contactBuffer = context.mContactBuffer;
 		const PxU32 count = contactBuffer.count;
 		const PxU16* eaMaterialIndices = getMaterialIndicesLL(shapeMesh);
 		const PxU16* indices = shapeMesh.materialsLL.indices;
 		const PxU16 materialIndex0 = shape0->mMaterialIndex;
 		for(PxU32 i=0; i<count; i++)
 		{
-			const PxContactPoint& contact = contactBuffer.contacts[i];
+			PxContactPoint& contact = contactBuffer.contacts[i];
 			materialInfo[i].mMaterialIndex0 = materialIndex0;
 
 			const PxU32 localMaterialIndex = eaMaterialIndices ? eaMaterialIndices[contact.internalFaceIndex1] : 0;//shapeMesh.triangleMesh->getTriangleMaterialIndex(contact.featureIndex1);
@@ -114,23 +116,24 @@ static void PxcGetMaterialShapeMesh(const PxsShapeCore* shape0, const PxsShapeCo
 	}
 }
 
-static void PxcGetMaterialSoftBodyMesh(const PxsShapeCore* shape0, const PxsShapeCore* shape1, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialSoftBodyMesh(const PxsShapeCore* shape0, const PxsShapeCore* shape1, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
 	// PT: TODO: check this, it reads shape0 and labels it shapeMesh1? It's otherwise the same code as PxcGetMaterialShapeMesh ?
 	const PxTriangleMeshGeometryLL& shapeMesh1 = shape0->mGeometry.get<const PxTriangleMeshGeometryLL>();
 	if (shapeMesh1.materialsLL.numIndices <= 1)
 	{
-		PxcGetMaterialShapeShape(shape0, shape1, contactBuffer, materialInfo);
+		PxcGetMaterialShapeShape(shape0, shape1, context, materialInfo);
 	}
 	else
 	{
+		PxContactBuffer& contactBuffer = context.mContactBuffer;
 		const PxU32 count = contactBuffer.count;
 		const PxU16* eaMaterialIndices = getMaterialIndicesLL(shapeMesh1);
 		const PxU16* indices = shapeMesh1.materialsLL.indices;
 		const PxU16 materialIndex0 = shape0->mMaterialIndex;
 		for (PxU32 i = 0; i<count; i++)
 		{
-			const PxContactPoint& contact = contactBuffer.contacts[i];
+			PxContactPoint& contact = contactBuffer.contacts[i];
 			materialInfo[i].mMaterialIndex0 = materialIndex0;
 
 			const PxU32 localMaterialIndex = eaMaterialIndices ? eaMaterialIndices[contact.internalFaceIndex1] : 0;//shapeMesh.triangleMesh->getTriangleMaterialIndex(contact.featureIndex1);
@@ -142,7 +145,7 @@ static void PxcGetMaterialSoftBodyMesh(const PxsShapeCore* shape0, const PxsShap
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static PxU32 getMaterialIndex(const Gu::HeightFieldData* hfData, PxU32 triangleIndex)
+static PxU32 GetMaterialIndex(const Gu::HeightFieldData* hfData, PxU32 triangleIndex)
 {
 	const PxU32 sampleIndex = triangleIndex >> 1;
 	const bool isFirstTriangle = (triangleIndex & 0x1) == 0;
@@ -152,16 +155,17 @@ static PxU32 getMaterialIndex(const Gu::HeightFieldData* hfData, PxU32 triangleI
 	return isFirstTriangle ? hf->materialIndex0 : hf->materialIndex1;
 }
 
-static void PxcGetMaterialHeightField(const PxsShapeCore* shape, const PxU32 index, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialHeightField(const PxsShapeCore* shape, const PxU32 index, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
 	PX_ASSERT(index == 0 || index == 1);
 	const PxHeightFieldGeometryLL& hfGeom = shape->mGeometry.get<const PxHeightFieldGeometryLL>();
 	if(hfGeom.materialsLL.numIndices <= 1)
 	{
-		PxcGetMaterialShape(shape, index, contactBuffer, materialInfo);
+		PxcGetMaterialShape(shape, index, context, materialInfo);
 	}
 	else
 	{
+		const PxContactBuffer& contactBuffer = context.mContactBuffer;
 		const PxU32 count = contactBuffer.count;
 		const PxU16* materialIndices = hfGeom.materialsLL.indices;
 			
@@ -170,21 +174,22 @@ static void PxcGetMaterialHeightField(const PxsShapeCore* shape, const PxU32 ind
 		for(PxU32 i=0; i<count; i++)
 		{
 			const PxContactPoint& contact = contactBuffer.contacts[i];
-			const PxU32 localMaterialIndex = getMaterialIndex(hf, contact.internalFaceIndex1);
+			const PxU32 localMaterialIndex = GetMaterialIndex(hf, contact.internalFaceIndex1);
 			(&materialInfo[i].mMaterialIndex0)[index] = materialIndices[localMaterialIndex];
 		}
 	}
 }
 
-static void PxcGetMaterialShapeHeightField(const PxsShapeCore* shape0, const PxsShapeCore* shape1, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialShapeHeightField(const PxsShapeCore* shape0, const PxsShapeCore* shape1, PxcNpThreadContext& context,  PxsMaterialInfo* materialInfo)
 {
 	const PxHeightFieldGeometryLL& hfGeom = shape1->mGeometry.get<const PxHeightFieldGeometryLL>();
 	if(hfGeom.materialsLL.numIndices <= 1)
 	{
-		PxcGetMaterialShapeShape(shape0, shape1, contactBuffer, materialInfo);
+		PxcGetMaterialShapeShape(shape0, shape1, context, materialInfo);
 	}
 	else
 	{
+		const PxContactBuffer& contactBuffer = context.mContactBuffer;
 		const PxU32 count = contactBuffer.count;
 		const PxU16* materialIndices = hfGeom.materialsLL.indices;
 			
@@ -195,7 +200,7 @@ static void PxcGetMaterialShapeHeightField(const PxsShapeCore* shape0, const Pxs
 			const PxContactPoint& contact = contactBuffer.contacts[i];
 			materialInfo[i].mMaterialIndex0 = shape0->mMaterialIndex;
 			//contact.featureIndex0 = shape0->materialIndex;
-			const PxU32 localMaterialIndex = getMaterialIndex(hf, contact.internalFaceIndex1);
+			const PxU32 localMaterialIndex = GetMaterialIndex(hf, contact.internalFaceIndex1);
 			//contact.featureIndex1 = materialIndices[localMaterialIndex];
 			PX_ASSERT(localMaterialIndex<hfGeom.materialsLL.numIndices);
 			materialInfo[i].mMaterialIndex1 = materialIndices[localMaterialIndex];
@@ -203,15 +208,16 @@ static void PxcGetMaterialShapeHeightField(const PxsShapeCore* shape0, const Pxs
 	}
 }
 
-static void PxcGetMaterialSoftBodyHeightField(const PxsShapeCore* shape0, const PxsShapeCore* shape1, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialSoftBodyHeightField(const PxsShapeCore* shape0, const PxsShapeCore* shape1, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
 	const PxHeightFieldGeometryLL& hfGeom = shape1->mGeometry.get<const PxHeightFieldGeometryLL>();
 	if (hfGeom.materialsLL.numIndices <= 1)
 	{
-		PxcGetMaterialShapeShape(shape0, shape1, contactBuffer, materialInfo);
+		PxcGetMaterialShapeShape(shape0, shape1, context, materialInfo);
 	}
 	else
 	{
+		const PxContactBuffer& contactBuffer = context.mContactBuffer;
 		const PxU32 count = contactBuffer.count;
 		const PxU16* materialIndices = hfGeom.materialsLL.indices;
 
@@ -222,7 +228,7 @@ static void PxcGetMaterialSoftBodyHeightField(const PxsShapeCore* shape0, const 
 			const PxContactPoint& contact = contactBuffer.contacts[i];
 			materialInfo[i].mMaterialIndex0 = shape0->mMaterialIndex;
 			//contact.featureIndex0 = shape0->materialIndex;
-			const PxU32 localMaterialIndex = getMaterialIndex(hf, contact.internalFaceIndex1);
+			const PxU32 localMaterialIndex = GetMaterialIndex(hf, contact.internalFaceIndex1);
 			//contact.featureIndex1 = materialIndices[localMaterialIndex];
 			PX_ASSERT(localMaterialIndex<hfGeom.materialsLL.numIndices);
 			materialInfo[i].mMaterialIndex1 = materialIndices[localMaterialIndex];
@@ -232,21 +238,21 @@ static void PxcGetMaterialSoftBodyHeightField(const PxsShapeCore* shape0, const 
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static void PxcGetMaterialSoftBody(const PxsShapeCore* shape, const PxU32 index, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialSoftBody(const PxsShapeCore* shape, const PxU32 index, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
 	PX_ASSERT(index == 1);
 	PX_UNUSED(index);
-	PxcGetMaterialShape(shape, index, contactBuffer, materialInfo);
+	PxcGetMaterialShape(shape, index, context, materialInfo);
 }
 
-static void PxcGetMaterialShapeSoftBody(const PxsShapeCore* shape0, const PxsShapeCore* shape1, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialShapeSoftBody(const PxsShapeCore* shape0, const PxsShapeCore* shape1, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
-	PxcGetMaterialShapeShape(shape0, shape1, contactBuffer, materialInfo);
+	PxcGetMaterialShapeShape(shape0, shape1, context, materialInfo);
 }
 
-static void PxcGetMaterialSoftBodySoftBody(const PxsShapeCore* shape0, const PxsShapeCore* shape1, const PxContactBuffer& contactBuffer, PxsMaterialInfo* materialInfo)
+static void PxcGetMaterialSoftBodySoftBody(const PxsShapeCore* shape0, const PxsShapeCore* shape1, PxcNpThreadContext& context, PxsMaterialInfo* materialInfo)
 {
-	PxcGetMaterialShapeShape(shape0, shape1, contactBuffer, materialInfo);
+	PxcGetMaterialShapeShape(shape0, shape1, context, materialInfo);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -259,12 +265,12 @@ PxcGetSingleMaterialMethod g_GetSingleMaterialMethodTable[] =
 	PxcGetMaterialShape,		//PxGeometryType::ePLANE
 	PxcGetMaterialShape,		//PxGeometryType::eCAPSULE
 	PxcGetMaterialShape,		//PxGeometryType::eBOX
-	PxcGetMaterialShape,		//PxGeometryType::eCONVEXCORE
 	PxcGetMaterialShape,		//PxGeometryType::eCONVEXMESH
 	PxcGetMaterialSoftBody,		//PxGeometryType::ePARTICLESYSTEM
 	PxcGetMaterialSoftBody,		//PxGeometryType::eTETRAHEDRONMESH
 	PxcGetMaterialMesh,			//PxGeometryType::eTRIANGLEMESH	//not used: mesh always uses swept method for midphase.
 	PxcGetMaterialHeightField,	//PxGeometryType::eHEIGHTFIELD	//TODO: make HF midphase that will mask this
+	PxcGetMaterialSoftBody,		//PxGeometryType::eHAIRSYSTEM
 	PxcGetMaterialShape,		//PxGeometryType::eCUSTOM
 };
 PX_COMPILE_TIME_ASSERT(sizeof(g_GetSingleMaterialMethodTable) / sizeof(g_GetSingleMaterialMethodTable[0]) == PxGeometryType::eGEOMETRY_COUNT);
@@ -279,12 +285,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		PxcGetMaterialShapeShape,			//PxGeometryType::ePLANE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCAPSULE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eBOX
-		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXCORE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXMESH
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::ePARTICLESYSTEM
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eTETRAHEDRONMESH
 		PxcGetMaterialShapeMesh,			//PxGeometryType::eTRIANGLEMESH	//not used: mesh always uses swept method for midphase.
 		PxcGetMaterialShapeHeightField,		//PxGeometryType::eHEIGHTFIELD	//TODO: make HF midphase that will mask this
+		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eHAIRSYSTEM
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCUSTOM
 	},
 
@@ -294,12 +300,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,									//PxGeometryType::ePLANE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCAPSULE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eBOX
-		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXCORE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXMESH
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::ePARTICLESYSTEM
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eTETRAHEDRONMESH
-		PxcGetMaterialShapeMesh,			//PxGeometryType::eTRIANGLEMESH
+		0,									//PxGeometryType::eTRIANGLEMESH
 		0,									//PxGeometryType::eHEIGHTFIELD
+		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eHAIRSYSTEM
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCUSTOM
 	},
 
@@ -309,12 +315,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,									//PxGeometryType::ePLANE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCAPSULE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eBOX
-		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXCORE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXMESH
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::ePARTICLESYSTEM
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eTETRAHEDRONMESH
 		PxcGetMaterialShapeMesh,			//PxGeometryType::eTRIANGLEMESH		//not used: mesh always uses swept method for midphase.
 		PxcGetMaterialShapeHeightField,		//PxGeometryType::eHEIGHTFIELD		//TODO: make HF midphase that will mask this
+		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eHAIRSYSTEM
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCUSTOM
 	},
 
@@ -324,27 +330,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,									//PxGeometryType::ePLANE
 		0,									//PxGeometryType::eCAPSULE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eBOX
-		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXCORE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXMESH
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::ePARTICLESYSTEM
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eTETRAHEDRONMESH
 		PxcGetMaterialShapeMesh,			//PxGeometryType::eTRIANGLEMESH		//not used: mesh always uses swept method for midphase.
 		PxcGetMaterialShapeHeightField,		//PxGeometryType::eHEIGHTFIELD		//TODO: make HF midphase that will mask this
-		PxcGetMaterialShapeShape,			//PxGeometryType::eCUSTOM
-	},
-
-	//PxGeometryType::eCONVEX
-	{
-		0,									//PxGeometryType::eSPHERE
-		0,									//PxGeometryType::ePLANE
-		0,									//PxGeometryType::eCAPSULE
-		0,									//PxGeometryType::eBOX
-		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXCORE
-		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXMESH
-		PxcGetMaterialShapeSoftBody,		//PxGeometryType::ePARTICLESYSTEM
-		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eTETRAHEDRONMESH
-		PxcGetMaterialShapeMesh,			//PxGeometryType::eTRIANGLEMESH		//not used: mesh always uses swept method for midphase.
-		PxcGetMaterialShapeHeightField,		//PxGeometryType::eHEIGHTFIELD		//TODO: make HF midphase that will mask this
+		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eHAIRSYSTEM
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCUSTOM
 	},
 
@@ -354,12 +345,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,									//PxGeometryType::ePLANE
 		0,									//PxGeometryType::eCAPSULE
 		0,									//PxGeometryType::eBOX
-		0,									//PxGeometryType::eCONVEXCORE
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCONVEXMESH
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::ePARTICLESYSTEM
 		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eTETRAHEDRONMESH
 		PxcGetMaterialShapeMesh,			//PxGeometryType::eTRIANGLEMESH		//not used: mesh always uses swept method for midphase.
 		PxcGetMaterialShapeHeightField,		//PxGeometryType::eHEIGHTFIELD		//TODO: make HF midphase that will mask this
+		PxcGetMaterialShapeSoftBody,		//PxGeometryType::eHAIRSYSTEM
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCUSTOM
 	},
 
@@ -369,12 +360,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,									//PxGeometryType::ePLANE
 		0,									//PxGeometryType::eCAPSULE
 		0,									//PxGeometryType::eBOX
-		0,									//PxGeometryType::eCONVEXCORE
 		0,									//PxGeometryType::eCONVEXMESH
 		PxcGetMaterialSoftBodySoftBody,		//PxGeometryType::ePARTICLESYSTEM
 		PxcGetMaterialSoftBodySoftBody,		//PxGeometryType::eTETRAHEDRONMESH
 		PxcGetMaterialSoftBodyMesh,			//PxGeometryType::eTRIANGLEMESH		//not used: mesh always uses swept method for midphase.
 		PxcGetMaterialSoftBodyHeightField,	//PxGeometryType::eHEIGHTFIELD		//TODO: make HF midphase that will mask this
+		PxcGetMaterialShapeShape,			//PxGeometryType::eHAIRYSTEM
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCUSTOM
 	},
 
@@ -384,12 +375,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,									//PxGeometryType::ePLANE
 		0,									//PxGeometryType::eCAPSULE
 		0,									//PxGeometryType::eBOX
-		0,									//PxGeometryType::eCONVEXCORE
 		0,									//PxGeometryType::eCONVEXMESH
 		0,									//PxGeometryType::ePARTICLESYSTEM
 		PxcGetMaterialSoftBodySoftBody,		//PxGeometryType::eTETRAHEDRONMESH
 		PxcGetMaterialSoftBodyMesh,			//PxGeometryType::eTRIANGLEMESH		//not used: mesh always uses swept method for midphase.
 		PxcGetMaterialSoftBodyHeightField,	//PxGeometryType::eHEIGHTFIELD		//TODO: make HF midphase that will mask this
+		PxcGetMaterialShapeShape,			//PxGeometryType::eHAIRYSTEM
 		PxcGetMaterialShapeShape,			//PxGeometryType::eCUSTOM
 	},
 
@@ -399,12 +390,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,								//PxGeometryType::ePLANE
 		0,								//PxGeometryType::eCAPSULE
 		0,								//PxGeometryType::eBOX
-		0,								//PxGeometryType::eCONVEXCORE
 		0,								//PxGeometryType::eCONVEXMESH
 		0,								//PxGeometryType::ePARTICLESYSTEM
 		0,								//PxGeometryType::eTETRAHEDRONMESH
-		PxcGetMaterialShapeShape,		//PxGeometryType::eTRIANGLEMESH	   // mesh-mesh via SDF (single material)
+		0,								//PxGeometryType::eTRIANGLEMESH
 		0,								//PxGeometryType::eHEIGHTFIELD
+		PxcGetMaterialShapeShape,		//PxGeometryType::eHAIRYSTEM
 		PxcGetMaterialShapeShape,		//PxGeometryType::eCUSTOM
 	},
 
@@ -414,12 +405,27 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,								//PxGeometryType::ePLANE
 		0,								//PxGeometryType::eCAPSULE
 		0,								//PxGeometryType::eBOX
-		0,								//PxGeometryType::eCONVEXCORE
 		0,								//PxGeometryType::eCONVEXMESH
 		0,								//PxGeometryType::ePARTICLESYSTEM
 		0,								//PxGeometryType::eTETRAHEDRONMESH
 		0,								//PxGeometryType::eTRIANGLEMESH
 		0,								//PxGeometryType::eHEIGHTFIELD
+		PxcGetMaterialShapeShape,		//PxGeometryType::eHAIRYSTEM
+		PxcGetMaterialShapeShape,		//PxGeometryType::eCUSTOM
+	},
+
+	//PxGeometryType::eHAIRSYSTEM
+	{
+		0,								//PxGeometryType::eSPHERE
+		0,								//PxGeometryType::ePLANE
+		0,								//PxGeometryType::eCAPSULE
+		0,								//PxGeometryType::eBOX
+		0,								//PxGeometryType::eCONVEXMESH
+		0,								//PxGeometryType::ePARTICLESYSTEM
+		0,								//PxGeometryType::eTETRAHEDRONMESH
+		0,								//PxGeometryType::eTRIANGLEMESH
+		0,								//PxGeometryType::eHEIGHTFIELD
+		0,								//PxGeometryType::eHAIRSYSTEM
 		PxcGetMaterialShapeShape,		//PxGeometryType::eCUSTOM
 	},
 
@@ -429,12 +435,12 @@ PxcGetMaterialMethod g_GetMaterialMethodTable[][PxGeometryType::eGEOMETRY_COUNT]
 		0,								//PxGeometryType::ePLANE
 		0,								//PxGeometryType::eCAPSULE
 		0,								//PxGeometryType::eBOX
-		0,								//PxGeometryType::eCONVEXCORE
 		0,								//PxGeometryType::eCONVEXMESH
 		0,								//PxGeometryType::ePARTICLESYSTEM
 		0,								//PxGeometryType::eTETRAHEDRONMESH
 		0,								//PxGeometryType::eTRIANGLEMESH
 		0,								//PxGeometryType::eHEIGHTFIELD
+		0,								//PxGeometryType::eHAIRSYSTEM
 		PxcGetMaterialShapeShape,		//PxGeometryType::eCUSTOM
 	},
 

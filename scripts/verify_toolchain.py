@@ -4,7 +4,6 @@ import os
 import sys
 import warnings
 
-# Vulkan/EGL driver warnings are irrelevant for this headless physics-only check.
 warnings.filterwarnings("ignore", module=r"sapien\._vulkan_tricks")
 
 
@@ -17,10 +16,12 @@ def main():
     version = getattr(sapien, "__version__", "unknown")
     marker = getattr(sapien, "__local_build_marker__", "")
     physx_ver = getattr(sapien, "__local_physx_version__", "")
+    sapien_path = os.path.dirname(os.path.abspath(sapien.__file__))
 
     print(f"sapien.__version__             = {version}")
     print(f"sapien.__local_build_marker__  = {marker!r}")
     print(f"sapien.__local_physx_version__ = {physx_ver!r}")
+    print(f"sapien location                = {sapien_path}")
 
     ok = True
 
@@ -32,7 +33,11 @@ def main():
         ok = False
 
     if not physx_ver:
-        print("FAIL [physx]: no local PhysX version embedded — wheel was not built with local PhysX", file=sys.stderr)
+        print(
+            "FAIL [physx]: no local PhysX version embedded — "
+            "wheel was not built with local PhysX",
+            file=sys.stderr,
+        )
         ok = False
     elif expected_physx and physx_ver != expected_physx:
         print(
@@ -40,6 +45,29 @@ def main():
             file=sys.stderr,
         )
         ok = False
+
+    physx5_dir = os.environ.get("SAPIEN_PHYSX5_DIR", "")
+    if physx5_dir:
+        gpu_lib = os.path.join(
+            physx5_dir, "bin", "linux.clang", "checked", "libPhysXGpu_64.so"
+        )
+        found_gpu_lib = False
+        for cfg in ("checked", "profile", "release", "debug"):
+            for arch in ("linux.clang", "linux.x86_64"):
+                candidate = os.path.join(physx5_dir, "bin", arch, cfg, "libPhysXGpu_64.so")
+                if os.path.isfile(candidate):
+                    gpu_lib = candidate
+                    found_gpu_lib = True
+                    break
+            if found_gpu_lib:
+                break
+        if found_gpu_lib:
+            print(f"PhysX GPU lib                  = {gpu_lib}")
+        else:
+            print(
+                f"WARN [physx]: no libPhysXGpu_64.so found under {physx5_dir}/bin/",
+                file=sys.stderr,
+            )
 
     if not ok:
         return 1
@@ -51,7 +79,10 @@ def main():
         scene.step()
         scene.update_render()
 
-    print(f"OK — SAPIEN {version} with local PhysX {physx_ver} (5 physics steps completed).")
+    print(
+        f"OK — SAPIEN {version} with local PhysX {physx_ver} "
+        f"(5 physics steps completed)."
+    )
     return 0
 
 

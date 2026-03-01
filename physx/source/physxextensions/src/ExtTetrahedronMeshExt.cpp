@@ -22,7 +22,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+// Copyright (c) 2008-2023 NVIDIA Corporation. All rights reserved.
 // Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
 // Copyright (c) 2001-2004 NovodeX AG. All rights reserved.  
 
@@ -40,9 +40,7 @@
 #include "GuAABBTreeBounds.h"
 #include "GuAABBTreeQuery.h"
 
-using namespace physx;
-
-namespace
+namespace physx
 {
 	struct TetrahedronFinderCallback
 	{
@@ -58,12 +56,13 @@ namespace
 		TetrahedronFinderCallback(const PxVec3& queryPoint, const PxVec3* vertices, const PxU32* tets, const PxReal tolerance = 1e-6f) :
 			mQueryPoint(queryPoint), mTetId(-1), mVertices(vertices), mTets(tets), mTolerance(tolerance) {}
 
+
 		PX_FORCE_INLINE	bool testPrimitive(const PxU32 primitiveStartId, const PxU32 numPrimitives)
 		{
 			for (PxU32 i = 0; i < numPrimitives; ++i) 
 			{
 				const PxU32* tet = &mTets[4 * (primitiveStartId + i)];
-				PxComputeBarycentric(mVertices[tet[0]], mVertices[tet[1]], mVertices[tet[2]], mVertices[tet[3]], mQueryPoint, mBary);
+				computeBarycentric(mVertices[tet[0]], mVertices[tet[1]], mVertices[tet[2]], mVertices[tet[3]], mQueryPoint, mBary);
 
 				if (mBary.x >= -mTolerance && mBary.x <= 1 + mTolerance && mBary.y >= -mTolerance && mBary.y <= 1 + mTolerance &&
 					mBary.z >= -mTolerance && mBary.z <= 1 + mTolerance && mBary.w >= -mTolerance && mBary.w <= 1 + mTolerance)
@@ -102,7 +101,7 @@ namespace
 			{
 				PxVec4 bary;
 				const PxU32* tet = &mTets[4 * (primitiveStartId + i)];
-				PxComputeBarycentric(mVertices[tet[0]], mVertices[tet[1]], mVertices[tet[2]], mVertices[tet[3]], mQueryPoint, bary);
+				computeBarycentric(mVertices[tet[0]], mVertices[tet[1]], mVertices[tet[2]], mVertices[tet[3]], mQueryPoint, bary);
 
 				if (bary.x >= -mTolerance && bary.x <= 1 + mTolerance && bary.y >= -mTolerance && bary.y <= 1 + mTolerance &&
 					bary.z >= -mTolerance && bary.z <= 1 + mTolerance && bary.w >= -mTolerance && bary.w <= 1 + mTolerance)
@@ -138,71 +137,71 @@ namespace
 			return distSq < mDist * mDist;
 		}
 	};
-}
 
-template<typename T, PxU32 i>
-static int process(PxU32* stack, PxU32& stackSize, const Gu::BVDataSwizzledNQ* node, T& callback)
-{
-	if (callback.testBox(node->mMinX[i], node->mMinY[i], node->mMinZ[i], node->mMaxX[i], node->mMaxY[i], node->mMaxZ[i]))
+	
+	template<typename T, PxU32 i>
+	int process(PxU32* stack, PxU32& stackSize, const Gu::BVDataSwizzledNQ* node, T& callback)
 	{
-		if (node->isLeaf(i))
+		if (callback.testBox(node->mMinX[i], node->mMinY[i], node->mMinZ[i], node->mMaxX[i], node->mMaxY[i], node->mMaxZ[i]))
 		{
-			PxU32 primitiveIndex = node->getPrimitive(i);
-			const PxU32 numPrimitives = Gu::getNbPrimitives(primitiveIndex);
-			if(callback.testPrimitive(primitiveIndex, numPrimitives)) //Returns true if the query should be terminated immediately
-				return 1;
+			if (node->isLeaf(i))
+			{
+				PxU32 primitiveIndex = node->getPrimitive(i);
+				const PxU32 numPrimitives = Gu::getNbPrimitives(primitiveIndex);
+				if(callback.testPrimitive(primitiveIndex, numPrimitives)) //Returns true if the query should be terminated immediately
+					return 1;
+			}
+			else
+				stack[stackSize++] = node->getChildData(i);
 		}
-		else
-			stack[stackSize++] = node->getChildData(i);
+		return 0;
 	}
-	return 0;
-}
 
-template<typename T>
-static void traverseBVH(const Gu::BV4Tree& tree, T& callback)
-{
-	const Gu::BVDataPackedNQ* root = static_cast<const Gu::BVDataPackedNQ*>(tree.mNodes);
-
-	PxU32 stack[GU_BV4_STACK_SIZE];
-	PxU32 stackSize = 0;
-	stack[stackSize++] = tree.mInitData;
-
-	while (stackSize > 0)
+	template<typename T>
+	void traverseBVH(const Gu::BV4Tree& tree, T& callback)
 	{
-		const PxU32 childData = stack[--stackSize];
-		const Gu::BVDataSwizzledNQ* node = reinterpret_cast<const Gu::BVDataSwizzledNQ*>(root + Gu::getChildOffset(childData));
+		const Gu::BVDataPackedNQ* root = static_cast<const Gu::BVDataPackedNQ*>(tree.mNodes);
+
+		PxU32 stack[GU_BV4_STACK_SIZE];
+		PxU32 stackSize = 0;
+		stack[stackSize++] = tree.mInitData;
+
+		while (stackSize > 0)
+		{
+			const PxU32 childData = stack[--stackSize];
+			const Gu::BVDataSwizzledNQ* node = reinterpret_cast<const Gu::BVDataSwizzledNQ*>(root + Gu::getChildOffset(childData));
 			
-		const PxU32 nodeType = Gu::getChildType(childData);
+			const PxU32 nodeType = Gu::getChildType(childData);
 
-		if (nodeType > 1)
-			if (process<T, 3>(stack, stackSize, node, callback)) return;
-		if (nodeType > 0)
-			if (process<T, 2>(stack, stackSize, node, callback)) return;
-		if (process<T, 1>(stack, stackSize, node, callback)) return;
-		if (process<T, 0>(stack, stackSize, node, callback)) return;
+			if (nodeType > 1)
+				if (process<T, 3>(stack, stackSize, node, callback)) return;
+			if (nodeType > 0)
+				if (process<T, 2>(stack, stackSize, node, callback)) return;
+			if (process<T, 1>(stack, stackSize, node, callback)) return;
+			if (process<T, 0>(stack, stackSize, node, callback)) return;
+		}
 	}
-}
 
-PxI32 PxTetrahedronMeshExt::findTetrahedronContainingPoint(const PxTetrahedronMesh* mesh, const PxVec3& point, PxVec4& bary, PxReal tolerance)
-{
-	TetrahedronFinderCallback callback(point, mesh->getVertices(), static_cast<const PxU32*>(mesh->getTetrahedrons()), tolerance);
-	traverseBVH(static_cast<const Gu::BVTetrahedronMesh*>(mesh)->getBV4Tree(), callback);
-	bary = callback.mBary;
-	return callback.mTetId;
-}
+	PxI32 PxTetrahedronMeshExt::findTetrahedronContainingPoint(const PxTetrahedronMesh* mesh, const PxVec3& point, PxVec4& bary, PxReal tolerance)
+	{
+		TetrahedronFinderCallback callback(point, mesh->getVertices(), static_cast<const PxU32*>(mesh->getTetrahedrons()), tolerance);
+		traverseBVH(static_cast<const Gu::BVTetrahedronMesh*>(mesh)->getBV4Tree(), callback);
+		bary = callback.mBary;
+		return callback.mTetId;
+	}
 
-PxI32 PxTetrahedronMeshExt::findTetrahedronClosestToPoint(const PxTetrahedronMesh* mesh, const PxVec3& point, PxVec4& bary)
-{
-	ClosestTetrahedronFinderCallback callback(point, mesh->getVertices(), static_cast<const PxU32*>(mesh->getTetrahedrons()));
-	const Gu::BV4Tree& tree = static_cast<const Gu::BVTetrahedronMesh*>(mesh)->getBV4Tree();
-	if (tree.mNbNodes) traverseBVH(tree, callback);
-	else callback.testPrimitive(0, mesh->getNbTetrahedrons());
-	bary = callback.mBary;
-	return callback.mTetId;
-}
+	PxI32 PxTetrahedronMeshExt::findTetrahedronClosestToPoint(const PxTetrahedronMesh* mesh, const PxVec3& point, PxVec4& bary)
+	{
+		ClosestTetrahedronFinderCallback callback(point, mesh->getVertices(), static_cast<const PxU32*>(mesh->getTetrahedrons()));
+		const Gu::BV4Tree& tree = static_cast<const Gu::BVTetrahedronMesh*>(mesh)->getBV4Tree();
+		if (tree.mNbNodes) traverseBVH(tree, callback);
+		else callback.testPrimitive(0, mesh->getNbTetrahedrons());
+		bary = callback.mBary;
+		return callback.mTetId;
+	}
 
-namespace
-{
+	
+
 	class ClosestDistanceToTetmeshTraversalController
 	{
 	private:
@@ -264,7 +263,7 @@ namespace
 				const PxU32* tet = &mTetrahedra[4 * j];
 
 				PxVec4 bary;
-				PxComputeBarycentric(mPoints[tet[0]], mPoints[tet[1]], mPoints[tet[2]], mPoints[tet[3]], mQueryPoint, bary);
+				computeBarycentric(mPoints[tet[0]], mPoints[tet[1]], mPoints[tet[2]], mPoints[tet[3]], mQueryPoint, bary);
 
 				const PxReal tolerance = 0.0f;
 				if (bary.x >= -tolerance && bary.x <= 1 + tolerance && bary.y >= -tolerance && bary.y <= 1 + tolerance &&
@@ -317,69 +316,51 @@ namespace
 	private:
 		PX_NOCOPY(ClosestDistanceToTetmeshTraversalController)
 	};
-}
 
-static void buildTree(const PxU32* tetrahedra, const PxU32 numTetrahedra, const PxVec3* points, PxArray<Gu::BVHNode>& tree, PxF32 enlargement = 1e-4f)
-{
-	//Computes a bounding box for every triangle in triangles
-	Gu::AABBTreeBounds boxes;
-	boxes.init(numTetrahedra);
-	for (PxU32 i = 0; i < numTetrahedra; ++i)
+	static void buildTree(const PxU32* tetrahedra, const PxU32 numTetrahedra, const PxVec3* points, PxArray<Gu::BVHNode>& tree, PxF32 enlargement = 1e-4f)
 	{
-		const PxU32* tri = &tetrahedra[4 * i];
-		PxBounds3 box = PxBounds3::empty();
-		box.include(points[tri[0]]);
-		box.include(points[tri[1]]);
-		box.include(points[tri[2]]);
-		box.include(points[tri[3]]);
-		box.fattenFast(enlargement);
-		boxes.getBounds()[i] = box;
+		//Computes a bounding box for every triangle in triangles
+		Gu::AABBTreeBounds boxes;
+		boxes.init(numTetrahedra);
+		for (PxU32 i = 0; i < numTetrahedra; ++i)
+		{
+			const PxU32* tri = &tetrahedra[4 * i];
+			PxBounds3 box = PxBounds3::empty();
+			box.include(points[tri[0]]);
+			box.include(points[tri[1]]);
+			box.include(points[tri[2]]);
+			box.include(points[tri[3]]);
+			box.fattenFast(enlargement);
+			boxes.getBounds()[i] = box;
+		}
+
+		Gu::buildAABBTree(numTetrahedra, boxes, tree);
 	}
 
-	Gu::buildAABBTree(numTetrahedra, boxes, tree);
-}
-
-void PxTetrahedronMeshExt::createPointsToTetrahedronMap(const PxArray<PxVec3>& tetMeshVertices, const PxArray<PxU32>& tetMeshIndices, 
-	const PxArray<PxVec3>& pointsToEmbed, PxArray<PxVec4>& barycentricCoordinates, PxArray<PxU32>& tetLinks)
-{
-	barycentricCoordinates.resize(0);
-	tetLinks.resize(0);
-
-	if (tetMeshVertices.size() == 0 || tetMeshIndices.size() == 0) 
+	void PxTetrahedronMeshExt::createPointsToTetrahedronMap(const PxArray<PxVec3>& tetMeshVertices, const PxArray<PxU32>& tetMeshIndices, 
+		const PxArray<PxVec3>& pointsToEmbed, PxArray<PxVec4>& barycentricCoordinates, PxArray<PxU32>& tetLinks)
 	{
-		PxGetFoundation().error(PxErrorCode::eINVALID_PARAMETER, PX_FL, "Point in Tetmesh embedding: Input mesh does not have any tetrahedra or points.");
-		return;
+		PxArray<Gu::BVHNode> tree;
+		buildTree(tetMeshIndices.begin(), tetMeshIndices.size() / 4, tetMeshVertices.begin(), tree);
+
+		ClosestDistanceToTetmeshTraversalController cd(tetMeshIndices.begin(), tetMeshVertices.begin(), tree.begin());
+
+		barycentricCoordinates.resize(pointsToEmbed.size());
+		tetLinks.resize(pointsToEmbed.size());
+		for (PxU32 i = 0; i < pointsToEmbed.size(); ++i)
+		{
+			cd.setQueryPoint(pointsToEmbed[i]);
+			Gu::traverseBVH(tree.begin(), cd);
+
+			const PxU32* tet = &tetMeshIndices[4 * cd.getClosestTetId()];
+			PxVec4 bary;
+			computeBarycentric(tetMeshVertices[tet[0]], tetMeshVertices[tet[1]], tetMeshVertices[tet[2]], tetMeshVertices[tet[3]], cd.getClosestPoint(), bary);
+
+			barycentricCoordinates[i] = bary;
+			tetLinks[i] = cd.getClosestTetId();
+		}
 	}
 
-	if (pointsToEmbed.size() == 0)
-		return;
-
-	PxArray<Gu::BVHNode> tree;
-	buildTree(tetMeshIndices.begin(), tetMeshIndices.size() / 4, tetMeshVertices.begin(), tree);
-
-	if (tree.size() == 0)
-		return;
-
-	ClosestDistanceToTetmeshTraversalController cd(tetMeshIndices.begin(), tetMeshVertices.begin(), tree.begin());
-
-	barycentricCoordinates.resize(pointsToEmbed.size());
-	tetLinks.resize(pointsToEmbed.size());
-	for (PxU32 i = 0; i < pointsToEmbed.size(); ++i)
-	{
-		cd.setQueryPoint(pointsToEmbed[i]);
-		Gu::traverseBVH(tree.begin(), cd);
-
-		const PxU32* tet = &tetMeshIndices[4 * cd.getClosestTetId()];
-		PxVec4 bary;
-		PxComputeBarycentric(tetMeshVertices[tet[0]], tetMeshVertices[tet[1]], tetMeshVertices[tet[2]], tetMeshVertices[tet[3]], cd.getClosestPoint(), bary);
-
-		barycentricCoordinates[i] = bary;
-		tetLinks[i] = cd.getClosestTetId();
-	}
-}
-
-namespace
-{
 	struct SortedTriangle
 	{
 	public:
@@ -410,56 +391,57 @@ namespace
 			return first.A == second.A && first.B == second.B && first.C == second.C;
 		}
 	};
-}
 
-static const PxU32 tetFaces[4][3] = { {0, 2, 1},  {0, 1, 3},  {0, 3, 2}, {1, 2, 3} };
+	static const PxU32 tetFaces[4][3] = { {0, 2, 1},  {0, 1, 3},  {0, 3, 2}, {1, 2, 3} };
+	
 
-void PxTetrahedronMeshExt::extractTetMeshSurface(const void* tetrahedra, PxU32 numTetrahedra, bool sixteenBitIndices, PxArray<PxU32>& surfaceTriangles, PxArray<PxU32>* surfaceTriangleToTet, bool flipTriangleOrientation)
-{
-	PxHashMap<SortedTriangle, PxU32, TriangleHash> tris;
-
-	const PxU32* tets32 = reinterpret_cast<const PxU32*>(tetrahedra);
-	const PxU16* tets16 = reinterpret_cast<const PxU16*>(tetrahedra);
-
-	PxU32 l = 4 * numTetrahedra;
-	for (PxU32 i = 0; i < l; i += 4)
+	void PxTetrahedronMeshExt::extractTetMeshSurface(const void* tetrahedra, PxU32 numTetrahedra, bool sixteenBitIndices, PxArray<PxU32>& surfaceTriangles, PxArray<PxU32>* surfaceTriangleToTet, bool flipTriangleOrientation)
 	{
-		for (PxU32 j = 0; j < 4; ++j)
+		PxHashMap<SortedTriangle, PxU32, TriangleHash> tris;
+
+		const PxU32* tets32 = reinterpret_cast<const PxU32*>(tetrahedra);
+		const PxU16* tets16 = reinterpret_cast<const PxU16*>(tetrahedra);
+
+		PxU32 l = 4 * numTetrahedra;
+		for (PxU32 i = 0; i < l; i += 4)
 		{
-			SortedTriangle tri(sixteenBitIndices ? tets16[i + tetFaces[j][0]] : tets32[i + tetFaces[j][0]], 
-				sixteenBitIndices ? tets16[i + tetFaces[j][1]] : tets32[i + tetFaces[j][1]],
-				sixteenBitIndices ? tets16[i + tetFaces[j][2]] : tets32[i + tetFaces[j][2]], i);
-			if (const PxPair<const SortedTriangle, PxU32>* ptr = tris.find(tri))
-				tris[tri] = ptr->second + 1;
-			else
-				tris.insert(tri, 1);
+			for (PxU32 j = 0; j < 4; ++j)
+			{
+				SortedTriangle tri(sixteenBitIndices ? tets16[i + tetFaces[j][0]] : tets32[i + tetFaces[j][0]], 
+					sixteenBitIndices ? tets16[i + tetFaces[j][1]] : tets32[i + tetFaces[j][1]],
+					sixteenBitIndices ? tets16[i + tetFaces[j][2]] : tets32[i + tetFaces[j][2]], i);
+				if (const PxPair<const SortedTriangle, PxU32>* ptr = tris.find(tri))
+					tris[tri] = ptr->second + 1;
+				else
+					tris.insert(tri, 1);
+			}
+		}
+
+		surfaceTriangles.clear();
+		if (surfaceTriangleToTet)
+			surfaceTriangleToTet->clear();
+		for (PxHashMap<SortedTriangle, PxU32, TriangleHash>::Iterator iter = tris.getIterator(); !iter.done(); ++iter)
+		{
+			if (iter->second == 1) {
+				surfaceTriangles.pushBack(iter->first.A);
+				if (iter->first.Flipped != flipTriangleOrientation)
+				{
+					surfaceTriangles.pushBack(iter->first.C);
+					surfaceTriangles.pushBack(iter->first.B);
+				}
+				else
+				{
+					surfaceTriangles.pushBack(iter->first.B);
+					surfaceTriangles.pushBack(iter->first.C);
+				}
+				if (surfaceTriangleToTet)
+					surfaceTriangleToTet->pushBack(iter->first.TetIndex);
+			}
 		}
 	}
 
-	surfaceTriangles.clear();
-	if (surfaceTriangleToTet)
-		surfaceTriangleToTet->clear();
-	for (PxHashMap<SortedTriangle, PxU32, TriangleHash>::Iterator iter = tris.getIterator(); !iter.done(); ++iter)
+	void PxTetrahedronMeshExt::extractTetMeshSurface(const PxTetrahedronMesh* mesh, PxArray<PxU32>& surfaceTriangles, PxArray<PxU32>* surfaceTriangleToTet, bool flipTriangleOrientation)
 	{
-		if (iter->second == 1) {
-			surfaceTriangles.pushBack(iter->first.A);
-			if (iter->first.Flipped != flipTriangleOrientation)
-			{
-				surfaceTriangles.pushBack(iter->first.C);
-				surfaceTriangles.pushBack(iter->first.B);
-			}
-			else
-			{
-				surfaceTriangles.pushBack(iter->first.B);
-				surfaceTriangles.pushBack(iter->first.C);
-			}
-			if (surfaceTriangleToTet)
-				surfaceTriangleToTet->pushBack(iter->first.TetIndex);
-		}
+		extractTetMeshSurface(mesh->getTetrahedrons(), mesh->getNbTetrahedrons(), mesh->getTetrahedronMeshFlags() & PxTetrahedronMeshFlag::e16_BIT_INDICES, surfaceTriangles, surfaceTriangleToTet, flipTriangleOrientation);
 	}
-}
-
-void PxTetrahedronMeshExt::extractTetMeshSurface(const PxTetrahedronMesh* mesh, PxArray<PxU32>& surfaceTriangles, PxArray<PxU32>* surfaceTriangleToTet, bool flipTriangleOrientation)
-{
-	extractTetMeshSurface(mesh->getTetrahedrons(), mesh->getNbTetrahedrons(), mesh->getTetrahedronMeshFlags() & PxTetrahedronMeshFlag::e16_BIT_INDICES, surfaceTriangles, surfaceTriangleToTet, flipTriangleOrientation);
 }
