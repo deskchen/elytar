@@ -53,12 +53,16 @@ def _resolve_gpu_lib_path():
             return (None, True)
         root = Path(physx_root)
         if platform.system() == "Linux":
-            subdir = "linux.x86_64" if platform.machine() in ("x86_64", "AMD64") else "linux.aarch64"
+            if platform.machine() in ("x86_64", "AMD64"):
+                subdirs = ["linux.x86_64", "linux.clang"]
+            else:
+                subdirs = ["linux.aarch64"]
             for cfg in configs:
-                candidate = root / "bin" / subdir / cfg / lib_name
-                if candidate.exists():
-                    return (candidate, True)
-            return (root / "bin" / subdir / configs[0] / lib_name, True)
+                for subdir in subdirs:
+                    candidate = root / "bin" / subdir / cfg / lib_name
+                    if candidate.exists():
+                        return (candidate, True)
+            return (root / "bin" / subdirs[0] / configs[0] / lib_name, True)
         if platform.system() == "Windows":
             subdir = "win.x86_64.vc142.mt"
             for cfg in configs:

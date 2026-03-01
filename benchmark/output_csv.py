@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-STAGE_NAMES = ["broadphase", "narrowphase", "coloring", "solver", "update", "total"]
+STAGE_NAMES = ["broadphase", "narrowphase", "coloring", "solver", "update", "other", "total"]
 
 STEP_COLUMNS = [
     "run_id",
@@ -18,6 +18,7 @@ STEP_COLUMNS = [
     "coloring_ms",
     "solver_ms",
     "update_ms",
+    "other_ms",
     "total_ms",
 ]
 

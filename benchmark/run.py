@@ -263,6 +263,7 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
             "coloring_ms": float(stage.get("coloring_ms", 0.0)),
             "solver_ms": float(stage.get("solver_ms", 0.0)),
             "update_ms": float(stage.get("update_ms", 0.0)),
+            "other_ms": float(stage.get("other_ms", 0.0)),
             "total_ms": float(stage.get("total_ms", 0.0)),
         }
         rows.append(row)
