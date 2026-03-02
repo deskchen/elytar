@@ -51,13 +51,22 @@ uint64_t nowNs() {
   return std::chrono::duration_cast<Ns>(Clock::now().time_since_epoch()).count();
 }
 
-std::string toLower(std::string_view input) {
-  std::string out;
-  out.reserve(input.size());
-  for (char c : input) {
-    out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+bool containsCI(std::string_view haystack, std::string_view needle) {
+  if (needle.size() > haystack.size())
+    return false;
+  for (size_t i = 0; i <= haystack.size() - needle.size(); ++i) {
+    bool match = true;
+    for (size_t j = 0; j < needle.size(); ++j) {
+      if (std::tolower(static_cast<unsigned char>(haystack[i + j])) !=
+          std::tolower(static_cast<unsigned char>(needle[j]))) {
+        match = false;
+        break;
+      }
+    }
+    if (match)
+      return true;
   }
-  return out;
+  return false;
 }
 
 StageBucket classifyZone(char const *eventName) {
@@ -65,27 +74,94 @@ StageBucket classifyZone(char const *eventName) {
     return StageBucket::eOther;
   }
 
-  std::string lower = toLower(eventName);
-  if (lower.find("edge coloring") != std::string::npos ||
-      lower.find("constraintpartition") != std::string::npos) {
+  std::string_view name(eventName);
+
+  // --- Coloring / constraint partitioning (check before solver) ---
+  if (containsCI(name, "partition") || containsCI(name, "coloring") ||
+      containsCI(name, "AccumulateSlabs") || containsCI(name, "Compaction")) {
     return StageBucket::eColoring;
   }
-  if (lower.find("broadphase") != std::string::npos ||
-      lower.find("broad phase") != std::string::npos) {
+
+  // --- Broadphase ---
+  if (containsCI(name, "broadphase") || containsCI(name, "broad phase") ||
+      containsCI(name, "AABBManager") || containsCI(name, "BroadPhaseSap") ||
+      containsCI(name, "islandGen") || containsCI(name, "islandInsertion") ||
+      containsCI(name, "islandTouches") || containsCI(name, "islandLostTouches") ||
+      containsCI(name, "setEdgesConnected") || containsCI(name, "findPaths") ||
+      containsCI(name, "wakeIslands") || containsCI(name, "insertNewEdges") ||
+      containsCI(name, "removeEdges") || containsCI(name, "processNewEdges") ||
+      containsCI(name, "processLostEdges") || containsCI(name, "resetDirtyEdges") ||
+      containsCI(name, "DestroyedEdges") || containsCI(name, "DestroyedNodes") ||
+      containsCI(name, "FoundPatches") || containsCI(name, "LostPatches") ||
+      containsCI(name, "FoundPair") || containsCI(name, "LostPair") ||
+      containsCI(name, "processFoundSolverPatches") ||
+      containsCI(name, "processLostSolverPatches") ||
+      containsCI(name, "deactivation") || containsCI(name, "ActivatedContacts") ||
+      containsCI(name, "ActivatedJoints") || containsCI(name, "DeactivatedContacts") ||
+      containsCI(name, "DeactivatingJoints") || containsCI(name, "PostThirdPass") ||
+      containsCI(name, "postThirdPass")) {
     return StageBucket::eBroadphase;
   }
-  if (lower.find("narrowphase") != std::string::npos ||
-      lower.find("narrow phase") != std::string::npos) {
+
+  // --- Narrowphase ---
+  if (containsCI(name, "narrowPhase") || containsCI(name, "narrow phase") ||
+      containsCI(name, "NPhase") || containsCI(name, "ContactManager") ||
+      containsCI(name, "GpuNarrowPhase") || containsCI(name, "collision") ||
+      containsCI(name, "collide") || containsCI(name, "processLostContact") ||
+      containsCI(name, "processNpLostTouch") || containsCI(name, "processNPLostTouch") ||
+      containsCI(name, "lostTouchReports") || containsCI(name, "processLostTouchPairs") ||
+      containsCI(name, "registerInteraction") || containsCI(name, "unregisterInteraction") ||
+      containsCI(name, "registerSceneInteraction") ||
+      containsCI(name, "contactDistances") || containsCI(name, "InteractionNewTouch") ||
+      containsCI(name, "persistentContactEvents") ||
+      containsCI(name, "processNarrowPhaseLostTouch") ||
+      containsCI(name, "processNarrowPhaseTouchEvents") ||
+      containsCI(name, "unblockNarrowPhase") ||
+      containsCI(name, "dirtyShaders") || containsCI(name, "dirtyShapes") ||
+      containsCI(name, "updateBoundsAndShapes") ||
+      containsCI(name, "fireCustomFiltering")) {
     return StageBucket::eNarrowphase;
   }
-  if (lower.find("solve") != std::string::npos || lower.find("solver") != std::string::npos ||
-      lower.find("postsolver") != std::string::npos) {
+
+  // --- Solver (dynamics, constraints, TGS/PGS, integration, DMA, friction) ---
+  if (containsCI(name, "solve") || containsCI(name, "solver") ||
+      containsCI(name, "dynamics") || containsCI(name, "Tgs") || containsCI(name, "TGS") ||
+      containsCI(name, "constraint") || containsCI(name, "Integrate") ||
+      containsCI(name, "preIntegrate") || containsCI(name, "friction") ||
+      containsCI(name, "GpuDynamics") || containsCI(name, "DMABack") ||
+      containsCI(name, "DMAUp") || containsCI(name, "dmaBack") || containsCI(name, "dmaUp") ||
+      containsCI(name, "gpuMemDma") || containsCI(name, "JointManager")) {
     return StageBucket::eSolver;
   }
-  if (lower.find("integrate") != std::string::npos || lower.find("update") != std::string::npos ||
-      lower.find("kinematic") != std::string::npos) {
+
+  // --- Update (post-solve bookkeeping, scene queries, callbacks, finalization) ---
+  if (containsCI(name, "update") || containsCI(name, "kinematic") ||
+      containsCI(name, "fetchResult") || containsCI(name, "afterIntegration") ||
+      containsCI(name, "SimulationController") || containsCI(name, "SimController") ||
+      containsCI(name, "finalization") || containsCI(name, "completion") ||
+      containsCI(name, "sceneQuery") || containsCI(name, "pruner") ||
+      containsCI(name, "Pruning") || containsCI(name, "flushShapes") ||
+      containsCI(name, "Callback") || containsCI(name, "callback") ||
+      containsCI(name, "pvdFrame") || containsCI(name, "visualize") ||
+      containsCI(name, "checkResults") || containsCI(name, "buildActiveActors") ||
+      containsCI(name, "wakeObjectsUp") || containsCI(name, "putObjectsToSleep") ||
+      containsCI(name, "putInteractionsToSleep") ||
+      containsCI(name, "wakeInteractions") ||
+      containsCI(name, "postSolver") || containsCI(name, "postCallbacks") ||
+      containsCI(name, "checkConstraintBreakage") ||
+      containsCI(name, "fireOutOfBounds") ||
+      containsCI(name, "taskFrameworkSetup") ||
+      containsCI(name, "copyToGpu") || containsCI(name, "updateScBody") ||
+      containsCI(name, "updateTransformCache") || containsCI(name, "updateBodiesAndShapes") ||
+      containsCI(name, "updateGPUJoints") || containsCI(name, "updateForces") ||
+      containsCI(name, "clearIslandData") || containsCI(name, "resetDependencies") ||
+      containsCI(name, "stepSetup") || containsCI(name, "prepareCollide") ||
+      containsCI(name, "updateKinematic") ||
+      containsCI(name, "integrateKinematicPose") ||
+      containsCI(name, "integrateAndUpdate")) {
     return StageBucket::eUpdate;
   }
+
   return StageBucket::eOther;
 }
 
@@ -117,6 +193,10 @@ struct FrameMetrics {
   std::unordered_map<std::string, uint64_t> zoneNs;
 };
 
+// Per-thread stack for exclusive (self) time tracking.
+// Each entry tracks how much time was spent in child zones.
+thread_local std::vector<uint64_t> tl_childNsStack;
+
 class StageProfilerCallback final : public ::physx::PxProfilerCallback {
 public:
   void *zoneStart(char const *eventName, bool detached, uint64_t contextId) override {
@@ -131,6 +211,7 @@ public:
       mDetachedStartNs[detachedKey(eventName, contextId)].push_back(start);
       return nullptr;
     }
+    tl_childNsStack.push_back(0);
     return packProfilerData(start, classifyZone(eventName));
   }
 
@@ -164,10 +245,26 @@ public:
       return;
     }
 
+    uint64_t endNs = nowNs();
     uint64_t startNs{0};
     StageBucket stage = StageBucket::eOther;
     if (!unpackProfilerData(profilerData, startNs, stage)) {
       return;
+    }
+
+    uint64_t durationNs = endNs - startNs;
+
+    // Pop child time from thread-local stack to compute exclusive (self) time.
+    uint64_t childNs = 0;
+    if (!tl_childNsStack.empty()) {
+      childNs = tl_childNsStack.back();
+      tl_childNsStack.pop_back();
+    }
+    uint64_t selfNs = (durationNs > childNs) ? (durationNs - childNs) : 0;
+
+    // Report our inclusive duration to parent so it can subtract us.
+    if (!tl_childNsStack.empty()) {
+      tl_childNsStack.back() += durationNs;
     }
 
     if (!mFrameActive.load(std::memory_order_acquire)) {
@@ -178,7 +275,7 @@ public:
     if (!mFrameActive.load(std::memory_order_relaxed)) {
       return;
     }
-    accumulateLocked(stage, eventName, nowNs() - startNs);
+    accumulateLocked(stage, eventName, selfNs);
   }
 
   void setEnabled(bool enabled) { mEnabled.store(enabled, std::memory_order_release); }
@@ -211,11 +308,10 @@ public:
     out["update_ms"] = mLastFrame.stageNs[static_cast<size_t>(StageBucket::eUpdate)] * 1e-6;
     out["other_ms"] = mLastFrame.stageNs[static_cast<size_t>(StageBucket::eOther)] * 1e-6;
 
-    uint64_t totalNs = 0;
-    for (uint64_t value : mLastFrame.stageNs) {
-      totalNs += value;
-    }
-    out["total_ms"] = totalNs * 1e-6;
+    // total = sum of the 5 known stages (excluding other)
+    double total = out["broadphase_ms"] + out["narrowphase_ms"] + out["coloring_ms"] +
+                   out["solver_ms"] + out["update_ms"];
+    out["total_ms"] = total;
     return out;
   }
 
