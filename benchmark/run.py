@@ -1,93 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import os
-
-# Set before any other imports so the installed SAPIEN respects it when loaded.
-# (The wheel must be built with the SAPIEN_SKIP_VULKAN check in _vulkan_tricks.py.)
-os.environ["SAPIEN_SKIP_VULKAN"] = "1"
-
-import sys
-from pathlib import Path
-
-# When run as script (python benchmark/run.py), ensure repo root is on path
-_script_dir = Path(__file__).resolve().parent
-_repo_root = _script_dir.parent
-if str(_repo_root) not in sys.path:
-    sys.path.insert(0, str(_repo_root))
-
 import argparse
-import math
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
-# CUDA check runs before importing sapien so Vulkan/GPU setup doesn't cause "invalid device context".
-_CUDA_SUCCESS = 0
-
-
-def _check_cuda_alloc_64mb() -> tuple[bool, str]:
-    """Try to allocate 64MB on GPU 0 via CUDA runtime API (context handled by runtime). Returns (ok, message)."""
-    import ctypes
-
-    # Prefer runtime API: it manages the primary context and often works when driver API yields "invalid device context".
-    for libname in ("libcudart.so", "libcudart.so.12", "libcudart.so.11"):
-        try:
-            lib = ctypes.CDLL(libname)
-            break
-        except OSError:
-            continue
-    else:
-        return False, "libcudart.so not loadable"
-
-    cuda_set_device = lib.cudaSetDevice
-    cuda_set_device.argtypes = [ctypes.c_int]
-    cuda_set_device.restype = int
-    cuda_malloc = lib.cudaMalloc
-    cuda_malloc.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.c_size_t]
-    cuda_malloc.restype = int
-    cuda_free = lib.cudaFree
-    cuda_free.argtypes = [ctypes.c_void_p]
-    cuda_free.restype = int
-    cuda_get_error_string = lib.cudaGetErrorString
-    cuda_get_error_string.argtypes = [ctypes.c_int]
-    cuda_get_error_string.restype = ctypes.c_char_p
-
-    result = cuda_set_device(0)
-    if result != _CUDA_SUCCESS:
-        msg = cuda_get_error_string(ctypes.c_int(result))
-        return False, f"cudaSetDevice(0) failed: {(msg or b'').decode('utf-8', errors='replace')}"
-    size = 64 * 1024 * 1024  # 64 MB
-    dptr = ctypes.c_void_p()
-    result = cuda_malloc(ctypes.byref(dptr), size)
-    if result != _CUDA_SUCCESS:
-        msg = cuda_get_error_string(ctypes.c_int(result))
-        return False, f"cudaMalloc(64MB) failed: {(msg or b'').decode('utf-8', errors='replace')}"
-    if dptr.value:
-        cuda_free(dptr.value)
-    return True, "cudaMalloc(64MB) OK"
-
-
-def _establish_cuda_primary_context() -> None:
-    """Establish CUDA primary context on device 0 (runtime API) so PhysX GPU sees a valid context."""
-    import ctypes
-
-    for libname in ("libcudart.so", "libcudart.so.12", "libcudart.so.11"):
-        try:
-            lib = ctypes.CDLL(libname)
-            break
-        except OSError:
-            continue
-    else:
-        return
-    cuda_set_device = lib.cudaSetDevice
-    cuda_set_device.argtypes = [ctypes.c_int]
-    cuda_set_device.restype = int
-    cuda_free = lib.cudaFree
-    cuda_free.argtypes = [ctypes.c_void_p]
-    cuda_free.restype = int
-    if cuda_set_device(0) == _CUDA_SUCCESS:
-        cuda_free(ctypes.c_void_p(0))  # cudaFree(0) establishes context
+# Run from repo root so "benchmark" is importable:  python3 -m benchmark.run [args]
 
 
 def _parse_args() -> argparse.Namespace:
@@ -123,9 +43,16 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--list-tasks", action="store_true", help="List available task names")
     parser.add_argument(
-        "--check-cuda",
+        "--render",
         action="store_true",
-        help="Test 64MB GPU allocation (same size as PhysX heap) then exit; use to debug allocator failures.",
+        help="Enable viewer and update render each step (requires Vulkan; do not set SAPIEN_SKIP_VULKAN).",
+    )
+    parser.add_argument(
+        "--num-envs",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Number of parallel envs (vectorized). N>1 uses one PhysX GPU system and N scenes. Only supported by some tasks.",
     )
 
     # cube_stack
@@ -157,12 +84,13 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# Parse args early so we can run --check-cuda before importing sapien (Vulkan setup can cause "invalid device context").
 _ARGS = _parse_args()
-if _ARGS.check_cuda:
-    _ok, _msg = _check_cuda_alloc_64mb()
-    print(_msg)
-    sys.exit(0 if _ok else 1)
+
+# Disable Vulkan only when not rendering (viewer needs Vulkan).
+if not _ARGS.render:
+    os.environ["SAPIEN_SKIP_VULKAN"] = "1"
+
+import math
 
 import sapien
 
@@ -233,6 +161,21 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
 
     runtime.physx_system.gpu_init()
 
+    # Optional viewer for --render (scene(s) must have been built with RenderSystem).
+    viewer = None
+    if args.render:
+        from sapien.utils.viewer.viewer import Viewer
+        viewer = Viewer()
+        scenes = getattr(runtime, "scenes", None)
+        if scenes:
+            import numpy as np
+            side = int(np.ceil(len(scenes) ** 0.5))
+            idx = np.arange(len(scenes))
+            offsets = np.stack([idx // side, idx % side, np.zeros_like(idx)], axis=1).astype(np.float32) * 4.0
+            viewer.set_scenes(scenes, offsets)
+        else:
+            viewer.set_scene(runtime.scene)
+
     before_step = runtime.before_step
     dt = float(args.dt)
 
@@ -250,6 +193,11 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
         sapien.physx.stage_profiler_begin_frame()
         runtime.physx_system.step()
         sapien.physx.stage_profiler_end_frame()
+
+        if viewer is not None:
+            runtime.physx_system.sync_poses_gpu_to_cpu()
+            viewer.window.update_render()
+            viewer.render()
 
         stage = sapien.physx.get_stage_profiler_last_frame_stage_ms()
         row = {
@@ -279,7 +227,12 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
         task_config=task_config,
     )
 
-    runtime.scene.clear()
+    scenes = getattr(runtime, "scenes", None)
+    if scenes:
+        for s in scenes:
+            s.clear()
+    else:
+        runtime.scene.clear()
     return rows, summary
 
 
@@ -293,6 +246,8 @@ def main() -> int:
     requested_tasks = [resolve_task_name(t) for t in args.tasks.split(",") if t.strip()]
     if not requested_tasks:
         raise ValueError("No tasks selected")
+    if args.num_envs < 1:
+        args.num_envs = 1
 
     # Require local SAPIEN + PhysX build (no prebuilt fallback).
     if not getattr(sapien, "__local_physx_version__", None):
@@ -303,21 +258,19 @@ def main() -> int:
         )
         return 1
 
-    # Point to repo PhysX when running from repo root so GPU lib is loaded from local build.
+    # If not set, use PhysX under current working directory (run from repo root).
     if not os.environ.get("SAPIEN_PHYSX5_DIR"):
-        local_physx = _repo_root / "physx"
+        local_physx = Path.cwd() / "physx"
         if (local_physx / "bin").exists():
             os.environ["SAPIEN_PHYSX5_DIR"] = str(local_physx)
     if not os.environ.get("SAPIEN_PHYSX5_DIR"):
         print(
-            "ERROR: SAPIEN_PHYSX5_DIR is not set. Run this script from the repo root after "
+            "ERROR: SAPIEN_PHYSX5_DIR is not set. Run from repo root (so cwd/physx exists) after "
             "scripts/update_toolchain.sh, or set SAPIEN_PHYSX5_DIR to your PhysX source directory.",
             file=sys.stderr,
         )
         return 1
 
-    # Establish CUDA primary context before loading PhysX GPU .so so allocator sees a valid context.
-    _establish_cuda_primary_context()
     # Global GPU setup + stage profiler setup (uses local PhysX GPU lib; errors if missing).
     sapien.physx.enable_gpu()
     sapien.physx.set_stage_profiler_enabled(True)

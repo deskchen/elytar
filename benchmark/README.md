@@ -63,17 +63,56 @@ python benchmark/run.py --list-tasks
   - `<stage>_p95_ms`
   - `<stage>_max_ms`
 
+## Rendering and vectorized envs
+
+- **`--render`**: Enables a viewer and updates render each step. Requires Vulkan (do not set `SAPIEN_SKIP_VULKAN`). Only **cube_stack** adds a `RenderSystem` and visuals; other tasks run headless.
+- **`--num-envs N`**: Runs N parallel scenes sharing one PhysX GPU system (vectorized). Only **cube_stack** supports `N > 1`; others use a single scene.
+
+Example:
+
+```bash
+# 4 parallel cube_stack envs, headless
+python3 -m benchmark.run --tasks cube_stack --num-envs 4 --steps 200
+
+# cube_stack with viewer (from repo root, with display or virtual display)
+python3 -m benchmark.run --tasks cube_stack --steps 300 --render
+
+# 4 envs + rendering
+python3 -m benchmark.run --tasks cube_stack --num-envs 4 --steps 200 --render
+```
+
+## Verification
+
+To confirm the implementation matches SAPIEN’s intended usage:
+
+1. **SAPIEN’s own “vec env” demos** (same pattern: one `PhysxGpuSystem`, multiple scenes, `set_scene_offset`):
+   - **`sapien/manualtest/gpu_viewer.py`** – 16 scenes, viewer, `px.step()` then `sync_poses_gpu_to_cpu()` and `viewer.window.update_render()`.
+   - **`sapien/manualtest/gpu.py`** – minimal: one `PhysxGpuSystem`, two scenes with `set_scene_offset`, same content built in each.
+
+2. **Quick sanity checks** (from repo root, after `scripts/update_toolchain.sh`):
+   - Headless vectorized:  
+     `python3 -m benchmark.run --tasks cube_stack --num-envs 2 --steps 5`  
+     Should finish and write CSV; no viewer.
+   - Single env with rendering (requires display):  
+     `python3 -m benchmark.run --tasks cube_stack --steps 20 --render`  
+     Should open a window and show cubes; close the window to end.
+   - Vectorized + render:  
+     `python3 -m benchmark.run --tasks cube_stack --num-envs 4 --steps 20 --render`  
+     Should show 4 cube stacks in a 2×2 layout.
+
+3. **Compare timing**: Run the same task with `--num-envs 1` and `--num-envs 4` (e.g. 200 steps). Total step time should be similar (one PhysX step advances all envs); small differences can come from GPU occupancy and profiling overhead.
+
 ## Notes
 
 - Stage latency comes from PhysX profiling zones (`PxProfilerCallback`), reported in milliseconds.
 - This is timeline attribution, not direct GPU kernel-only timing.
-- Rendering is intentionally omitted for benchmark consistency.
+- By default rendering is off for benchmark consistency; use `--render` when you need a viewer.
 
 ## Troubleshooting
 
 - **`PxDeviceAllocatorCallback failed to allocate memory 67108864 bytes` then segfault**  
   PhysX GPU’s first allocation (64 MB heap) is failing. Steps:
-  1. **Check 64 MB allocation in this process** – Run `python benchmark/run.py --check-cuda`. It runs a raw `cuMemAlloc(64MB)` in this process. If it fails (e.g. with a CUDA error name/string), **GPU device allocation is broken in this environment** (driver, container, or context). Fix the container/driver so `--check-cuda` passes before running the full benchmark.
+  1. **Check 64 MB allocation in this process** – Run with `SAPIEN_DEBUG_GPU_LIB=1` (see step 2). It runs a raw `cuMemAlloc(64MB)` in this process. If it fails (e.g. with a CUDA error name/string), **GPU device allocation is broken in this environment** (driver, container, or context). Fix the container/driver so `--check-cuda` passes before running the full benchmark.
   2. **Confirm which GPU lib is loaded** – Run with `SAPIEN_DEBUG_GPU_LIB=1`; the log should show the path to the local `libPhysXGpu_64.so`.
   3. **CUDA version match** – Build the toolchain **inside the same container** where you run (`scripts/update_toolchain.sh`).
   4. **Multiple GPUs** – Try `CUDA_VISIBLE_DEVICES=0 python benchmark/run.py ...`
