@@ -1,0 +1,27 @@
+{
+  "name": "Elytar (GPU PhysX / SAPIEN)",
+  "image": "elytar-dev:cuda12.8-clang",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+  "runArgs": [
+    "--gpus", "all",
+    "-e", "NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute"
+  ],
+  "remoteEnv": {
+    "GIT_USER_NAME": "${localEnv:GIT_USER_NAME}",
+    "GIT_USER_EMAIL": "${localEnv:GIT_USER_EMAIL}"
+  },
+  "postCreateCommand": "if [ -n \"${GIT_USER_NAME}\" ]; then git config --global user.name \"${GIT_USER_NAME}\"; fi; if [ -n \"${GIT_USER_EMAIL}\" ]; then git config --global user.email \"${GIT_USER_EMAIL}\"; fi; echo 'Git config done (user.name/user.email set from env if provided).'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "llvm-vs-code-extensions.vscode-clangd"
+      ],
+      "settings": {
+        "C_Cpp.default.compileCommands": "${workspaceFolder}/sapien/compile_commands.json",
+        "cmake.sourceDirectory": "${workspaceFolder}/sapien"
+      }
+    }
+  }
+}

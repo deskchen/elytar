@@ -136,6 +136,7 @@ def build_sapien(sapien_source_dir, sapien_build_dir):
         f"-DCMAKE_BUILD_TYPE={cfg}",
         f"-DCMAKE_INSTALL_PREFIX={install_dir}",
         "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
     ]
     
     if platform.system() == "Darwin":

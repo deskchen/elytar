@@ -9,7 +9,6 @@ from pathlib import Path
 
 # Run from repo root so "benchmark" is importable:  python3 -m benchmark.run [args]
 
-
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="GPU-only PhysX benchmark runner")
     parser.add_argument(

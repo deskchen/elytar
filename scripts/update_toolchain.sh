@@ -117,6 +117,10 @@ echo "[4/4] Build SAPIEN wheel using local PhysX"
   "${PYTHON_BIN}" -m pip install -U pip setuptools wheel
   rm -f dist/sapien-*.whl
   "${PYTHON_BIN}" setup.py bdist_wheel "${SAPIEN_BUILD_MODE}" --build-dir="${SAPIEN_BUILD_DIR}"
+  # Symlink so C++ IDE/clangd finds compile_commands.json when editing sapien C++ sources.
+  if [[ -f "${SAPIEN_BUILD_DIR}/_sapien_build/compile_commands.json" ]]; then
+    ln -sf "${SAPIEN_BUILD_DIR}/_sapien_build/compile_commands.json" "${SAPIEN_DIR}/compile_commands.json"
+  fi
 )
 
 LATEST_WHEEL="$(

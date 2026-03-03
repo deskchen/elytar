@@ -28,13 +28,13 @@ Use `--difficulty easy|medium|hard` to scale task complexity.
 From repo root:
 
 ```bash
-python benchmark/run.py --tasks cube_stack,pouring_balls --difficulty easy
+python3 -m benchmark.run --tasks cube_stack,pouring_balls --difficulty easy
 ```
 
 Include humanoid URDF benchmark:
 
 ```bash
-python benchmark/run.py \
+python3 -m benchmark.run \
   --tasks cube_stack,pouring_balls,humanoid_from_urdf \
   --difficulty medium \
   --humanoid-urdf /absolute/path/to/humanoid.urdf \
@@ -44,7 +44,7 @@ python benchmark/run.py \
 List available tasks:
 
 ```bash
-python benchmark/run.py --list-tasks
+python3 -m benchmark.run --list-tasks
 ```
 
 ## Output columns
@@ -115,7 +115,7 @@ To confirm the implementation matches SAPIEN’s intended usage:
   1. **Check 64 MB allocation in this process** – Run with `SAPIEN_DEBUG_GPU_LIB=1` (see step 2). It runs a raw `cuMemAlloc(64MB)` in this process. If it fails (e.g. with a CUDA error name/string), **GPU device allocation is broken in this environment** (driver, container, or context). Fix the container/driver so `--check-cuda` passes before running the full benchmark.
   2. **Confirm which GPU lib is loaded** – Run with `SAPIEN_DEBUG_GPU_LIB=1`; the log should show the path to the local `libPhysXGpu_64.so`.
   3. **CUDA version match** – Build the toolchain **inside the same container** where you run (`scripts/update_toolchain.sh`).
-  4. **Multiple GPUs** – Try `CUDA_VISIBLE_DEVICES=0 python benchmark/run.py ...`
+  4. **Multiple GPUs** – Try `CUDA_VISIBLE_DEVICES=0 python3 -m benchmark.run ...`
 
 - **Vulkan warnings and then `PxDeviceAllocatorCallback failed`**  
   The benchmark sets `SAPIEN_SKIP_VULKAN=1` so Vulkan is not initialized. If you still see Vulkan warnings and then the allocator failure, the **installed SAPIEN wheel was built before this fix**. Re-run **`scripts/update_toolchain.sh`** in the repo so the wheel is reinstalled with the updated `_vulkan_tricks.py`, then run the benchmark again.
