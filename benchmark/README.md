@@ -63,6 +63,23 @@ python3 -m benchmark.run --list-tasks
   - `<stage>_p95_ms`
   - `<stage>_max_ms`
 
+## Display setup for `--render`
+
+For live viewer rendering, use the host NVIDIA X display (not Xvfb). `./scripts/run-dev.sh` runs `host_display_setup.sh` automatically on the host before starting/reattaching the container.
+
+```bash
+# On host: starts display setup, then enters container
+./scripts/run-dev.sh
+
+# In container
+export DISPLAY=:0
+python3 -m benchmark.run --tasks cube_stack --steps 20 --render
+```
+
+To run display setup manually (e.g. for debugging): `./scripts/host_display_setup.sh` on the host.
+
+From your laptop: `ssh -L 5900:localhost:5900 <user>@<host>`, then connect VNC to `localhost:5900`.
+
 ## Rendering and vectorized envs
 
 - **`--render`**: Enables a viewer and updates render each step. Requires Vulkan (do not set `SAPIEN_SKIP_VULKAN`). Only **cube_stack** adds a `RenderSystem` and visuals; other tasks run headless.
@@ -107,16 +124,4 @@ To confirm the implementation matches SAPIEN’s intended usage:
 - Stage latency comes from PhysX profiling zones (`PxProfilerCallback`), reported in milliseconds.
 - This is timeline attribution, not direct GPU kernel-only timing.
 - By default rendering is off for benchmark consistency; use `--render` when you need a viewer.
-
-## Troubleshooting
-
-- **`PxDeviceAllocatorCallback failed to allocate memory 67108864 bytes` then segfault**  
-  PhysX GPU’s first allocation (64 MB heap) is failing. Steps:
-  1. **Check 64 MB allocation in this process** – Run with `SAPIEN_DEBUG_GPU_LIB=1` (see step 2). It runs a raw `cuMemAlloc(64MB)` in this process. If it fails (e.g. with a CUDA error name/string), **GPU device allocation is broken in this environment** (driver, container, or context). Fix the container/driver so `--check-cuda` passes before running the full benchmark.
-  2. **Confirm which GPU lib is loaded** – Run with `SAPIEN_DEBUG_GPU_LIB=1`; the log should show the path to the local `libPhysXGpu_64.so`.
-  3. **CUDA version match** – Build the toolchain **inside the same container** where you run (`scripts/update_toolchain.sh`).
-  4. **Multiple GPUs** – Try `CUDA_VISIBLE_DEVICES=0 python3 -m benchmark.run ...`
-
-- **Vulkan warnings and then `PxDeviceAllocatorCallback failed`**  
-  The benchmark sets `SAPIEN_SKIP_VULKAN=1` so Vulkan is not initialized. If you still see Vulkan warnings and then the allocator failure, the **installed SAPIEN wheel was built before this fix**. Re-run **`scripts/update_toolchain.sh`** in the repo so the wheel is reinstalled with the updated `_vulkan_tricks.py`, then run the benchmark again.
 

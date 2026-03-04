@@ -107,6 +107,11 @@ def parse_args() -> argparse.Namespace:
     return _ARGS
 
 
+def _has_display() -> bool:
+    """True if we likely have a display (e.g. X11 DISPLAY set). Avoids creating a window in headless/Docker."""
+    return bool(os.environ.get("DISPLAY", "").strip())
+
+
 def percentile(values: list[float], p: float) -> float:
     if not values:
         return 0.0
@@ -163,6 +168,9 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
     # Optional viewer for --render (scene(s) must have been built with RenderSystem).
     viewer = None
     if args.render:
+        if not _has_display():
+            print("Error: --render requires a display (set DISPLAY). No display detected.", file=sys.stderr)
+            sys.exit(1)
         from sapien.utils.viewer.viewer import Viewer
         viewer = Viewer()
         scenes = getattr(runtime, "scenes", None)

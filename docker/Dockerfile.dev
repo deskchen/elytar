@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxi-dev \
     libxinerama-dev \
     libxrandr-dev \
+    libvulkan1 \
     lld \
     ninja-build \
     pkg-config \
@@ -36,6 +37,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zsh \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/clangd-14 /usr/bin/clangd
+
+# Locale + virtual desktop for SAPIEN (sapien/readme.md: xvfb, x11vnc, fluxbox)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends locales \
+    && sed -i '/en_US.UTF-8/s/^# *//' /etc/locale.gen \
+    && locale-gen \
+    && apt-get install -y --no-install-recommends software-properties-common \
+    && add-apt-repository -y universe \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        openbox \
+        xterm \
+        xvfb \
+        x11vnc \
+        fluxbox \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ensure Vulkan/EGL ICD manifests are available for SAPIEN detection in container.
+# NVIDIA driver libs are provided by nvidia-container-runtime (e.g. libGLX_nvidia.so.0).
+RUN mkdir -p /usr/share/vulkan/icd.d /usr/share/glvnd/egl_vendor.d \
+    && printf '%s\n' \
+      '{' \
+      '  "file_format_version": "1.0.0",' \
+      '  "ICD": {' \
+      '    "library_path": "libGLX_nvidia.so.0",' \
+      '    "api_version": "1.3.224"' \
+      '  }' \
+      '}' > /usr/share/vulkan/icd.d/nvidia_icd.json \
+    && printf '%s\n' \
+      '{' \
+      '  "file_format_version": "1.0.0",' \
+      '  "ICD": {' \
+      '    "library_path": "libEGL_nvidia.so.0"' \
+      '  }' \
+      '}' > /usr/share/glvnd/egl_vendor.d/10_nvidia.json
 
 # Oh My Zsh (dev-setup omz.sh: https://github.com/deskchen/dev-setup)
 ARG OMZ_DIR=/tmp/omz-setup
@@ -58,6 +94,8 @@ ENV CC=clang
 ENV CXX=clang++
 ENV CUDA_PATH=/usr/local/cuda
 ENV CMAKE_GENERATOR=Ninja
-ENV NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
+ENV NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute,display
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
 
 WORKDIR /workspace
