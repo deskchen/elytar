@@ -87,10 +87,10 @@ import math
 import sapien
 
 from benchmark.output_csv import (
-    STEP_COLUMNS,
     STAGE_NAMES,
     metadata_to_string,
     summary_columns,
+    append_rows,
     write_rows,
 )
 from benchmark.tasks import get_task_builder, list_tasks, resolve_task_name
@@ -138,14 +138,16 @@ def summarize_task_rows(
         values = [float(row[key]) for row in rows]
         if values:
             summary[f"{stage}_mean_ms"] = sum(values) / len(values)
-            summary[f"{stage}_p50_ms"] = percentile(values, 50.0)
-            summary[f"{stage}_p95_ms"] = percentile(values, 95.0)
+            summary[f"{stage}_p90_ms"] = percentile(values, 90.0)
+            summary[f"{stage}_p99_ms"] = percentile(values, 99.0)
             summary[f"{stage}_max_ms"] = max(values)
+            summary[f"{stage}_min_ms"] = min(values)
         else:
             summary[f"{stage}_mean_ms"] = 0.0
-            summary[f"{stage}_p50_ms"] = 0.0
-            summary[f"{stage}_p95_ms"] = 0.0
+            summary[f"{stage}_p90_ms"] = 0.0
+            summary[f"{stage}_p99_ms"] = 0.0
             summary[f"{stage}_max_ms"] = 0.0
+            summary[f"{stage}_min_ms"] = 0.0
     return summary
 
 
@@ -306,28 +308,26 @@ def main() -> int:
     sapien.physx.enable_gpu()
     sapien.physx.set_stage_profiler_enabled(True)
 
-    all_step_rows: list[dict] = []
     summary_rows: list[dict] = []
 
     for task_name in requested_tasks:
-        step_rows, summary = run_task(args, task_name)
-        all_step_rows.extend(step_rows)
+        _, summary = run_task(args, task_name)
         summary_rows.append(summary)
 
         print(
             f"[{task_name}] total_mean_ms={summary['total_mean_ms']:.4f}, "
-            f"total_p95_ms={summary['total_p95_ms']:.4f}"
+            f"total_p90_ms={summary['total_p90_ms']:.4f}"
         )
 
     output_dir = Path(args.output_dir)
-    steps_path = output_dir / "results_steps.csv"
-    summary_path = output_dir / "results_summary.csv"
+    current_path = output_dir / "results_current.csv"
+    history_path = output_dir / "results_history.csv"
 
-    write_rows(steps_path, STEP_COLUMNS, all_step_rows)
-    write_rows(summary_path, summary_columns(), summary_rows)
+    write_rows(current_path, summary_columns(), summary_rows)
+    append_rows(history_path, summary_columns(), summary_rows)
 
-    print(f"Wrote {steps_path}")
-    print(f"Wrote {summary_path}")
+    print(f"Wrote {current_path}")
+    print(f"Appended to {history_path}")
 
     # Warn if all stage timings are zero: PhysX profile zones are compiled out in Release
     if summary_rows and all(s.get("total_mean_ms", 0) == 0 for s in summary_rows):

@@ -24,10 +24,9 @@ STEP_COLUMNS = [
 
 def summary_columns() -> list[str]:
     columns = ["run_id", "task", "config", "steps", "warmup_steps", "dt", "task_config"]
-    for stage in STAGE_NAMES:
-        columns.extend(
-            [f"{stage}_mean_ms", f"{stage}_p50_ms", f"{stage}_p95_ms", f"{stage}_max_ms"]
-        )
+    # All means, then p90, p99, max, min for each metric
+    for suffix in ["mean", "p90", "p99", "max", "min"]:
+        columns.extend([f"{stage}_{suffix}_ms" for stage in STAGE_NAMES])
     return columns
 
 
@@ -36,6 +35,18 @@ def write_rows(path: Path, fieldnames: list[str], rows: Iterable[dict]) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
+def append_rows(path: Path, fieldnames: list[str], rows: Iterable[dict]) -> None:
+    """Append rows to CSV; write header only if file is new or empty."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not path.exists() or path.stat().st_size == 0
+    with path.open("a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
         for row in rows:
             writer.writerow(row)
 

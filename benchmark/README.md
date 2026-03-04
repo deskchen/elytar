@@ -2,8 +2,8 @@
 
 This benchmark suite runs **GPU-only PhysX** tasks and writes results in CSV:
 
-- `results_steps.csv`: one row per measured step
-- `results_summary.csv`: one row per task/configuration
+- `results_current.csv`: current run's summary (overwritten each run)
+- `results_history.csv`: all runs appended (history)
 
 ## Tasks
 
@@ -48,19 +48,13 @@ python3 -m benchmark.run --list-tasks
 
 ## Output columns
 
-`results_steps.csv`:
+- `results_current.csv`: Current run's summary (overwritten each run).
+- `results_history.csv`: All runs appended (history).
 
-- `run_id, task, config, step, dt`
-- `broadphase_ms, narrowphase_ms, coloring_ms, solver_ms, update_ms, total_ms`
-
-`results_summary.csv`:
+Both use the same columns:
 
 - `run_id, task, config, steps, warmup_steps, dt, task_config`
-- for each stage in `broadphase|narrowphase|coloring|solver|update|total`:
-  - `<stage>_mean_ms`
-  - `<stage>_p50_ms`
-  - `<stage>_p95_ms`
-  - `<stage>_max_ms`
+- all means, then p90, p99, max, min for each stage: `broadphase_mean_ms`, ..., `total_mean_ms`, `broadphase_p90_ms`, ..., `total_p90_ms`, `broadphase_p99_ms`, ..., `total_p99_ms`, `broadphase_max_ms`, ..., `total_max_ms`, `broadphase_min_ms`, ..., `total_min_ms`
 
 ## Display setup for `--render`
 
