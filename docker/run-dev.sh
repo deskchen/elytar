@@ -17,5 +17,5 @@ else
     -v "${ROOT_DIR}:/workspace" \
     -w /workspace \
     "${IMAGE_NAME}" \
-    bash
+    zsh
 fi
