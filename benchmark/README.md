@@ -11,7 +11,7 @@ This benchmark suite runs **GPU-only PhysX** tasks and writes results in CSV:
 - `pouring_balls`: container + many dynamic spheres
 - `humanoid_from_urdf`: load a humanoid URDF and run simple open-loop joint targets
 
-Use `--difficulty easy|medium|hard` to scale task complexity.
+Use `--cube-count N` or `--ball-count N` to set object counts.
 
 ## Prerequisites
 
@@ -28,7 +28,7 @@ Use `--difficulty easy|medium|hard` to scale task complexity.
 From repo root:
 
 ```bash
-python3 -m benchmark.run --tasks cube_stack,pouring_balls --difficulty easy
+python3 -m benchmark.run --tasks cube_stack,pouring_balls
 ```
 
 Include humanoid URDF benchmark:
@@ -36,7 +36,6 @@ Include humanoid URDF benchmark:
 ```bash
 python3 -m benchmark.run \
   --tasks cube_stack,pouring_balls,humanoid_from_urdf \
-  --difficulty medium \
   --humanoid-urdf /absolute/path/to/humanoid.urdf \
   --humanoid-motion walk
 ```
@@ -51,12 +50,12 @@ python3 -m benchmark.run --list-tasks
 
 `results_steps.csv`:
 
-- `run_id, task, difficulty, step, dt`
+- `run_id, task, config, step, dt`
 - `broadphase_ms, narrowphase_ms, coloring_ms, solver_ms, update_ms, total_ms`
 
 `results_summary.csv`:
 
-- `run_id, task, difficulty, steps, warmup_steps, dt, task_config`
+- `run_id, task, config, steps, warmup_steps, dt, task_config`
 - for each stage in `broadphase|narrowphase|coloring|solver|update|total`:
   - `<stage>_mean_ms`
   - `<stage>_p50_ms`
@@ -78,7 +77,25 @@ python3 -m benchmark.run --tasks cube_stack --steps 20 --render
 
 To run display setup manually (e.g. for debugging): `./scripts/host_display_setup.sh` on the host.
 
-From your laptop: `ssh -L 5900:localhost:5900 <user>@<host>`, then connect VNC to `localhost:5900`.
+From your laptop: `ssh -L 5900:localhost:5900 <user>@<host>`, then connect VNC to `localhost:5900`. If `bind [127.0.0.1]:5900: Permission denied` (e.g. Cursor IDE uses 5900 for remote forwarding), use `ssh -L 15900:localhost:5900 <user>@<host>` and connect VNC to `localhost:15900`.
+
+**If the VNC connection keeps spinning:**
+
+1. **On the host** run display setup and confirm VNC is listening:
+   ```bash
+   ./scripts/host_display_setup.sh
+   ss -tlnp | grep 5900   # or: netstat -tlnp | grep 5900
+   ```
+   You should see something like `127.0.0.1:5900` (x11vnc with `-localhost`). If nothing listens, check `/tmp/elytar-x11vnc.log` on the host.
+
+2. **Keep the SSH session open** — the tunnel lives in that session; closing it drops the forward.
+
+3. **Password**: The VNC server is started with **no password** (`-nopw`). When the Mac prompts for a password, **leave it blank** and connect (or press Enter). Typing anything can make some clients spin or hang.
+
+4. **On macOS** use the VNC URL explicitly:
+   - Finder → Go → Connect to Server (⌘K), then enter: `vnc://localhost:5900`
+   - Or in Terminal: `open vnc://localhost:5900`
+   If the built-in Screen Sharing still spins, try a VNC client (e.g. [TigerVNC Viewer](https://tigervnc.org/) or RealVNC) and connect to `localhost:5900`.
 
 ## Rendering and vectorized envs
 
@@ -124,4 +141,5 @@ To confirm the implementation matches SAPIEN’s intended usage:
 - Stage latency comes from PhysX profiling zones (`PxProfilerCallback`), reported in milliseconds.
 - This is timeline attribution, not direct GPU kernel-only timing.
 - By default rendering is off for benchmark consistency; use `--render` when you need a viewer.
+- **Large `--num-envs` (e.g. 2048–4096)**: Requires a GPU with enough memory (e.g. 24GB+). If you see `memcpy failed` / CUDA 700 / segfault during "Initializing GPU", the GPU heap may be too small (we use 2GB heap + large contact/patch buffers). If you see `free(): invalid size`, capture a backtrace: `gdb -ex run -ex bt -args python3 -m benchmark.run --tasks cube_stack --num-envs 2048 --steps 20`.
 

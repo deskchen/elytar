@@ -17,13 +17,6 @@ def _parse_args() -> argparse.Namespace:
         default="cube_stack,pouring_balls",
         help="Comma-separated list of tasks",
     )
-    parser.add_argument(
-        "--difficulty",
-        type=str,
-        choices=["easy", "medium", "hard"],
-        default="easy",
-        help="Shared difficulty preset for all tasks",
-    )
     parser.add_argument("--steps", type=int, default=600, help="Measured simulation steps")
     parser.add_argument("--warmup-steps", type=int, default=120, help="Warmup steps")
     parser.add_argument("--dt", type=float, default=1.0 / 240.0, help="Simulation timestep")
@@ -55,12 +48,12 @@ def _parse_args() -> argparse.Namespace:
     )
 
     # cube_stack
-    parser.add_argument("--cube-count", type=int, default=None)
+    parser.add_argument("--cube-count", type=int, default=4, help="Number of cubes")
     parser.add_argument("--cube-half-size", type=float, default=0.04)
     parser.add_argument("--cube-spacing", type=float, default=0.0)
 
     # pouring_balls
-    parser.add_argument("--ball-count", type=int, default=None)
+    parser.add_argument("--ball-count", type=int, default=4, help="Number of balls")
     parser.add_argument("--ball-radius", type=float, default=0.02)
     parser.add_argument("--container-half-extent", type=float, default=0.6)
     parser.add_argument("--container-wall-height", type=float, default=0.45)
@@ -129,12 +122,12 @@ def percentile(values: list[float], p: float) -> float:
 
 
 def summarize_task_rows(
-    rows: list[dict], *, run_id: str, task: str, difficulty: str, steps: int, warmup_steps: int, dt: float, task_config: str
+    rows: list[dict], *, run_id: str, task: str, config: str, steps: int, warmup_steps: int, dt: float, task_config: str
 ) -> dict:
     summary = {
         "run_id": run_id,
         "task": task,
-        "difficulty": difficulty,
+        "config": config,
         "steps": steps,
         "warmup_steps": warmup_steps,
         "dt": dt,
@@ -158,11 +151,27 @@ def summarize_task_rows(
 
 def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict]:
     builder = get_task_builder(task_name)
+    # Use maximum practical GPU memory config for vectorized runs (avoids PhysX buffer overflow).
+    # heap_capacity must be a power of two per PhysX. 2GB needed for large contact/patch buffers (1GB can cause memcpy 700 / segfault).
+    # Sizes tuned for 2k–4k envs: contact/patch from PhysX overflow messages (e.g. 2048 envs → 152M contact, 38M patch).
+    num_envs = getattr(args, "num_envs", 1)
+    if num_envs > 1:
+        sapien.physx.set_gpu_memory_config(
+            temp_buffer_capacity=256 * 1024 * 1024,
+            max_rigid_contact_count=152 * 1024 * 1024,
+            max_rigid_patch_count=40 * 1024 * 1024,
+            heap_capacity=2**31,
+            found_lost_pairs_capacity=152 * 1024 * 1024,
+            found_lost_aggregate_pairs_capacity=65536,
+            total_aggregate_pairs_capacity=65536,
+            collision_stack_size=16 * 1024 * 1024,
+        )
     runtime = builder(args)
 
     if not isinstance(runtime.physx_system, sapien.physx.PhysxGpuSystem):
         raise RuntimeError(f"Task '{task_name}' did not create a PhysxGpuSystem")
 
+    print(f"[{task_name}] Initializing GPU ...", flush=True)
     runtime.physx_system.gpu_init()
 
     # Optional viewer for --render (scene(s) must have been built with RenderSystem).
@@ -176,22 +185,35 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
         scenes = getattr(runtime, "scenes", None)
         if scenes:
             import numpy as np
-            side = int(np.ceil(len(scenes) ** 0.5))
-            idx = np.arange(len(scenes))
-            offsets = np.stack([idx // side, idx % side, np.zeros_like(idx)], axis=1).astype(np.float32) * 4.0
+            # Use PhysX scene offsets so viewer matches simulation layout
+            offsets = np.array(
+                [runtime.physx_system.get_scene_offset(s) for s in scenes],
+                dtype=np.float32,
+            )
             viewer.set_scenes(scenes, offsets)
+            # SceneGroup needs lighting/cubemap set on the viewer's internal scene (like gpu_viewer)
+            vs = viewer.window._internal_scene
+            vs.set_ambient_light([0.5, 0.5, 0.5])
+            cubemap = scenes[0].render_system.get_cubemap()
+            if cubemap is not None:
+                vs.set_cubemap(cubemap._internal_cubemap)
         else:
             viewer.set_scene(runtime.scene)
 
     before_step = runtime.before_step
     dt = float(args.dt)
 
-    # Warmup
-    for step_idx in range(args.warmup_steps):
+    # Warmup (cap for large num_envs so we don't sit on CPU-bound setup forever before GPU runs)
+    warmup_steps = args.warmup_steps
+    if num_envs > 512:
+        warmup_steps = min(warmup_steps, 30)
+    print(f"[{task_name}] Warmup ({warmup_steps} steps) ...", flush=True)
+    for step_idx in range(warmup_steps):
         if before_step is not None:
             before_step(step_idx, step_idx * dt)
         runtime.physx_system.step()
 
+    print(f"[{task_name}] Running {args.steps} steps ...", flush=True)
     rows: list[dict] = []
     for step_idx in range(args.steps):
         if before_step is not None:
@@ -207,10 +229,11 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
             viewer.render()
 
         stage = sapien.physx.get_stage_profiler_last_frame_stage_ms()
+        config = runtime.metadata.get("config", "N/A")
         row = {
             "run_id": args.run_id,
             "task": runtime.name,
-            "difficulty": args.difficulty,
+            "config": config,
             "step": step_idx,
             "dt": dt,
             "broadphase_ms": float(stage.get("broadphase_ms", 0.0)),
@@ -223,13 +246,14 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
         rows.append(row)
 
     task_config = metadata_to_string(runtime.metadata)
+    config = runtime.metadata.get("config", "N/A")
     summary = summarize_task_rows(
         rows,
         run_id=args.run_id,
         task=runtime.name,
-        difficulty=args.difficulty,
+        config=config,
         steps=args.steps,
-        warmup_steps=args.warmup_steps,
+        warmup_steps=warmup_steps,
         dt=dt,
         task_config=task_config,
     )

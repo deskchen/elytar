@@ -8,13 +8,6 @@ import sapien
 from .base import TaskRuntime
 
 
-_DIFFICULTY_TO_COUNT = {
-    "easy": 256,
-    "medium": 1024,
-    "hard": 4096,
-}
-
-
 def _add_static_box(scene, half_size, pose):
     builder = scene.create_actor_builder()
     builder.set_physx_body_type("static")
@@ -24,11 +17,7 @@ def _add_static_box(scene, half_size, pose):
 
 
 def build_pouring_balls(args) -> TaskRuntime:
-    ball_count = (
-        args.ball_count
-        if args.ball_count is not None
-        else _DIFFICULTY_TO_COUNT[args.difficulty]
-    )
+    ball_count = args.ball_count
     radius = args.ball_radius
     container_half_extent = args.container_half_extent
     wall_height = args.container_wall_height
@@ -97,7 +86,7 @@ def build_pouring_balls(args) -> TaskRuntime:
         scene=scene,
         physx_system=scene.physx_system,
         metadata={
-            "difficulty": args.difficulty,
+            "config": str(ball_count),
             "ball_count": ball_count,
             "ball_radius": radius,
             "container_half_extent": container_half_extent,

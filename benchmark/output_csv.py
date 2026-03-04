@@ -10,7 +10,7 @@ STAGE_NAMES = ["broadphase", "narrowphase", "coloring", "solver", "update", "tot
 STEP_COLUMNS = [
     "run_id",
     "task",
-    "difficulty",
+    "config",
     "step",
     "dt",
     "broadphase_ms",
@@ -23,7 +23,7 @@ STEP_COLUMNS = [
 
 
 def summary_columns() -> list[str]:
-    columns = ["run_id", "task", "difficulty", "steps", "warmup_steps", "dt", "task_config"]
+    columns = ["run_id", "task", "config", "steps", "warmup_steps", "dt", "task_config"]
     for stage in STAGE_NAMES:
         columns.extend(
             [f"{stage}_mean_ms", f"{stage}_p50_ms", f"{stage}_p95_ms", f"{stage}_max_ms"]

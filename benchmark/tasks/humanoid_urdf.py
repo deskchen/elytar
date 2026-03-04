@@ -74,7 +74,7 @@ def build_humanoid_from_urdf(args) -> TaskRuntime:
         physx_system=scene.physx_system,
         before_step=before_step,
         metadata={
-            "difficulty": args.difficulty,
+            "config": args.humanoid_motion,
             "humanoid_urdf": str(urdf_path),
             "humanoid_motion": args.humanoid_motion,
             "humanoid_target_scale": args.humanoid_target_scale,
