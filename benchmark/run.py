@@ -28,6 +28,12 @@ def _parse_args() -> argparse.Namespace:
         help="Directory to write CSV outputs",
     )
     parser.add_argument(
+        "--prefix",
+        type=str,
+        default="results",
+        help="Prefix for output files: {prefix}_current.csv and {prefix}_history.csv",
+    )
+    parser.add_argument(
         "--run-id",
         type=str,
         default=datetime.now().strftime("%Y%m%d-%H%M%S"),
@@ -320,8 +326,8 @@ def main() -> int:
         )
 
     output_dir = Path(args.output_dir)
-    current_path = output_dir / "results_current.csv"
-    history_path = output_dir / "results_history.csv"
+    current_path = output_dir / f"{args.prefix}_current.csv"
+    history_path = output_dir / f"{args.prefix}_history.csv"
 
     write_rows(current_path, summary_columns(), summary_rows)
     append_rows(history_path, summary_columns(), summary_rows)

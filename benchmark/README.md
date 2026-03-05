@@ -48,13 +48,22 @@ python3 -m benchmark.run --list-tasks
 
 ## Output columns
 
-- `results_current.csv`: Current run's summary (overwritten each run).
-- `results_history.csv`: All runs appended (history).
+- `{prefix}_current.csv`: Current run's summary (overwritten each run).
+- `{prefix}_history.csv`: All runs appended (history).
 
-Both use the same columns:
-
+Use `--prefix` to set the prefix (default: `results`). Both use the same columns:
 - `run_id, task, config, steps, warmup_steps, dt, task_config`
 - all means, then p90, p99, max, min for each stage: `broadphase_mean_ms`, ..., `total_mean_ms`, `broadphase_p90_ms`, ..., `total_p90_ms`, `broadphase_p99_ms`, ..., `total_p99_ms`, `broadphase_max_ms`, ..., `total_max_ms`, `broadphase_min_ms`, ..., `total_min_ms`
+
+**Sweep script** (`benchmark/run_sweep.sh`): Runs num_envs 2, 4, 8, ..., 1024. Configurable via env vars:
+```bash
+TASK=cube_stack STEPS=2000 ./benchmark/run_sweep.sh
+```
+
+**Plot script** (`benchmark/plot_solver_ratio.py`): Plots solver/total % across num_envs from history:
+```bash
+python3 benchmark/plot_solver_ratio.py [--input benchmark/results/results_history.csv] [--output plot.png] [--task cube_stack]
+```
 
 ## Display setup for `--render`
 

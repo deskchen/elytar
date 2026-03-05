@@ -65,8 +65,6 @@ def build_cube_stack(args) -> TaskRuntime:
         env_spacing = 4.0
         report_every = max(1, num_envs // 16)
         for i in range(num_envs):
-            if (i + 1) % report_every == 0 or i == 0 or i == num_envs - 1:
-                print(f"  Building env {i + 1}/{num_envs} ...", flush=True)
             systems = [px]
             if render:
                 systems.append(sapien.render.RenderSystem())
