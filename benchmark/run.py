@@ -4,10 +4,37 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
 # Run from repo root so "benchmark" is importable:  python3 -m benchmark.run [args]
+#
+# GPU memory flow (to debug OOM / CUDA 700):
+# 1. main() calls sapien.physx.enable_gpu() (once, before any PhysX)
+# 2. run_task() calls set_gpu_memory_config() with our config (must be before builder)
+# 3. builder() creates PhysxGpuSystem; its ctor reads PhysxDefault::getGpuMemoryConfig()
+#    and creates PxScene with that config. One PxScene for all vectorized envs.
+# 4. gpu_init() runs first simulate()+fetchResults(); PhysX allocates from config.
+# PhysX: contact/patch = pinned host memory; heap = GPU; found_lost = GPU.
+# If OOM: try --debug-gpu-config to see allocations; reduce num_envs or multipliers.
+
+
+@dataclass
+class GPUMemoryConfig:
+    """PhysX GPU memory config. ManiSkill3 defaults."""
+
+    temp_buffer_capacity: int = 2**24
+    max_rigid_contact_count: int = 2**19
+    max_rigid_patch_count: int = 2**18
+    heap_capacity: int = 2**26
+    found_lost_pairs_capacity: int = 2**25
+    found_lost_aggregate_pairs_capacity: int = 2**10
+    total_aggregate_pairs_capacity: int = 2**10
+    collision_stack_size: int = 64 * 64 * 1024
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in asdict(self).items()}
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="GPU-only PhysX benchmark runner")
@@ -52,11 +79,11 @@ def _parse_args() -> argparse.Namespace:
         metavar="N",
         help="Number of parallel envs (vectorized). N>1 uses one PhysX GPU system and N scenes. Only supported by some tasks.",
     )
-
-    # cube_stack
-    parser.add_argument("--cube-count", type=int, default=4, help="Number of cubes")
-    parser.add_argument("--cube-half-size", type=float, default=0.04)
-    parser.add_argument("--cube-spacing", type=float, default=0.0)
+    parser.add_argument(
+        "--debug-gpu-config",
+        action="store_true",
+        help="Print GPU memory config and rough memory estimates before running.",
+    )
 
     # pouring_balls
     parser.add_argument("--ball-count", type=int, default=4, help="Number of balls")
@@ -157,23 +184,82 @@ def summarize_task_rows(
     return summary
 
 
+def _print_gpu_config_debug(gpu_config: dict, num_envs: int) -> None:
+    """Print GPU config and rough memory estimates. PhysX: contact/patch in pinned host, heap in GPU."""
+    print("\n=== GPU memory config (PhysX) ===")
+    for k, v in gpu_config.items():
+        if isinstance(v, int) and v >= 1024:
+            print(f"  {k}: {v:,} ({v / 1024 / 1024:.1f} M)")
+        else:
+            print(f"  {k}: {v}")
+    # Rough estimates: contact/patch double-buffered, ~64B/contact, ~32B/patch (PhysX struct sizes vary)
+    contact = gpu_config.get("max_rigid_contact_count", 0)
+    patch = gpu_config.get("max_rigid_patch_count", 0)
+    found = gpu_config.get("found_lost_pairs_capacity", 0)
+    heap = gpu_config.get("heap_capacity", 0)
+    temp = gpu_config.get("temp_buffer_capacity", 0)
+    pinned_mb = 2 * (contact * 64 + patch * 32) / 1024 / 1024
+    gpu_mb = (heap + found * 8 + temp) / 1024 / 1024
+    print(f"\n  Rough pinned host (contact+patch, 2x buffered): ~{pinned_mb:.0f} MB")
+    print(f"  Rough GPU (heap+found_lost+temp): ~{gpu_mb:.0f} MB")
+    print(f"  num_envs: {num_envs}\n")
+
+
+def _set_physx_scene_config() -> None:
+    """Match ManiSkill's PhysX config (scene_config, body_config, shape_config, default_material).
+    Must be called before creating PhysxGpuSystem; PhysxSystem reads PhysxDefault at construction."""
+    import numpy as np
+
+    sapien.physx.set_shape_config(contact_offset=0.02, rest_offset=0.0)
+    sapien.physx.set_body_config(
+        solver_position_iterations=15,
+        solver_velocity_iterations=1,
+        sleep_threshold=0.005,
+    )
+    sapien.physx.set_scene_config(
+        gravity=np.array([0.0, 0.0, -9.81], dtype=np.float32),
+        bounce_threshold=2.0,
+        enable_pcm=True,
+        enable_tgs=True,
+        enable_ccd=False,
+        enable_enhanced_determinism=False,
+        enable_friction_every_iteration=True,
+        cpu_workers=0,
+    )
+    sapien.physx.set_default_material(
+        static_friction=0.3,
+        dynamic_friction=0.3,
+        restitution=0.0,
+    )
+
+
 def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict]:
     builder = get_task_builder(task_name)
-    # Use maximum practical GPU memory config for vectorized runs (avoids PhysX buffer overflow).
-    # heap_capacity must be a power of two per PhysX. 2GB needed for large contact/patch buffers (1GB can cause memcpy 700 / segfault).
-    # Sizes tuned for 2k–4k envs: contact/patch from PhysX overflow messages (e.g. 2048 envs → 152M contact, 38M patch).
     num_envs = getattr(args, "num_envs", 1)
+    gpu_config = GPUMemoryConfig().to_dict()
     if num_envs > 1:
-        sapien.physx.set_gpu_memory_config(
-            temp_buffer_capacity=256 * 1024 * 1024,
-            max_rigid_contact_count=152 * 1024 * 1024,
-            max_rigid_patch_count=40 * 1024 * 1024,
-            heap_capacity=2**31,
-            found_lost_pairs_capacity=152 * 1024 * 1024,
-            found_lost_aggregate_pairs_capacity=65536,
-            total_aggregate_pairs_capacity=65536,
-            collision_stack_size=16 * 1024 * 1024,
-        )
+        # ManiSkill-style: heap/temp stay at defaults (64 MB, 16 MB); PhysX grows heap if needed.
+        # Only scale contact/patch per ManiSkill (rotate_single_object_in_hand, insert_flower).
+        n = num_envs
+        base = n * max(1024, n)
+        # gpu_config["max_rigid_contact_count"] = base * 8
+        gpu_config["max_rigid_contact_count"] = 67141632
+        gpu_config["max_rigid_patch_count"] = 16785408
+        # gpu_config["max_rigid_patch_count"] = base * 2
+        gpu_config["found_lost_pairs_capacity"] = 2**26
+        # Do NOT override heap_capacity or temp_buffer_capacity - use GPUMemoryConfig defaults
+    if getattr(args, "debug_gpu_config", False):
+        _print_gpu_config_debug(gpu_config, num_envs)
+
+    try:
+        sapien.physx.set_gpu_memory_config(**gpu_config)
+    except TypeError:
+        gpu_config.pop("collision_stack_size")
+        sapien.physx.set_gpu_memory_config(**gpu_config)
+
+    # Match ManiSkill: set scene/body/shape/material config before creating PhysxGpuSystem.
+    _set_physx_scene_config()
+
     runtime = builder(args)
 
     if not isinstance(runtime.physx_system, sapien.physx.PhysxGpuSystem):
@@ -181,6 +267,7 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
 
     print(f"[{task_name}] Initializing GPU ...", flush=True)
     runtime.physx_system.gpu_init()
+    print(f"[{task_name}] GPU ready", flush=True)
 
     # Optional viewer for --render (scene(s) must have been built with RenderSystem).
     viewer = None
@@ -199,14 +286,16 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
                 dtype=np.float32,
             )
             viewer.set_scenes(scenes, offsets)
-            # SceneGroup needs lighting/cubemap set on the viewer's internal scene (like gpu_viewer)
+            # SceneGroup needs lighting set on the viewer's internal scene (like gpu_viewer).
+            # Skip cubemap to avoid bright sky HDR washing out colors to white.
             vs = viewer.window._internal_scene
-            vs.set_ambient_light([0.5, 0.5, 0.5])
-            cubemap = scenes[0].render_system.get_cubemap()
-            if cubemap is not None:
-                vs.set_cubemap(cubemap._internal_cubemap)
+            vs.set_ambient_light([0.15, 0.15, 0.15])
         else:
             viewer.set_scene(runtime.scene)
+        # Close-up camera for stacked cubes
+        viewer.set_camera_pose(sapien.Pose(p=[-0.2, 0, 0.12]))
+        viewer.window.set_camera_parameters(0.01, 1000, math.pi / 6)
+        print("Viewer: scroll wheel=zoom, right-drag=rotate, middle-drag=pan, F=focus selected", flush=True)
 
     before_step = runtime.before_step
     dt = float(args.dt)
@@ -220,6 +309,7 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
         if before_step is not None:
             before_step(step_idx, step_idx * dt)
         runtime.physx_system.step()
+    print(f"[{task_name}] Warmup done", flush=True)
 
     print(f"[{task_name}] Running {args.steps} steps ...", flush=True)
     rows: list[dict] = []
@@ -233,6 +323,9 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
 
         if viewer is not None:
             runtime.physx_system.sync_poses_gpu_to_cpu()
+            scenes = getattr(runtime, "scenes", None) or ([runtime.scene] if runtime.scene else [])
+            for s in scenes:
+                s.update_render()
             viewer.window.update_render()
             viewer.render()
 
@@ -253,6 +346,7 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
         }
         rows.append(row)
 
+    print(f"[{task_name}] Done ({args.steps} steps)", flush=True)
     task_config = metadata_to_string(runtime.metadata)
     config = runtime.metadata.get("config", "N/A")
     summary = summarize_task_rows(

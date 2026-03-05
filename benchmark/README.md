@@ -7,7 +7,7 @@ This benchmark suite runs **GPU-only PhysX** tasks and writes results in CSV:
 
 ## Tasks
 
-- `cube_stack`: procedural rigid-body cube stacks
+- `cube_stack`: ManiSkill StackCube (table + 2 cubes)
 - `pouring_balls`: container + many dynamic spheres
 - `humanoid_from_urdf`: load a humanoid URDF and run simple open-loop joint targets
 
@@ -144,5 +144,6 @@ To confirm the implementation matches SAPIEN’s intended usage:
 - Stage latency comes from PhysX profiling zones (`PxProfilerCallback`), reported in milliseconds.
 - This is timeline attribution, not direct GPU kernel-only timing.
 - By default rendering is off for benchmark consistency; use `--render` when you need a viewer.
-- **Large `--num-envs` (e.g. 2048–4096)**: Requires a GPU with enough memory (e.g. 24GB+). If you see `memcpy failed` / CUDA 700 / segfault during "Initializing GPU", the GPU heap may be too small (we use 2GB heap + large contact/patch buffers). If you see `free(): invalid size`, capture a backtrace: `gdb -ex run -ex bt -args python3 -m benchmark.run --tasks cube_stack --num-envs 2048 --steps 20`.
+- **Large `--num-envs` (e.g. 2048–4096)**: Requires a GPU with enough memory (e.g. 24GB+). Use `--debug-gpu-config` to print the config and rough memory estimates before running.
+- **CUDA 700 / PxgCudaMemoryAllocator / OOM**: The flow is: `enable_gpu()` → `set_gpu_memory_config()` → `builder()` creates `PhysxGpuSystem` (reads config, creates one PxScene) → `gpu_init()` runs first simulate. PhysX: contact/patch = pinned host RAM; heap = GPU. If only 17/24 GB GPU used but still 700, it may be a PhysX/driver bug rather than OOM. Try: `--num-envs 1024`, `CUDA_VISIBLE_DEVICES=0`, or `compute-sanitizer --tool memcheck python3 -m benchmark.run ...`.
 
