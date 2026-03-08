@@ -88,7 +88,7 @@ def enable_gpu():
         if dll_path is None:
             raise RuntimeError(
                 "This SAPIEN build requires a local PhysX GPU library. Set SAPIEN_PHYSX5_DIR to your "
-                "PhysX source directory (e.g. /workspace/physx-5.3.1). Run from repo root after "
+                "PhysX source directory (e.g. /workspace/physx-5.6.1). Run from repo root after "
                 "scripts/update_toolchain.sh so it is set automatically, or export SAPIEN_PHYSX5_DIR."
             )
         if not dll_path.exists():

@@ -92,10 +92,12 @@ template <> struct type_caster<::physx::PxArticulationDriveType::Enum> {
       value = ::physx::PxArticulationDriveType::eACCELERATION;
       return true;
     } else if (name == "target") {
-      value = ::physx::PxArticulationDriveType::eTARGET;
+      // eTARGET removed in PhysX 5.6; map to eFORCE for compatibility
+      value = ::physx::PxArticulationDriveType::eFORCE;
       return true;
     } else if (name == "velocity") {
-      value = ::physx::PxArticulationDriveType::eVELOCITY;
+      // eVELOCITY removed in PhysX 5.6; map to eFORCE for compatibility
+      value = ::physx::PxArticulationDriveType::eFORCE;
       return true;
     } else if (name == "none") {
       value = ::physx::PxArticulationDriveType::eNONE;
@@ -111,10 +113,6 @@ template <> struct type_caster<::physx::PxArticulationDriveType::Enum> {
       return py::str("force").release();
     case ::physx::PxArticulationDriveType::eACCELERATION:
       return py::str("acceleration").release();
-    case ::physx::PxArticulationDriveType::eTARGET:
-      return py::str("target").release();
-    case ::physx::PxArticulationDriveType::eVELOCITY:
-      return py::str("velocity").release();
     case ::physx::PxArticulationDriveType::eNONE:
       return py::str("none").release();
     }

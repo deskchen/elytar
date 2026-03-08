@@ -94,22 +94,31 @@ struct SapienBodyData {
 };
 static_assert(sizeof(SapienBodyData) == 52);
 
-void body_data_physx_to_sapien(void *sapien_data, void *physx_data, void *offset, int count,
-                               CUstream_st *);
+void body_data_physx_to_sapien(void *sapien_data, void *pose_data, void *vel_data, void *ang_data,
+                               void *offset, int count, CUstream_st *);
 void link_pose_physx_to_sapien(void *sapien_data, void *physx_pose, void *offset, int link_count,
                                int count, CUstream_st *);
-void link_vel_physx_to_sapien(void *sapien_data, void *physx_vel, int count, CUstream_st *);
+void link_vel_physx_to_sapien(void *sapien_data, void *linear_vel, void *angular_vel, int count,
+                              CUstream_st *);
 
 void body_data_sapien_to_physx(void *physx_data, void *sapien_data, void *offset, int count,
                                CUstream_st *);
 void body_data_sapien_to_physx(void *physx_data, void *physx_index, void *sapien_data,
                                void *sapien_index, void *apply_index, void *offset, int count,
                                CUstream_st *);
+void body_data_split_for_apply(void *pose_data, void *vel_data, void *ang_data, void *physx_data,
+                               int count, CUstream_st *);
+void gather_rigid_dynamic_gpu_indices(void *out_indices, void *gpu_index_buffer, void *apply_index,
+                                     int count, CUstream_st *);
+void gather_articulation_gpu_indices(void *out_indices, void *gpu_index_buffer, void *apply_index,
+                                    int count, CUstream_st *);
+void gather_articulation_dof_data(void *out_data, void *src_data, void *apply_index, int count,
+                                  int max_dof, CUstream_st *);
 
 void root_pose_sapien_to_physx(void *physx_pose, void *sapien_data, void *index, void *offset,
                                int link_count, int count, CUstream_st *);
-void root_vel_sapien_to_physx(void *physx_vel, void *sapien_data, void *index, int link_count,
-                              int count, CUstream_st *);
+void root_vel_sapien_to_physx(void *linear_vel, void *angular_vel, void *sapien_data, void *index,
+                              int link_count, int count, CUstream_st *);
 
 // fill out_forces with net contact forces per body pair. query stores sorted pairs of
 // interested actors and their indices corresponding to the out_forces array

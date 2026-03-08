@@ -249,7 +249,7 @@ Eigen::VectorXf PhysxArticulation::getQpos() {
     (void)once;
 #ifdef SAPIEN_CUDA
     auto qpos = std::dynamic_pointer_cast<PhysxSystemGpu>(mScene->getPhysxSystem())
-                    ->gpuDownloadArticulationQpos(mPxArticulation->getGpuArticulationIndex());
+                    ->gpuDownloadArticulationQpos(mPxArticulation->getGPUIndex());
     return Eigen::Map<Eigen::VectorXf>(qpos.data(), dof);
 #else
     return Eigen::VectorXf();
@@ -296,7 +296,7 @@ void PhysxArticulation::setQpos(Eigen::VectorXf const &q) {
     (void)once;
 #ifdef SAPIEN_CUDA
     std::dynamic_pointer_cast<PhysxSystemGpu>(mScene->getPhysxSystem())
-        ->gpuUploadArticulationQpos(mPxArticulation->getGpuArticulationIndex(), q);
+        ->gpuUploadArticulationQpos(mPxArticulation->getGPUIndex(), q);
 #endif
     return;
   }
@@ -514,7 +514,7 @@ PhysxArticulation::~PhysxArticulation() {
 }
 
 int PhysxArticulation::getGpuIndex() const {
-  return getPxArticulation()->getGpuArticulationIndex();
+  return getPxArticulation()->getGPUIndex();
 }
 
 } // namespace physx

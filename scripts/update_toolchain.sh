@@ -2,10 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="${ROOT_DIR:-/workspace}"
-PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx-5.3.1}"
+PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx-5.6.1}"
 SAPIEN_DIR="${SAPIEN_DIR:-${ROOT_DIR}/sapien}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-PHYSX_PRESET="${PHYSX_PRESET:-linux}"
+# PhysX 5.6 uses linux-clang preset.
+PHYSX_PRESET="${PHYSX_PRESET:-linux-clang}"
 PHYSX_CONFIG="${PHYSX_CONFIG:-profile}"
 SAPIEN_BUILD_MODE="${SAPIEN_BUILD_MODE:---profile}"
 SAPIEN_BUILD_DIR="${SAPIEN_BUILD_DIR:-docker_sapien_build}"

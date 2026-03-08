@@ -2,7 +2,7 @@ if(TARGET physx5)
   return()
 endif()
 
-set(PHYSX_VERSION 105.1-physx-5.3.1.patch0)
+set(PHYSX_VERSION 105.6-physx-5.6.1)
 
 if (IS_DIRECTORY ${SAPIEN_PHYSX5_DIR})
   set(physx5_SOURCE_DIR ${SAPIEN_PHYSX5_DIR})
@@ -31,6 +31,7 @@ if (APPLE)
 elseif(UNIX)
 
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+    set(_physx_vehicle_lib "libPhysXVehicle2_static_64.a")
     target_link_directories(physx5 INTERFACE $<BUILD_INTERFACE:${physx5_SOURCE_DIR}/bin/linux.aarch64/release>)
   else()
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -55,7 +56,13 @@ elseif(UNIX)
     endforeach()
 
     if (_physx_lib_dir)
+      if (NOT EXISTS "${_physx_lib_dir}/libPhysXVehicle2_static_64.a")
+        message(FATAL_ERROR
+          "PhysX 5.6+ required. libPhysXVehicle2_static_64.a not found under ${_physx_lib_dir}. "
+          "SAPIEN requires PhysX 5.6 or newer.")
+      endif()
       target_link_directories(physx5 INTERFACE $<BUILD_INTERFACE:${_physx_lib_dir}>)
+      set(_physx_vehicle_lib "libPhysXVehicle2_static_64.a")
     else()
       message(FATAL_ERROR
         "Unable to locate PhysX libraries under ${physx5_SOURCE_DIR}/bin/. "
@@ -68,7 +75,7 @@ elseif(UNIX)
     libPhysXCharacterKinematic_static_64.a libPhysXCommon_static_64.a
     libPhysXCooking_static_64.a libPhysXExtensions_static_64.a
     libPhysXFoundation_static_64.a libPhysXPvdSDK_static_64.a
-    libPhysX_static_64.a libPhysXVehicle_static_64.a
+    libPhysX_static_64.a ${_physx_vehicle_lib}
     -Wl,--end-group)
   target_include_directories(physx5 SYSTEM INTERFACE $<BUILD_INTERFACE:${physx5_SOURCE_DIR}/include>)
 endif()

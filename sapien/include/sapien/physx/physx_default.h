@@ -21,8 +21,8 @@
 #include <string>
 
 namespace physx {
-struct PxgDynamicsMemoryConfig;
-};
+struct PxGpuDynamicsMemoryConfig;
+}
 
 namespace sapien {
 namespace physx {
@@ -67,7 +67,7 @@ public:
                                  uint32_t foundLostAggregatePairsCapacity,
                                  uint32_t totalAggregatePairsCapacity,
                                  uint32_t collisionStackSize);
-  static ::physx::PxgDynamicsMemoryConfig const &getGpuMemoryConfig();
+  static ::physx::PxGpuDynamicsMemoryConfig const &getGpuMemoryConfig();
 
   static void setSceneConfig(Vec3 gravity, float bounceThreshold, bool enablePCM, bool enableTGS,
                              bool enableCCD, bool enableEnhancedDeterminism,

@@ -17,6 +17,7 @@
 #include "sapien/physx/physx_default.h"
 #include "sapien/physx/material.h"
 #include "sapien/physx/physx_system.h"
+#include <PxSceneDesc.h>
 
 namespace sapien {
 namespace physx {
@@ -31,7 +32,7 @@ static PhysxBodyConfig gBodyConfig{};
 static PhysxShapeConfig gShapeConfig{};
 static PhysxSDFShapeConfig gSDFConfig{};
 
-static ::physx::PxgDynamicsMemoryConfig gGpuMemoryConfig{};
+static ::physx::PxGpuDynamicsMemoryConfig gGpuMemoryConfig{};
 
 void PhysxDefault::SetDefaultMaterial(float staticFriction, float dynamicFriction,
                                       float restitution) {
@@ -57,7 +58,7 @@ void PhysxDefault::setGpuMemoryConfig(uint32_t tempBufferCapacity, uint32_t maxR
                                       uint32_t foundLostAggregatePairsCapacity,
                                       uint32_t totalAggregatePairsCapacity,
                                       uint32_t collisionStackSize) {
-  gGpuMemoryConfig.tempBufferCapacity = tempBufferCapacity;
+  gGpuMemoryConfig.tempBufferCapacity = static_cast<decltype(gGpuMemoryConfig.tempBufferCapacity)>(tempBufferCapacity);
   gGpuMemoryConfig.maxRigidContactCount = maxRigidContactCount;
   gGpuMemoryConfig.maxRigidPatchCount = maxRigidPatchCount;
   gGpuMemoryConfig.heapCapacity = heapCapacity;
@@ -67,7 +68,7 @@ void PhysxDefault::setGpuMemoryConfig(uint32_t tempBufferCapacity, uint32_t maxR
   gGpuMemoryConfig.collisionStackSize = collisionStackSize;
 }
 
-::physx::PxgDynamicsMemoryConfig const &PhysxDefault::getGpuMemoryConfig() {
+::physx::PxGpuDynamicsMemoryConfig const &PhysxDefault::getGpuMemoryConfig() {
   return gGpuMemoryConfig;
 }
 

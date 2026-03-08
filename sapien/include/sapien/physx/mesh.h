@@ -26,7 +26,7 @@
 namespace sapien {
 namespace physx {
 class PhysxEngine;
-class PhysxSDFShapeConfig;
+struct PhysxSDFShapeConfig;
 
 using Vertices = Eigen::Matrix<float, Eigen::Dynamic, 3, Eigen::RowMajor>;
 using Triangles = Eigen::Matrix<uint32_t, Eigen::Dynamic, 3, Eigen::RowMajor>;

@@ -288,6 +288,10 @@ private:
   CudaArray mCudaRigidDynamicScratch;
   CudaArray mCudaLinkPoseScratch;
   CudaArray mCudaLinkVelScratch;
+  CudaArray mCudaLinkAngVelScratch;
+  CudaArray mCudaRootLinearVelScratch;
+  CudaArray mCudaRootAngVelScratch;
+  CudaArray mCudaArticulationGatherScratch;
   CudaArray mCudaRigidDynamicIndexScratch;
   CudaArray mCudaArticulationIndexScratch;
 
@@ -296,6 +300,10 @@ private:
   // indx buffer for all rigid dynamic bodies
   CudaArray mCudaRigidDynamicIndexBuffer;
   CudaArray mCudaRigidDynamicOffsetBuffer;
+  CudaArray mCudaRigidDynamicGpuIndexBuffer;
+  CudaArray mCudaRigidDynamicPoseBuffer;
+  CudaArray mCudaRigidDynamicVelBuffer;
+  CudaArray mCudaRigidDynamicAngBuffer;
 
   // index buffer for all articulations
   CudaArray mCudaArticulationIndexBuffer;
