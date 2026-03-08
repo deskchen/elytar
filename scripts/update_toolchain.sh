@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="${ROOT_DIR:-/workspace}"
-PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx}"
+PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx-5.3.1}"
 SAPIEN_DIR="${SAPIEN_DIR:-${ROOT_DIR}/sapien}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 PHYSX_PRESET="${PHYSX_PRESET:-linux}"
