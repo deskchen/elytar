@@ -40,7 +40,7 @@ elseif(UNIX)
       set(_physx_config_search_order release profile checked)
     endif()
 
-    # Local PhysX source builds output to linux.clang (5.3) or linux.x86_64 (5.4+).
+    # PhysX 5.6 outputs to linux.x86_64 or linux.clang.
     # Verify actual library presence, not just directory existence.
     set(_physx_lib_dir "")
     set(_physx_probe_lib "libPhysX_static_64.a")
