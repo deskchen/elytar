@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+import argparse
 import math
 from pathlib import Path
 
 import sapien
 
-from .base import TaskRuntime
+from envs.base import TaskRuntime
+
+
+def add_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--humanoid-urdf", type=Path, default=None)
+    parser.add_argument(
+        "--humanoid-motion",
+        type=str,
+        choices=["walk", "run"],
+        default="walk",
+    )
+    parser.add_argument("--humanoid-target-scale", type=float, default=0.25)
+    parser.add_argument("--humanoid-root-height", type=float, default=1.0)
+    parser.add_argument("--humanoid-joint-stiffness", type=float, default=80.0)
+    parser.add_argument("--humanoid-joint-damping", type=float, default=8.0)
+    parser.add_argument("--humanoid-joint-force-limit", type=float, default=400.0)
 
 
 def build_humanoid_from_urdf(args) -> TaskRuntime:
@@ -83,4 +99,3 @@ def build_humanoid_from_urdf(args) -> TaskRuntime:
             "humanoid_joint_force_limit": args.humanoid_joint_force_limit,
         },
     )
-

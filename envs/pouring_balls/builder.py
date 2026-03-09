@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import argparse
 import math
 import random
 
 import sapien
 
-from .base import TaskRuntime
+from envs.base import TaskRuntime
 
 
 def _add_static_box(scene, half_size, pose):
@@ -14,6 +15,15 @@ def _add_static_box(scene, half_size, pose):
     builder.add_box_collision(half_size=half_size)
     builder.set_initial_pose(pose)
     builder.build()
+
+
+def add_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--ball-count", type=int, default=4, help="Number of balls")
+    parser.add_argument("--ball-radius", type=float, default=0.02)
+    parser.add_argument("--container-half-extent", type=float, default=0.6)
+    parser.add_argument("--container-wall-height", type=float, default=0.45)
+    parser.add_argument("--container-wall-thickness", type=float, default=0.04)
+    parser.add_argument("--seed", type=int, default=0)
 
 
 def build_pouring_balls(args) -> TaskRuntime:
@@ -95,4 +105,3 @@ def build_pouring_balls(args) -> TaskRuntime:
             "seed": args.seed,
         },
     )
-

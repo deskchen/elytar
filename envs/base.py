@@ -1,3 +1,4 @@
+"""Base types for benchmark environments."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,4 +17,3 @@ class TaskRuntime:
     metadata: dict[str, Any] = field(default_factory=dict)
     # When set, multiple scenes share physx_system (vectorized). run_task uses scenes for viewer/clear.
     scenes: list[Any] | None = None
-

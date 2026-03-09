@@ -4,11 +4,10 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-# Run from repo root so "benchmark" is importable:  python3 -m benchmark.run [args]
+# Run from repo root so "benchmark" and "envs" are importable:  python3 -m benchmark.run [args]
 #
 # GPU memory flow (to debug OOM / CUDA 700):
 # 1. main() calls sapien.physx.enable_gpu() (once, before any PhysX)
@@ -19,22 +18,13 @@ from pathlib import Path
 # PhysX: contact/patch = pinned host memory; heap = GPU; found_lost = GPU.
 # If OOM: try --debug-gpu-config to see allocations; reduce num_envs or multipliers.
 
+# Parse --render early so we can set SAPIEN_SKIP_VULKAN before envs (and sapien) are imported.
+_early_parser = argparse.ArgumentParser()
+_early_parser.add_argument("--render", action="store_true")
+_early_args, _ = _early_parser.parse_known_args()
+if not _early_args.render:
+    os.environ["SAPIEN_SKIP_VULKAN"] = "1"
 
-@dataclass
-class GPUMemoryConfig:
-    """PhysX GPU memory config. ManiSkill3 defaults."""
-
-    temp_buffer_capacity: int = 2**24
-    max_rigid_contact_count: int = 2**19
-    max_rigid_patch_count: int = 2**18
-    heap_capacity: int = 2**26
-    found_lost_pairs_capacity: int = 2**25
-    found_lost_aggregate_pairs_capacity: int = 2**10
-    total_aggregate_pairs_capacity: int = 2**10
-    collision_stack_size: int = 64 * 64 * 1024
-
-    def to_dict(self) -> dict:
-        return {k: v for k, v in asdict(self).items()}
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="GPU-only PhysX benchmark runner")
@@ -85,40 +75,18 @@ def _parse_args() -> argparse.Namespace:
         help="Print GPU memory config and rough memory estimates before running.",
     )
 
-    # pouring_balls
-    parser.add_argument("--ball-count", type=int, default=4, help="Number of balls")
-    parser.add_argument("--ball-radius", type=float, default=0.02)
-    parser.add_argument("--container-half-extent", type=float, default=0.6)
-    parser.add_argument("--container-wall-height", type=float, default=0.45)
-    parser.add_argument("--container-wall-thickness", type=float, default=0.04)
-    parser.add_argument("--seed", type=int, default=0)
-
-    # humanoid_from_urdf
-    parser.add_argument("--humanoid-urdf", type=Path, default=None)
-    parser.add_argument(
-        "--humanoid-motion",
-        type=str,
-        choices=["walk", "run"],
-        default="walk",
-    )
-    parser.add_argument("--humanoid-target-scale", type=float, default=0.25)
-    parser.add_argument("--humanoid-root-height", type=float, default=1.0)
-    parser.add_argument("--humanoid-joint-stiffness", type=float, default=80.0)
-    parser.add_argument("--humanoid-joint-damping", type=float, default=8.0)
-    parser.add_argument("--humanoid-joint-force-limit", type=float, default=400.0)
+    from envs import add_all_env_args
+    add_all_env_args(parser)
     return parser.parse_args()
 
 
 _ARGS = _parse_args()
 
-# Disable Vulkan only when not rendering (viewer needs Vulkan).
-if not _ARGS.render:
-    os.environ["SAPIEN_SKIP_VULKAN"] = "1"
-
 import math
 
 import sapien
 
+from benchmark.config import GPUMemoryConfig
 from benchmark.output_csv import (
     STAGE_NAMES,
     metadata_to_string,
@@ -126,7 +94,7 @@ from benchmark.output_csv import (
     append_rows,
     write_rows,
 )
-from benchmark.tasks import get_task_builder, list_tasks, resolve_task_name
+from envs import get_task_builder, list_tasks, resolve_task_name
 
 
 def parse_args() -> argparse.Namespace:
@@ -442,4 +410,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

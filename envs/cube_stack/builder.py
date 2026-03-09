@@ -5,11 +5,12 @@ No robot - physics-only benchmark.
 """
 from __future__ import annotations
 
+import argparse
 import math
 
 import sapien
 
-from .base import TaskRuntime
+from envs.base import TaskRuntime
 
 
 def _build_into_scene(
@@ -68,6 +69,11 @@ def _build_into_scene(
     cubeA_builder.build(name="cubeA")
 
 
+def add_args(parser: argparse.ArgumentParser) -> None:
+    """Cube stack uses only common args (num_envs, render, dt, device). No extra args."""
+    pass
+
+
 def build_cube_stack(args) -> TaskRuntime:
     """ManiSkill StackCube scene: table + 2 cubes."""
     render = getattr(args, "render", False)
@@ -106,5 +112,5 @@ def build_cube_stack(args) -> TaskRuntime:
         name="cube_stack",
         scene=scene,
         physx_system=scene.physx_system,
-        metadata={},
+        metadata={"num_envs": num_envs},
     )
