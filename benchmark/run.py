@@ -47,8 +47,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--prefix",
         type=str,
-        default="results",
-        help="Prefix for output files: {prefix}_current.csv and {prefix}_history.csv",
+        default=None,
+        help="Prefix for output files: {prefix}_current.csv and {prefix}_history.csv. If not set, only print metrics (no file write).",
     )
     parser.add_argument(
         "--run-id",
@@ -382,20 +382,23 @@ def main() -> int:
         _, summary = run_task(args, task_name)
         summary_rows.append(summary)
 
-        print(
-            f"[{task_name}] total_mean_ms={summary['total_mean_ms']:.4f}, "
-            f"total_p90_ms={summary['total_p90_ms']:.4f}"
-        )
+        if args.prefix:
+            print(
+                f"[{task_name}] total_mean_ms={summary['total_mean_ms']:.4f}, "
+                f"total_p90_ms={summary['total_p90_ms']:.4f}"
+            )
+        else:
+            parts = [f"{s}_mean={summary[f'{s}_mean_ms']:.4f}" for s in STAGE_NAMES]
+            print(f"[{task_name}] " + ", ".join(parts))
 
-    output_dir = Path(args.output_dir)
-    current_path = output_dir / f"{args.prefix}_current.csv"
-    history_path = output_dir / f"{args.prefix}_history.csv"
-
-    write_rows(current_path, summary_columns(), summary_rows)
-    append_rows(history_path, summary_columns(), summary_rows)
-
-    print(f"Wrote {current_path}")
-    print(f"Appended to {history_path}")
+    if args.prefix:
+        output_dir = Path(args.output_dir)
+        current_path = output_dir / f"{args.prefix}_current.csv"
+        history_path = output_dir / f"{args.prefix}_history.csv"
+        write_rows(current_path, summary_columns(), summary_rows)
+        append_rows(history_path, summary_columns(), summary_rows)
+        print(f"Wrote {current_path}")
+        print(f"Appended to {history_path}")
 
     # Warn if all stage timings are zero: PhysX profile zones are compiled out in Release
     if summary_rows and all(s.get("total_mean_ms", 0) == 0 for s in summary_rows):
