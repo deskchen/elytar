@@ -188,7 +188,7 @@ Documentation:
 
 ## Build from source
 ### Before build
-The source tree vendors required third-party dependencies directly in `3rd_party/`.
+Make sure all submodules are initialized `git submodule update --init --recursive`.
 
 ### Build with Docker
 To build SAPIEN, simply run `./scripts/docker_build_wheels.sh`. It is not recommended to

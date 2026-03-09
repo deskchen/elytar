@@ -1,0 +1,230 @@
+name: Build
+
+on:
+  push:
+    branches: [main, dev]
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  build-linux-all:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    container:
+      image: fxiangucsd/sapien-build-env:3.8
+      env:
+        CMAKE_BUILD_PARALLEL_LEVEL: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Set up cmake cache
+        uses: actions/cache@v3
+        with:
+          path: docker_sapien_build/_sapien_deps
+          key: ${{ runner.os }}.${{ hashFiles('**/*.cmake', '**/CMakeLists.txt') }}
+      - name: Build wheels
+        run: "git config --global --add safe.directory '*' && ./scripts/build.sh"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-wheels-all
+          path: ./wheelhouse/*.whl
+
+  build-linux-aarch64-all:
+    runs-on: ubuntu-22.04-arm
+    permissions:
+      contents: write
+    container:
+      image: fxiangucsd/sapien-build-env-aarch64:3.8
+      env:
+        CMAKE_BUILD_PARALLEL_LEVEL: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Build wheels
+        run: "git config --global --add safe.directory '*' && ./scripts/build_aarch64.sh"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64-wheels-all
+          path: ./wheelhouse/*.whl
+
+  build-windows-sapien:
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+          fetch-depth: 0
+          fetch-tags: true
+      - name: setup CUDA
+        shell: bash
+        run: |
+          C:/msys64/usr/bin/wget.exe https://developer.download.nvidia.com/compute/cuda/12.6.0/network_installers/cuda_12.6.0_windows_network.exe
+          ./cuda_12.6.0_windows_network.exe -s cudart_12.6 nvcc_12.6 nvtx_12.6 curand_dev_12.6 visual_studio_integration_12.6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: |
+            3.12
+      - name: Build wheels
+        shell: bash
+        run: |
+          ls "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6"
+          python -m pip install setuptools wheel
+          python --version
+          export CUDA_PATH="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6"
+          export CudaToolkitDir="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6"
+          python setup.py --sapien-only --build-dir=sapien_build
+      - name: Upload SAPIEN
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-sapien
+          path: |
+            sapien_build/_sapien_install
+
+  build-windows-pybind:
+    runs-on: windows-2022
+    needs: build-windows-sapien
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Download SAPIEN
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-sapien
+          path: sapien_build/_sapien_install
+      - name: Build wheels
+        shell: bash
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U setuptools wheel
+          python setup.py bdist_wheel --pybind-only --build-dir=sapien_build
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-wheel-${{ matrix.python-version }}
+          path: ./dist/*.whl
+
+  build-mac:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "true"
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Initialize submodules
+        run: git submodule update --init --recursive
+      - name: Setup CMake 3.x
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.31.x'
+      - name: Set up pyenv
+        shell: bash
+        run: |
+          brew update
+          brew install pyenv
+          echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+          echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+          echo 'eval "$(pyenv init - bash)"' >> ~/.bashrc
+          source ~/.bashrc
+      - name: Build wheels
+        shell: bash
+        run: "git config --global --add safe.directory '*' && ./scripts/build_mac.sh"
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-wheels-all
+          path: ./dist/*.whl
+
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      [
+        build-linux-all,
+        build-linux-aarch64-all,
+        build-windows-pybind,
+        build-mac,
+      ]
+    permissions:
+      contents: write
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-wheel-3.10
+          path: wheelhouse
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-wheel-3.11
+          path: wheelhouse
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-wheel-3.12
+          path: wheelhouse
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-wheel-3.13
+          path: wheelhouse
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-wheel-3.14
+          path: wheelhouse
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-wheels-all
+          path: wheelhouse
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-aarch64-wheels-all
+          path: wheelhouse
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-wheels-all
+          path: wheelhouse
+      - name: ls
+        run: ls wheelhouse
+      - name: Update Nightly Release
+        uses: andelf/nightly-release@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: nightly
+          name: "Nightly Release"
+          prerelease: true
+          body: "SAPIEN development nightly release. This release is mainly for internal testing. Stable releases are published to pypi https://pypi.org/project/sapien/"
+          files: |
+            ./wheelhouse/*.whl

@@ -123,8 +123,8 @@ python3 -m benchmark.run --tasks cube_stack --num-envs 4 --steps 200 --render
 To confirm the implementation matches SAPIEN’s intended usage:
 
 1. **SAPIEN’s own “vec env” demos** (same pattern: one `PhysxGpuSystem`, multiple scenes, `set_scene_offset`):
-   - **`sapien/manualtest/gpu_viewer.py`** – 16 scenes, viewer, `px.step()` then `sync_poses_gpu_to_cpu()` and `viewer.window.update_render()`.
-   - **`sapien/manualtest/gpu.py`** – minimal: one `PhysxGpuSystem`, two scenes with `set_scene_offset`, same content built in each.
+   - **`sapien-3.0.2/manualtest/gpu_viewer.py`** – 16 scenes, viewer, `px.step()` then `sync_poses_gpu_to_cpu()` and `viewer.window.update_render()`.
+   - **`sapien-3.0.2/manualtest/gpu.py`** – minimal: one `PhysxGpuSystem`, two scenes with `set_scene_offset`, same content built in each.
 
 2. **Quick sanity checks** (from repo root, after `scripts/update_toolchain.sh`):
    - Headless vectorized:  

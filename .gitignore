@@ -5,7 +5,7 @@ __pycache__/
 .cache/
 
 # Large binary assets not needed for the build
-sapien/3rd_party/sapien-vulkan-2/app/assets/rosendal_mountain_midmorning_4k.exr
+sapien-3.0.2/3rd_party/sapien-vulkan-2/app/assets/rosendal_mountain_midmorning_4k.exr
 
 # Benchmark outputs (CSV and any other files under results dirs)
 benchmark/results/

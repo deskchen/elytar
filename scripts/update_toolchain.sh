@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="${ROOT_DIR:-/workspace}"
 PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx-5.6.1}"
-SAPIEN_DIR="${SAPIEN_DIR:-${ROOT_DIR}/sapien}"
+SAPIEN_DIR="${SAPIEN_DIR:-${ROOT_DIR}/sapien-3.0.2}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 # PhysX 5.6 uses linux-clang preset.
 PHYSX_PRESET="${PHYSX_PRESET:-linux-clang}"
@@ -130,7 +130,7 @@ import os
 from pathlib import Path
 import sys
 
-dist_dir = Path(os.environ.get("SAPIEN_DIR", "/workspace/sapien"), "dist")
+dist_dir = Path(os.environ.get("SAPIEN_DIR", "/workspace/sapien-3.0.2"), "dist")
 cp_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
 pattern = f"sapien-*-{cp_tag}-{cp_tag}-*.whl"
 wheels = sorted(dist_dir.glob(pattern), key=lambda p: p.stat().st_mtime)
