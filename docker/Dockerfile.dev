@@ -90,6 +90,9 @@ RUN curl -fsSL "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERS
 # Allow git to operate on bind-mounted workspace directories owned by host user.
 RUN git config --global --add safe.directory '*'
 
+# PyTorch for Meta-World Franka tasks (GPU drive targets via PhysX Direct GPU API).
+RUN pip3 install --no-cache-dir torch
+
 ENV CC=clang
 ENV CXX=clang++
 ENV CUDA_PATH=/usr/local/cuda

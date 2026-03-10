@@ -14,6 +14,13 @@ TASK_ALIASES = {
     "cube": "cube_stack",
     "balls": "pouring_balls",
     "humanoid": "humanoid_from_urdf",
+    # Meta-World legacy names -> franka_cylinder
+    "pick_place": "franka_cylinder",
+    "push": "franka_cylinder",
+    "reach": "franka_cylinder",
+    "sweep": "franka_cylinder",
+    "push_primitive": "cylinder",
+    "sweep_primitive": "cylinder",
 }
 
 
@@ -27,15 +34,12 @@ def discover_envs() -> dict[str, tuple[TaskBuilder, Callable[[Any], None] | None
             mod = importlib.import_module(modname)
         except Exception:
             continue
-        build_fn = None
         add_args_fn = getattr(mod, "add_args", None)
         for attr in dir(mod):
             if attr.startswith("build_") and callable(getattr(mod, attr)):
                 build_fn = getattr(mod, attr)
                 name = attr[6:]  # build_cube_stack -> cube_stack
-                break
-        if build_fn is not None:
-            envs[name] = (build_fn, add_args_fn)
+                envs[name] = (build_fn, add_args_fn)
     return envs
 
 

@@ -9,9 +9,11 @@ This benchmark suite runs **GPU-only PhysX** tasks and writes results in CSV:
 
 - `cube_stack`: ManiSkill StackCube (table + 2 cubes)
 - `pouring_balls`: container + many dynamic spheres
+- `franka_cylinder`: Franka + table + cylinder
+- `cylinder`: table + cylinder, no robot
 - `humanoid_from_urdf`: load a humanoid URDF and run simple open-loop joint targets
 
-Use `--cube-count N` or `--ball-count N` to set object counts.
+Use `--cube-count N`, `--ball-count N` to customize.
 
 ## Prerequisites
 
