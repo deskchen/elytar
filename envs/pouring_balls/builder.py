@@ -9,10 +9,13 @@ import sapien
 from envs.base import TaskRuntime
 
 
-def _add_static_box(scene, half_size, pose):
+def _add_static_box(scene, half_size, pose, render: bool = False):
     builder = scene.create_actor_builder()
     builder.set_physx_body_type("static")
     builder.add_box_collision(half_size=half_size)
+    if render:
+        mat = sapien.render.RenderMaterial(base_color=[0.5, 0.5, 0.5, 1.0], roughness=0.9)
+        builder.add_box_visual(half_size=half_size, pose=pose, material=mat)
     builder.set_initial_pose(pose)
     builder.build()
 
@@ -32,16 +35,26 @@ def build_pouring_balls(args) -> TaskRuntime:
     container_half_extent = args.container_half_extent
     wall_height = args.container_wall_height
     wall_thickness = args.container_wall_thickness
+    render = getattr(args, "render", False)
 
-    scene = sapien.Scene([sapien.physx.PhysxGpuSystem(device=args.device)])
+    systems = [sapien.physx.PhysxGpuSystem(device=args.device)]
+    if render:
+        systems.append(sapien.render.RenderSystem())
+    scene = sapien.Scene(systems)
     scene.set_timestep(args.dt)
-    scene.add_ground(altitude=0.0, render=False)
+    scene.add_ground(altitude=0.0, render=render)
+
+    if render:
+        scene.set_ambient_light([0.25, 0.25, 0.25])
+        scene.add_directional_light([0, 1, -1], [0.8, 0.8, 0.8])
+        scene.add_directional_light([1, 0, -0.5], [0.4, 0.4, 0.4])
 
     # Floor
     _add_static_box(
         scene=scene,
         half_size=[container_half_extent, container_half_extent, wall_thickness],
         pose=sapien.Pose(p=[0.0, 0.0, wall_thickness]),
+        render=render,
     )
 
     # Four walls
@@ -53,21 +66,25 @@ def build_pouring_balls(args) -> TaskRuntime:
         scene=scene,
         half_size=[wall_thickness, container_half_extent + wall_thickness, wall_half_z],
         pose=sapien.Pose(p=[x_offset, 0.0, wall_z]),
+        render=render,
     )
     _add_static_box(
         scene=scene,
         half_size=[wall_thickness, container_half_extent + wall_thickness, wall_half_z],
         pose=sapien.Pose(p=[-x_offset, 0.0, wall_z]),
+        render=render,
     )
     _add_static_box(
         scene=scene,
         half_size=[container_half_extent + wall_thickness, wall_thickness, wall_half_z],
         pose=sapien.Pose(p=[0.0, y_offset, wall_z]),
+        render=render,
     )
     _add_static_box(
         scene=scene,
         half_size=[container_half_extent + wall_thickness, wall_thickness, wall_half_z],
         pose=sapien.Pose(p=[0.0, -y_offset, wall_z]),
+        render=render,
     )
 
     rng = random.Random(args.seed)
@@ -88,6 +105,9 @@ def build_pouring_balls(args) -> TaskRuntime:
         builder = scene.create_actor_builder()
         builder.set_physx_body_type("dynamic")
         builder.add_sphere_collision(radius=radius)
+        if render:
+            mat = sapien.render.RenderMaterial(base_color=[0.2, 0.6, 1.0, 1.0], roughness=0.5)
+            builder.add_sphere_visual(radius=radius, material=mat)
         builder.set_initial_pose(sapien.Pose(p=[x, y, z]))
         builder.build(name=f"ball_{idx}")
 
