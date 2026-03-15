@@ -70,20 +70,39 @@ SET(PHYXGPU_SOLVER_HEADERS
 )
 SOURCE_GROUP("solver include" FILES ${PHYXGPU_SOLVER_HEADERS})
 
+# All 12 solver CUDA kernel files (full list; PTX mode will empty this via macro)
 SET(PHYXGPU_SOLVER_CUDA_KERNELS
-	${GPUSOLVER_SOURCE_DIR}/CUDA/solverMultiBlock.cu
-	${GPUSOLVER_SOURCE_DIR}/CUDA/solverMultiBlockTGS.cu
 	${GPUSOLVER_SOURCE_DIR}/CUDA/accumulateThresholdStream.cu
+	${GPUSOLVER_SOURCE_DIR}/CUDA/artiConstraintPrep2.cu
 	${GPUSOLVER_SOURCE_DIR}/CUDA/constraintBlockPrep.cu
 	${GPUSOLVER_SOURCE_DIR}/CUDA/constraintBlockPrePrep.cu
-	${GPUSOLVER_SOURCE_DIR}/CUDA/artiConstraintPrep2.cu
+	${GPUSOLVER_SOURCE_DIR}/CUDA/constraintBlockPrepTGS.cu
 	${GPUSOLVER_SOURCE_DIR}/CUDA/integration.cu
 	${GPUSOLVER_SOURCE_DIR}/CUDA/integrationTGS.cu
 	${GPUSOLVER_SOURCE_DIR}/CUDA/preIntegration.cu
 	${GPUSOLVER_SOURCE_DIR}/CUDA/preIntegrationTGS.cu
 	${GPUSOLVER_SOURCE_DIR}/CUDA/solver.cu
-	${GPUSOLVER_SOURCE_DIR}/CUDA/constraintBlockPrepTGS.cu
+	${GPUSOLVER_SOURCE_DIR}/CUDA/solverMultiBlock.cu
+	${GPUSOLVER_SOURCE_DIR}/CUDA/solverMultiBlockTGS.cu
 )
+
+# PTX mode: replace every .cu with pre-generated PTX via ElytarPtxReplace macro.
+# Each .cu -> .ptx (generate_ptx.sh) -> .fatbin -> _fatbin.h (build time)
+#          -> _host_stub.cpp + _ptx_register.cpp (configure time, auto-parsed)
+SET(ELYTAR_PTX_EXTRA_SOURCES "")
+IF(PX_USE_PTX_KERNELS)
+	INCLUDE("${CMAKE_CURRENT_LIST_DIR}/ElytarPtxReplace.cmake")
+	MESSAGE(STATUS "[Elytar] PTX mode ON for PhysXSolverGpu (12 files)")
+	SET(_solver_ptx_dir "${GPUSOLVER_SOURCE_DIR}/PTX")
+	FOREACH(CU_FILE IN LISTS PHYXGPU_SOLVER_CUDA_KERNELS)
+		ELYTAR_REPLACE_CU_WITH_PTX(
+			KERNELS_VAR PHYXGPU_SOLVER_CUDA_KERNELS
+			CU_FILE     "${CU_FILE}"
+			PTX_DIR     "${_solver_ptx_dir}"
+		)
+	ENDFOREACH()
+ENDIF()
+
 SOURCE_GROUP("solver kernels/CUDA" FILES ${PHYXGPU_SOLVER_CUDA_KERNELS})
 
 SET(PHYXGPU_SOLVER_CUDA_INCLUDE
@@ -118,10 +137,15 @@ SOURCE_GROUP("solver src" FILES ${PHYXGPU_SOLVER_SOURCE})
 ADD_LIBRARY(PhysXSolverGpu ${PHYSXSOLVERGPU_LIBTYPE}
 	# Solver
 	${PHYXGPU_SOLVER_HEADERS}
-	${PHYXGPU_SOLVER_CUDA_KERNELS}
+	${PHYXGPU_SOLVER_CUDA_KERNELS}      # all .cu in original mode; empty in PTX mode
 	${PHYXGPU_SOLVER_CUDA_INCLUDE}
 	${PHYXGPU_SOLVER_SOURCE}
+	${ELYTAR_PTX_EXTRA_SOURCES}         # empty in original mode; generated stubs in PTX mode
 )
+
+IF(PX_USE_PTX_KERNELS)
+	TARGET_INCLUDE_DIRECTORIES(PhysXSolverGpu PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/elytar_ptx)
+ENDIF()
 
 TARGET_INCLUDE_DIRECTORIES(PhysXSolverGpu
 	# PRIVATE ${CUDA_INCLUDE_DIRS}
