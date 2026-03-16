@@ -84,36 +84,61 @@ if [[ ! -d "${PHYSX_BUILD_DIR}" ]]; then
   exit 1
 fi
 
-# When any PTX kernels are requested, generate PTX before building.
+# When PTX kernels are requested, verify the .ptx files already exist on disk.
+# PTX must be produced externally (e.g. by scripts/generate_ptx.sh or a DSL compiler)
+# before invoking this script.
 if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
+  _ptx_missing=0
+  declare -A _ptx_src_dirs=(
+    [gpusolver]="${PHYSX_DIR}/source/gpusolver/src/PTX"
+    [gpubroadphase]="${PHYSX_DIR}/source/gpubroadphase/src/PTX"
+    [gpunarrowphase]="${PHYSX_DIR}/source/gpunarrowphase/src/PTX"
+    [gpusimulationcontroller]="${PHYSX_DIR}/source/gpusimulationcontroller/src/PTX"
+    [gpuarticulation]="${PHYSX_DIR}/source/gpuarticulation/src/PTX"
+    [gpucommon]="${PHYSX_DIR}/source/gpucommon/src/PTX"
+  )
+  declare -A _ptx_stem_to_mod
+  for _s in accumulateThresholdStream artiConstraintPrep2 constraintBlockPrep constraintBlockPrePrep constraintBlockPrepTGS integration integrationTGS preIntegration preIntegrationTGS solver solverMultiBlock solverMultiBlockTGS; do _ptx_stem_to_mod[$_s]=gpusolver; done
+  for _s in aggregate broadphase; do _ptx_stem_to_mod[$_s]=gpubroadphase; done
+  for _s in compressOutputContacts convexCoreCollision convexHeightfield convexHFMidphase convexMesh convexMeshCorrelate convexMeshMidphase convexMeshOutput convexMeshPostProcess cudaBox cudaGJKEPA cudaParticleSystem cudaSphere femClothClothMidPhase femClothHFMidPhase femClothMidPhase femClothPrimitives pairManagement particleSystemHFMidPhaseCG particleSystemMeshMidphase softbodyHFMidPhase softbodyMidPhase softbodyPrimitives softbodySoftbodyMidPhase trimeshCollision; do _ptx_stem_to_mod[$_s]=gpunarrowphase; done
+  for _s in algorithms anisotropy diffuseParticles FEMCloth FEMClothConstraintPrep FEMClothExternalSolve isosurfaceExtraction particlesystem rigidDeltaAccum SDFConstruction softBody softBodyGM sparseGridStandalone updateBodiesAndShapes updateTransformAndBoundArray; do _ptx_stem_to_mod[$_s]=gpusimulationcontroller; done
+  for _s in articulationDirectGpuApi forwardDynamic2 internalConstraints2 inverseDynamic; do _ptx_stem_to_mod[$_s]=gpuarticulation; done
+  for _s in MemCopyBalanced radixSortImpl utility; do _ptx_stem_to_mod[$_s]=gpucommon; done
+
   if [[ "${PX_PTX_REPLACE_LIST}" == "all" ]]; then
-    echo "[2/5] Generate PTX from all .cu files (arch=${PX_PTX_ARCH})"
-    PX_PTX_ARCH="${PX_PTX_ARCH}" \
-    PHYSX_DIR="${PHYSX_DIR}" \
-    CUDA_PATH="${CUDA_PATH}" \
-      "${ROOT_DIR}/scripts/generate_ptx.sh" --all
+    _check_stems=("${!_ptx_stem_to_mod[@]}")
   else
-    echo "[2/5] Generate PTX for listed stems (arch=${PX_PTX_ARCH}): ${PX_PTX_REPLACE_LIST}"
-    PX_PTX_ARCH="${PX_PTX_ARCH}" \
-    PHYSX_DIR="${PHYSX_DIR}" \
-    CUDA_PATH="${CUDA_PATH}" \
-      "${ROOT_DIR}/scripts/generate_ptx.sh" --list "${PX_PTX_REPLACE_LIST}"
+    IFS=';' read -ra _check_stems <<< "${PX_PTX_REPLACE_LIST}"
   fi
-  _ptx_step_offset=1
-else
-  _ptx_step_offset=0
+
+  for _stem in "${_check_stems[@]}"; do
+    _mod="${_ptx_stem_to_mod[$_stem]:-}"
+    if [[ -z "${_mod}" ]]; then
+      echo "ERROR: Unknown kernel stem '${_stem}' in PX_PTX_REPLACE_LIST."
+      exit 1
+    fi
+    _ptx_file="${_ptx_src_dirs[$_mod]}/${_stem}.ptx"
+    if [[ ! -f "${_ptx_file}" ]]; then
+      echo "ERROR: PTX file not found: ${_ptx_file}"
+      ((_ptx_missing++)) || true
+    fi
+  done
+
+  if [[ "${_ptx_missing}" -gt 0 ]]; then
+    echo "  ${_ptx_missing} PTX file(s) missing. Generate them first, e.g.:"
+    echo "    scripts/generate_ptx.sh --list \"${PX_PTX_REPLACE_LIST}\""
+    exit 1
+  fi
 fi
 
-_step=$((2 + _ptx_step_offset))
-echo "[${_step}/$((4 + _ptx_step_offset))] Configure PhysX (snippets/PVD off, PTX_LIST=${PX_PTX_REPLACE_LIST:-none})"
+echo "[2/4] Configure PhysX (snippets/PVD off, PTX_LIST=${PX_PTX_REPLACE_LIST:-none})"
 cmake -S "${PHYSX_DIR}/compiler/public" -B "${PHYSX_BUILD_DIR}" \
   -DPX_BUILDSNIPPETS=FALSE \
   -DPX_BUILDPVDRUNTIME=FALSE \
   -DPX_PTX_REPLACE_LIST="${PX_PTX_REPLACE_LIST}" \
   -DPX_PTX_ARCH="${PX_PTX_ARCH}"
 
-_step=$((3 + _ptx_step_offset))
-echo "[${_step}/$((4 + _ptx_step_offset))] Build PhysX (${PHYSX_CONFIG}, PTX_LIST=${PX_PTX_REPLACE_LIST:-none})"
+echo "[3/4] Build PhysX (${PHYSX_CONFIG}, PTX_LIST=${PX_PTX_REPLACE_LIST:-none})"
 cmake --build "${PHYSX_BUILD_DIR}" -- -j"$(nproc)"
 
 PHYSX_LIB_DIR=""
@@ -208,7 +233,9 @@ verify_ptx_mode() {
   done
 
   # ------------------------------------------------------------------
-  # Check 2: Build stubs count matches expected PTX stem count
+  # Check 2: Per-stem build artifacts exist in elytar_ptx/
+  # (Directory may contain stale files from previous runs — only check
+  #  the stems that are currently configured.)
   # ------------------------------------------------------------------
   echo ""
   echo "  [2] Auto-generated CMake stubs (configure-time, elytar_ptx/):"
@@ -218,19 +245,18 @@ verify_ptx_mode() {
     elytar_dir="${build_dir}/elytar_ptx"
   fi
   if [[ -d "${elytar_dir}" ]]; then
-    local n_stubs n_fatbins
-    n_stubs=$(find "${elytar_dir}" -name "*_ptx_register.cpp" 2>/dev/null | wc -l)
-    n_fatbins=$(find "${elytar_dir}" -name "*.fatbin" 2>/dev/null | wc -l)
-    if [[ "${n_stubs}" -eq "${n_expected_ptx}" ]]; then
-      _ptx_check_pass "Registration stubs: ${n_stubs}/${n_expected_ptx} *_ptx_register.cpp found"
-    else
-      _ptx_check_fail "Found ${n_stubs} stubs, expected ${n_expected_ptx} — cmake mismatch"
-    fi
-    if [[ "${n_fatbins}" -eq "${n_expected_ptx}" ]]; then
-      _ptx_check_pass "Fatbins: ${n_fatbins}/${n_expected_ptx} *.fatbin found"
-    else
-      _ptx_check_fail "Found ${n_fatbins} fatbins, expected ${n_expected_ptx} — build may have failed"
-    fi
+    for stem in "${!_ptx_stems[@]}"; do
+      if [[ -f "${elytar_dir}/${stem}_ptx_register.cpp" ]]; then
+        _ptx_check_pass "${stem}_ptx_register.cpp found"
+      else
+        _ptx_check_fail "${stem}_ptx_register.cpp missing in ${elytar_dir}"
+      fi
+      if [[ -f "${elytar_dir}/${stem}.fatbin" ]]; then
+        _ptx_check_pass "${stem}.fatbin found"
+      else
+        _ptx_check_fail "${stem}.fatbin missing in ${elytar_dir}"
+      fi
+    done
   else
     _ptx_check_fail "elytar_ptx/ not found under ${build_dir} — cmake may not have run with PTX stems"
   fi
@@ -283,14 +309,15 @@ verify_ptx_mode() {
       _ptx_check_fail "${lib_base}: found ${n_fatbin_syms} *_fatbin symbols, expected ${expected_for_lib}"
     fi
 
-    # Secondary: static-init constructor count should equal expected_for_lib
+    # Secondary (informational): static-init entries may be >1 per TU
+    # (constructor + destructor), so only check presence, not exact count.
     if [[ "${expected_for_lib}" -gt 0 ]]; then
       local n_constructors
       n_constructors=$(nm --defined-only "${lib}" 2>/dev/null | grep -c "_ptx_register\.cpp" || true)
-      if [[ "${n_constructors}" -eq "${expected_for_lib}" ]]; then
+      if [[ "${n_constructors}" -ge "${expected_for_lib}" ]]; then
         _ptx_check_pass "${lib_base}: ${n_constructors} static-init entries for ptx_register TUs"
       else
-        _ptx_check_fail "${lib_base}: ${n_constructors} static-init entries, expected ${expected_for_lib}"
+        _ptx_check_fail "${lib_base}: ${n_constructors} static-init entries, expected >= ${expected_for_lib}"
       fi
     fi
   done
@@ -314,8 +341,7 @@ if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
   verify_ptx_mode "${PHYSX_LIB_DIR}" "${PHYSX_BUILD_DIR}" "${PX_PTX_REPLACE_LIST}"
 fi
 
-_step=$((4 + _ptx_step_offset))
-echo "[${_step}/$((4 + _ptx_step_offset))] Build SAPIEN wheel using local PhysX"
+echo "[4/4] Build SAPIEN wheel using local PhysX"
 (
   cd "${SAPIEN_DIR}"
 
