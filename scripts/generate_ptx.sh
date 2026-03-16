@@ -3,15 +3,17 @@
 # generate_ptx.sh  --  Generate PTX files from PhysX .cu kernel files.
 #
 # Usage:
-#   ./scripts/generate_ptx.sh --all               # all 59 .cu files
-#   ./scripts/generate_ptx.sh --cu <path>         # single .cu file
+#   ./scripts/generate_ptx.sh --all                        # all 61 .cu files
+#   ./scripts/generate_ptx.sh --cu <path>                  # single .cu file
+#   ./scripts/generate_ptx.sh --list "integration;solver"  # named stems only
 #   ./scripts/generate_ptx.sh --all --arch compute_90
 #
 # Options:
-#   --all          Process all 59 .cu files across all 6 GPU sub-libraries
-#   --cu <path>    Process a single .cu file (absolute or relative to repo root)
-#   --arch <val>   GPU compute capability (default: $PX_PTX_ARCH or compute_86)
-#                  Lab GPUs: RTX 3090 = compute_86, H200 = compute_90
+#   --all               Process all 61 .cu files across all 6 GPU sub-libraries
+#   --cu <path>         Process a single .cu file (absolute or relative to repo root)
+#   --list "s1;s2;..."  Process only the named kernel stems (semicolon-separated)
+#   --arch <val>        GPU compute capability (default: $PX_PTX_ARCH or compute_86)
+#                       Lab GPUs: RTX 3090 = compute_86, H200 = compute_90
 #
 # Output:  Each <stem>.ptx is written next to its CUDA/ dir inside a PTX/
 #          sibling directory:
@@ -28,21 +30,23 @@ PX_PTX_ARCH="${PX_PTX_ARCH:-compute_86}"
 
 MODE=""
 SINGLE_CU=""
+LIST_STEMS=""   # semicolon-separated stems for --list mode
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --all)         MODE="all";    shift ;;
         --cu)          MODE="single"; SINGLE_CU="$2"; shift 2 ;;
+        --list)        MODE="list";   LIST_STEMS="$2"; shift 2 ;;
         --arch)        PX_PTX_ARCH="$2"; shift 2 ;;
         -h|--help)
-            sed -n '2,20p' "$0" | sed 's/^# \?//'
+            sed -n '2,22p' "$0" | sed 's/^# \?//'
             exit 0 ;;
         *) echo "Unknown argument: $1.  Use --help for usage."; exit 1 ;;
     esac
 done
 
 if [[ -z "$MODE" ]]; then
-    echo "Usage: $0 [--all | --cu <file>] [--arch compute_XX]"
+    echo "Usage: $0 [--all | --cu <file> | --list \"stem1;stem2\"] [--arch compute_XX]"
     exit 1
 fi
 
@@ -100,7 +104,7 @@ CUDA_FLAGS=(
     -DNDEBUG
 )
 
-# ---- Complete list of all 59 kernel .cu files -----------------------------
+# ---- Complete list of all 61 kernel .cu files -----------------------------
 # Grouped by sub-library for clarity.
 ALL_CU_FILES=(
     # gpusolver (12)
@@ -254,4 +258,30 @@ elif [[ "${MODE}" == "single" ]]; then
     process_cu_file "${SINGLE_CU}"
     echo ""
     echo "=== Done ==="
+
+elif [[ "${MODE}" == "list" ]]; then
+    # Build a lookup set from the semicolon-separated stem list
+    declare -A _stem_set
+    IFS=';' read -ra _stems <<< "${LIST_STEMS}"
+    for _s in "${_stems[@]}"; do
+        _stem_set["${_s}"]=1
+    done
+    echo "Mode: LIST (${#_stems[@]} stems: ${LIST_STEMS})"
+    echo ""
+    ok=0; fail=0; skip=0
+    for cu_file in "${ALL_CU_FILES[@]}"; do
+        _stem="$(basename "${cu_file}" .cu)"
+        if [[ -n "${_stem_set[${_stem}]+x}" ]]; then
+            if process_cu_file "${cu_file}"; then
+                ((ok++)) || true
+            else
+                ((fail++)) || true
+            fi
+        else
+            ((skip++)) || true
+        fi
+    done
+    echo ""
+    echo "=== Done: ${ok} succeeded, ${fail} failed, ${skip} skipped ==="
+    [[ "${fail}" -eq 0 ]] || exit 1
 fi

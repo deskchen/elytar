@@ -8,7 +8,10 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 # PhysX 5.6 uses linux-clang preset.
 PHYSX_PRESET="${PHYSX_PRESET:-linux-clang}"
 PHYSX_CONFIG="${PHYSX_CONFIG:-profile}"
-PX_USE_PTX_KERNELS="${PX_USE_PTX_KERNELS:-OFF}"
+# PX_PTX_REPLACE_LIST: semicolon-separated kernel stems to build from PTX.
+# Use "all" to replace all 61, empty string for none (pure .cu build).
+# e.g. PX_PTX_REPLACE_LIST="integration;solver" ./scripts/update_toolchain.sh
+PX_PTX_REPLACE_LIST="${PX_PTX_REPLACE_LIST:-}"
 PX_PTX_ARCH="${PX_PTX_ARCH:-compute_86}"
 SAPIEN_BUILD_MODE="${SAPIEN_BUILD_MODE:---profile}"
 SAPIEN_BUILD_DIR="${SAPIEN_BUILD_DIR:-docker_sapien_build}"
@@ -81,28 +84,36 @@ if [[ ! -d "${PHYSX_BUILD_DIR}" ]]; then
   exit 1
 fi
 
-# When PTX mode is enabled, generate PTX before building.
-if [[ "${PX_USE_PTX_KERNELS}" == "ON" ]]; then
-  echo "[2/5] Generate PTX from .cu (arch=${PX_PTX_ARCH})"
-  PX_PTX_ARCH="${PX_PTX_ARCH}" \
-  PHYSX_DIR="${PHYSX_DIR}" \
-  CUDA_PATH="${CUDA_PATH}" \
-    "${ROOT_DIR}/scripts/generate_ptx.sh" --all
+# When any PTX kernels are requested, generate PTX before building.
+if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
+  if [[ "${PX_PTX_REPLACE_LIST}" == "all" ]]; then
+    echo "[2/5] Generate PTX from all .cu files (arch=${PX_PTX_ARCH})"
+    PX_PTX_ARCH="${PX_PTX_ARCH}" \
+    PHYSX_DIR="${PHYSX_DIR}" \
+    CUDA_PATH="${CUDA_PATH}" \
+      "${ROOT_DIR}/scripts/generate_ptx.sh" --all
+  else
+    echo "[2/5] Generate PTX for listed stems (arch=${PX_PTX_ARCH}): ${PX_PTX_REPLACE_LIST}"
+    PX_PTX_ARCH="${PX_PTX_ARCH}" \
+    PHYSX_DIR="${PHYSX_DIR}" \
+    CUDA_PATH="${CUDA_PATH}" \
+      "${ROOT_DIR}/scripts/generate_ptx.sh" --list "${PX_PTX_REPLACE_LIST}"
+  fi
   _ptx_step_offset=1
 else
   _ptx_step_offset=0
 fi
 
 _step=$((2 + _ptx_step_offset))
-echo "[${_step}/$((4 + _ptx_step_offset))] Configure PhysX (snippets/PVD off, PTX=${PX_USE_PTX_KERNELS})"
+echo "[${_step}/$((4 + _ptx_step_offset))] Configure PhysX (snippets/PVD off, PTX_LIST=${PX_PTX_REPLACE_LIST:-none})"
 cmake -S "${PHYSX_DIR}/compiler/public" -B "${PHYSX_BUILD_DIR}" \
   -DPX_BUILDSNIPPETS=FALSE \
   -DPX_BUILDPVDRUNTIME=FALSE \
-  -DPX_USE_PTX_KERNELS="${PX_USE_PTX_KERNELS}" \
+  -DPX_PTX_REPLACE_LIST="${PX_PTX_REPLACE_LIST}" \
   -DPX_PTX_ARCH="${PX_PTX_ARCH}"
 
 _step=$((3 + _ptx_step_offset))
-echo "[${_step}/$((4 + _ptx_step_offset))] Build PhysX (${PHYSX_CONFIG}, PTX=${PX_USE_PTX_KERNELS})"
+echo "[${_step}/$((4 + _ptx_step_offset))] Build PhysX (${PHYSX_CONFIG}, PTX_LIST=${PX_PTX_REPLACE_LIST:-none})"
 cmake --build "${PHYSX_BUILD_DIR}" -- -j"$(nproc)"
 
 PHYSX_LIB_DIR=""
@@ -120,12 +131,13 @@ fi
 echo "  PhysX libs at: ${PHYSX_LIB_DIR}"
 
 # ---------------------------------------------------------------------------
-# PTX mode verification — run after the PhysX build to confirm the pipeline
-# actually used PTX-generated code rather than the original .cu files.
+# PTX hybrid verification — confirms that exactly the configured stems were
+# built from PTX and that any others used the original .cu path.
 # ---------------------------------------------------------------------------
 verify_ptx_mode() {
   local lib_dir="$1"   # e.g. physx-5.6.1/bin/linux.clang/profile
   local build_dir="$2" # e.g. physx-5.6.1/compiler/linux-clang-profile
+  local replace_list="$3"  # value of PX_PTX_REPLACE_LIST
 
   local ok=true
   local n_pass=0
@@ -134,18 +146,46 @@ verify_ptx_mode() {
   _ptx_check_pass() { echo "    [PASS] $*"; ((n_pass++)) || true; }
   _ptx_check_fail() { echo "    [FAIL] $*"; ((n_fail++)) || true; ok=false; }
 
+  # Build a stem -> module mapping for all 61 kernels
+  declare -A _stem_to_mod
+  local _solver_stems=( accumulateThresholdStream artiConstraintPrep2 constraintBlockPrep constraintBlockPrePrep constraintBlockPrepTGS integration integrationTGS preIntegration preIntegrationTGS solver solverMultiBlock solverMultiBlockTGS )
+  local _broadphase_stems=( aggregate broadphase )
+  local _narrowphase_stems=( compressOutputContacts convexCoreCollision convexHeightfield convexHFMidphase convexMesh convexMeshCorrelate convexMeshMidphase convexMeshOutput convexMeshPostProcess cudaBox cudaGJKEPA cudaParticleSystem cudaSphere femClothClothMidPhase femClothHFMidPhase femClothMidPhase femClothPrimitives pairManagement particleSystemHFMidPhaseCG particleSystemMeshMidphase softbodyHFMidPhase softbodyMidPhase softbodyPrimitives softbodySoftbodyMidPhase trimeshCollision )
+  local _simctrl_stems=( algorithms anisotropy diffuseParticles FEMCloth FEMClothConstraintPrep FEMClothExternalSolve isosurfaceExtraction particlesystem rigidDeltaAccum SDFConstruction softBody softBodyGM sparseGridStandalone updateBodiesAndShapes updateTransformAndBoundArray )
+  local _articulation_stems=( articulationDirectGpuApi forwardDynamic2 internalConstraints2 inverseDynamic )
+  local _common_stems=( MemCopyBalanced radixSortImpl utility )
+
+  for s in "${_solver_stems[@]}";       do _stem_to_mod["$s"]="gpusolver";               done
+  for s in "${_broadphase_stems[@]}";   do _stem_to_mod["$s"]="gpubroadphase";           done
+  for s in "${_narrowphase_stems[@]}";  do _stem_to_mod["$s"]="gpunarrowphase";          done
+  for s in "${_simctrl_stems[@]}";      do _stem_to_mod["$s"]="gpusimulationcontroller"; done
+  for s in "${_articulation_stems[@]}"; do _stem_to_mod["$s"]="gpuarticulation";         done
+  for s in "${_common_stems[@]}";       do _stem_to_mod["$s"]="gpucommon";               done
+
+  # Resolve PX_PTX_REPLACE_LIST to a concrete list of stems
+  declare -A _ptx_stems
+  if [[ "${replace_list}" == "all" ]]; then
+    for s in "${!_stem_to_mod[@]}"; do _ptx_stems["$s"]=1; done
+  else
+    IFS=';' read -ra _listed <<< "${replace_list}"
+    for s in "${_listed[@]}"; do _ptx_stems["$s"]=1; done
+  fi
+
+  local n_expected_ptx="${#_ptx_stems[@]}"
+
   echo ""
-  echo "=== PTX mode verification ==="
-  echo "  arch   : ${PX_PTX_ARCH}"
-  echo "  libs   : ${lib_dir}"
-  echo "  build  : ${build_dir}"
+  echo "=== PTX hybrid verification ==="
+  echo "  arch        : ${PX_PTX_ARCH}"
+  echo "  PTX stems   : ${n_expected_ptx} (PX_PTX_REPLACE_LIST=${replace_list})"
+  echo "  libs        : ${lib_dir}"
+  echo "  build       : ${build_dir}"
   echo ""
 
   # ------------------------------------------------------------------
-  # Check 1: PTX source files exist for all 6 sub-libraries
+  # Check 1: Each configured PTX stem has a .ptx file on disk
   # ------------------------------------------------------------------
   echo "  [1] PTX source files (generated by generate_ptx.sh):"
-  local -A ptx_dirs=(
+  local -A _mod_ptx_dirs=(
     [gpusolver]="${PHYSX_DIR}/source/gpusolver/src/PTX"
     [gpubroadphase]="${PHYSX_DIR}/source/gpubroadphase/src/PTX"
     [gpunarrowphase]="${PHYSX_DIR}/source/gpunarrowphase/src/PTX"
@@ -153,110 +193,105 @@ verify_ptx_mode() {
     [gpuarticulation]="${PHYSX_DIR}/source/gpuarticulation/src/PTX"
     [gpucommon]="${PHYSX_DIR}/source/gpucommon/src/PTX"
   )
-  local -A ptx_expected_counts=(
-    [gpusolver]=12 [gpubroadphase]=2 [gpunarrowphase]=25
-    [gpusimulationcontroller]=15 [gpuarticulation]=4 [gpucommon]=3
-  )
-  for mod in "${!ptx_dirs[@]}"; do
-    local ptx_dir="${ptx_dirs[$mod]}"
-    if [[ -d "${ptx_dir}" ]]; then
-      local count
-      count=$(find "${ptx_dir}" -name "*.ptx" 2>/dev/null | wc -l)
-      local expected="${ptx_expected_counts[$mod]}"
-      if [[ "${count}" -ge "${expected}" ]]; then
-        _ptx_check_pass "${mod}: ${count}/${expected} .ptx files found"
-      else
-        _ptx_check_fail "${mod}: only ${count}/${expected} .ptx files (run generate_ptx.sh --all)"
-      fi
+  for stem in "${!_ptx_stems[@]}"; do
+    local mod="${_stem_to_mod[$stem]:-}"
+    if [[ -z "$mod" ]]; then
+      _ptx_check_fail "Unknown stem '${stem}' in PX_PTX_REPLACE_LIST"
+      continue
+    fi
+    local ptx_file="${_mod_ptx_dirs[$mod]}/${stem}.ptx"
+    if [[ -f "${ptx_file}" ]]; then
+      _ptx_check_pass "${stem}.ptx found (${mod})"
     else
-      _ptx_check_fail "${mod}: PTX directory missing: ${ptx_dir}"
+      _ptx_check_fail "${stem}.ptx missing at ${ptx_file} — run generate_ptx.sh"
     fi
   done
 
   # ------------------------------------------------------------------
-  # Check 2: Auto-generated stub files exist in the build tree
+  # Check 2: Build stubs count matches expected PTX stem count
   # ------------------------------------------------------------------
   echo ""
   echo "  [2] Auto-generated CMake stubs (configure-time, elytar_ptx/):"
-  # The generated files live in CMAKE_CURRENT_BINARY_DIR/elytar_ptx which is
-  # a sub-directory under build_dir (e.g. sdk_gpu_source_bin/elytar_ptx).
   local elytar_dir
   elytar_dir=$(find "${build_dir}" -maxdepth 3 -name "elytar_ptx" -type d 2>/dev/null | head -1)
   if [[ -z "${elytar_dir}" ]]; then
-    elytar_dir="${build_dir}/elytar_ptx"  # fallback for error message
+    elytar_dir="${build_dir}/elytar_ptx"
   fi
   if [[ -d "${elytar_dir}" ]]; then
-    local n_stubs
+    local n_stubs n_fatbins
     n_stubs=$(find "${elytar_dir}" -name "*_ptx_register.cpp" 2>/dev/null | wc -l)
-    local n_fatbins
     n_fatbins=$(find "${elytar_dir}" -name "*.fatbin" 2>/dev/null | wc -l)
-    if [[ "${n_stubs}" -ge 61 ]]; then
-      _ptx_check_pass "Registration stubs: ${n_stubs} *_ptx_register.cpp found"
+    if [[ "${n_stubs}" -eq "${n_expected_ptx}" ]]; then
+      _ptx_check_pass "Registration stubs: ${n_stubs}/${n_expected_ptx} *_ptx_register.cpp found"
     else
-      _ptx_check_fail "Only ${n_stubs}/61 registration stubs found in ${elytar_dir}"
+      _ptx_check_fail "Found ${n_stubs} stubs, expected ${n_expected_ptx} — cmake mismatch"
     fi
-    if [[ "${n_fatbins}" -ge 61 ]]; then
-      _ptx_check_pass "Fatbins: ${n_fatbins} *.fatbin found (PTX compiled to binary)"
+    if [[ "${n_fatbins}" -eq "${n_expected_ptx}" ]]; then
+      _ptx_check_pass "Fatbins: ${n_fatbins}/${n_expected_ptx} *.fatbin found"
     else
-      _ptx_check_fail "Only ${n_fatbins}/61 .fatbin files found — build may have failed"
+      _ptx_check_fail "Found ${n_fatbins} fatbins, expected ${n_expected_ptx} — build may have failed"
     fi
   else
-    _ptx_check_fail "elytar_ptx/ not found at ${elytar_dir} — cmake may not have run in PTX mode"
+    _ptx_check_fail "elytar_ptx/ not found under ${build_dir} — cmake may not have run with PTX stems"
   fi
 
   # ------------------------------------------------------------------
-  # Check 3: Symbol check — *_fatbin data symbols must be in the libs
+  # Check 3: Per-library symbol counts match configured PTX stems
   # ------------------------------------------------------------------
   echo ""
   echo "  [3] Symbol verification (nm on built static libraries):"
 
-  local -a gpu_libs=(
-    "libPhysXSolverGpu_static_64.a"
-    "libPhysXBroadphaseGpu_static_64.a"
-    "libPhysXNarrowphaseGpu_static_64.a"
-    "libPhysXSimulationControllerGpu_static_64.a"
-    "libPhysXArticulationGpu_static_64.a"
-    "libPhysXCommonGpu_static_64.a"
-  )
-  # Fallback: non-_64 names
-  local -a gpu_libs_alt=(
-    "libPhysXSolverGpu_static.a"
-    "libPhysXBroadphaseGpu_static.a"
-    "libPhysXNarrowphaseGpu_static.a"
-    "libPhysXSimulationControllerGpu_static.a"
-    "libPhysXArticulationGpu_static.a"
-    "libPhysXCommonGpu_static.a"
-  )
+  # Map library name -> list of stems belonging to it
+  declare -A _lib_stems
+  _lib_stems[libPhysXSolverGpu_static_64.a]="${_solver_stems[*]}"
+  _lib_stems[libPhysXBroadphaseGpu_static_64.a]="${_broadphase_stems[*]}"
+  _lib_stems[libPhysXNarrowphaseGpu_static_64.a]="${_narrowphase_stems[*]}"
+  _lib_stems[libPhysXSimulationControllerGpu_static_64.a]="${_simctrl_stems[*]}"
+  _lib_stems[libPhysXArticulationGpu_static_64.a]="${_articulation_stems[*]}"
+  _lib_stems[libPhysXCommonGpu_static_64.a]="${_common_stems[*]}"
 
-  for i in "${!gpu_libs[@]}"; do
-    local lib="${lib_dir}/${gpu_libs[$i]}"
+  for lib_name in "${!_lib_stems[@]}"; do
+    local lib="${lib_dir}/${lib_name}"
+    # Try fallback without _64
     if [[ ! -f "${lib}" ]]; then
-      lib="${lib_dir}/${gpu_libs_alt[$i]}"
+      lib="${lib_dir}/${lib_name/_static_64.a/_static.a}"
     fi
     if [[ ! -f "${lib}" ]]; then
-      _ptx_check_fail "${gpu_libs[$i]}: not found in ${lib_dir}"
+      _ptx_check_fail "${lib_name}: not found in ${lib_dir}"
       continue
     fi
-    local lib_base
+
+    # Count how many stems for this lib are in the PTX list
+    local expected_for_lib=0
+    for s in ${_lib_stems[$lib_name]}; do
+      if [[ -n "${_ptx_stems[$s]+x}" ]]; then
+        ((expected_for_lib++)) || true
+      fi
+    done
+
+    local lib_base n_fatbin_syms
     lib_base="$(basename "${lib}")"
-    # In PTX mode the registrar struct lives inside an anonymous namespace, so its
-    # mangled name never contains "Elytar_".  The reliable indicator is the embedded
-    # fatbin byte-array symbol (type D, named <stem>_fatbin) that bin2c emits and that
-    # is ONLY present when a _ptx_register.cpp object was compiled into the archive.
-    # In original-mode builds nvcc embeds fatbinaries differently (no <stem>_fatbin).
-    local n_fatbin_syms
     n_fatbin_syms=$(nm --defined-only "${lib}" 2>/dev/null | grep -c "_fatbin$" || true)
-    if [[ "${n_fatbin_syms}" -gt 0 ]]; then
-      _ptx_check_pass "${lib_base}: ${n_fatbin_syms} *_fatbin data symbols found (PTX mode confirmed)"
+
+    if [[ "${n_fatbin_syms}" -eq "${expected_for_lib}" ]]; then
+      if [[ "${expected_for_lib}" -eq 0 ]]; then
+        _ptx_check_pass "${lib_base}: 0 PTX stems configured (all .cu) — confirmed no *_fatbin symbols"
+      else
+        _ptx_check_pass "${lib_base}: ${n_fatbin_syms}/${expected_for_lib} *_fatbin symbols (PTX kernels confirmed)"
+      fi
     else
-      _ptx_check_fail "${lib_base}: no *_fatbin symbols — library may have been built in original mode"
+      _ptx_check_fail "${lib_base}: found ${n_fatbin_syms} *_fatbin symbols, expected ${expected_for_lib}"
     fi
-    # Secondary: every PTX-mode TU also emits a static-init function whose demangled
-    # name contains "_ptx_register.cpp".  Count them as a sanity cross-check.
-    local n_constructors
-    n_constructors=$(nm --defined-only "${lib}" 2>/dev/null | grep -c "_ptx_register\.cpp" || true)
-    if [[ "${n_constructors}" -gt 0 ]]; then
-      _ptx_check_pass "${lib_base}: ${n_constructors} static-init entries for ptx_register TUs"
+
+    # Secondary: static-init constructor count should equal expected_for_lib
+    if [[ "${expected_for_lib}" -gt 0 ]]; then
+      local n_constructors
+      n_constructors=$(nm --defined-only "${lib}" 2>/dev/null | grep -c "_ptx_register\.cpp" || true)
+      if [[ "${n_constructors}" -eq "${expected_for_lib}" ]]; then
+        _ptx_check_pass "${lib_base}: ${n_constructors} static-init entries for ptx_register TUs"
+      else
+        _ptx_check_fail "${lib_base}: ${n_constructors} static-init entries, expected ${expected_for_lib}"
+      fi
     fi
   done
 
@@ -266,17 +301,17 @@ verify_ptx_mode() {
   echo ""
   if [[ "${ok}" == "true" ]]; then
     echo "  PTX verification PASSED (${n_pass} checks, 0 failures)"
-    echo "  -> PhysX was built using pre-generated PTX for all 61 kernel files."
+    echo "  -> ${n_expected_ptx}/61 kernels from PTX, remainder from .cu."
   else
     echo "  PTX verification FAILED (${n_pass} passed, ${n_fail} failed)"
-    echo "  -> See [FAIL] entries above. Run generate_ptx.sh --all then rebuild."
+    echo "  -> See [FAIL] entries above."
     return 1
   fi
   echo ""
 }
 
-if [[ "${PX_USE_PTX_KERNELS}" == "ON" ]]; then
-  verify_ptx_mode "${PHYSX_LIB_DIR}" "${PHYSX_BUILD_DIR}"
+if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
+  verify_ptx_mode "${PHYSX_LIB_DIR}" "${PHYSX_BUILD_DIR}" "${PX_PTX_REPLACE_LIST}"
 fi
 
 _step=$((4 + _ptx_step_offset))
