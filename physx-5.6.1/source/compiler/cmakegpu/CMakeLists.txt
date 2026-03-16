@@ -36,7 +36,8 @@ ENDIF()
 
 OPTION(PX_GENERATE_GPU_STATIC_LIBRARIES "Generate PhysXGPU static libraries" OFF)
 OPTION(PX_GENERATE_GPU_REDUCED_ARCHITECTURES "Generate only a reduced number of GPU architectures for faster compilation" OFF)
-OPTION(PX_USE_PTX_KERNELS "Use pre-generated PTX files instead of compiling .cu device code (for DSL integration)" OFF)
+SET(PX_PTX_REPLACE_LIST "" CACHE STRING
+    "Semicolon-separated list of kernel stems to build from pre-generated PTX instead of .cu (e.g. integration;solver). Use 'all' to replace all 61 kernels.")
 SET(PX_PTX_ARCH "compute_86" CACHE STRING "Target architecture for PTX compilation (e.g. compute_86 for RTX 3090, compute_90 for H200)")
 
 CMAKE_POLICY(SET CMP0057 NEW) # Enable IN_LIST

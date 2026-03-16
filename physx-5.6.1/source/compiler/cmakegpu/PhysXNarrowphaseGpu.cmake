@@ -85,17 +85,35 @@ SET(PHYXGPU_NARROWPHASE_CUDA_KERNELS
 )
 
 SET(ELYTAR_PTX_EXTRA_SOURCES "")
-IF(PX_USE_PTX_KERNELS)
-	INCLUDE("${CMAKE_CURRENT_LIST_DIR}/ElytarPtxReplace.cmake")
-	MESSAGE(STATUS "[Elytar] PTX mode ON for PhysXNarrowphaseGpu (25 files)")
+IF(PX_PTX_REPLACE_LIST)
 	SET(_narrowphase_ptx_dir "${NARROW_PHASE_SOURCE_DIR}/PTX")
+	SET(_eptx_included FALSE)
 	FOREACH(CU_FILE IN LISTS PHYXGPU_NARROWPHASE_CUDA_KERNELS)
-		ELYTAR_REPLACE_CU_WITH_PTX(
-			KERNELS_VAR PHYXGPU_NARROWPHASE_CUDA_KERNELS
-			CU_FILE     "${CU_FILE}"
-			PTX_DIR     "${_narrowphase_ptx_dir}"
-		)
+		GET_FILENAME_COMPONENT(_stem "${CU_FILE}" NAME_WE)
+		SET(_use_ptx FALSE)
+		IF(PX_PTX_REPLACE_LIST STREQUAL "all")
+			SET(_use_ptx TRUE)
+		ELSE()
+			LIST(FIND PX_PTX_REPLACE_LIST "${_stem}" _idx)
+			IF(_idx GREATER_EQUAL 0)
+				SET(_use_ptx TRUE)
+			ENDIF()
+		ENDIF()
+		IF(_use_ptx)
+			IF(NOT _eptx_included)
+				INCLUDE("${CMAKE_CURRENT_LIST_DIR}/ElytarPtxReplace.cmake")
+				SET(_eptx_included TRUE)
+			ENDIF()
+			ELYTAR_REPLACE_CU_WITH_PTX(
+				KERNELS_VAR PHYXGPU_NARROWPHASE_CUDA_KERNELS
+				CU_FILE     "${CU_FILE}"
+				PTX_DIR     "${_narrowphase_ptx_dir}"
+			)
+		ENDIF()
 	ENDFOREACH()
+	LIST(LENGTH ELYTAR_PTX_EXTRA_SOURCES _n_ptx_narrowphase)
+	MATH(EXPR _n_ptx_narrowphase "${_n_ptx_narrowphase} / 2")
+	MESSAGE(STATUS "[Elytar] PhysXNarrowphaseGpu: ${_n_ptx_narrowphase}/25 kernels from PTX")
 ENDIF()
 
 SOURCE_GROUP("narrowphase kernels/CUDA" FILES ${PHYXGPU_NARROWPHASE_CUDA_KERNELS})
@@ -139,13 +157,13 @@ SOURCE_GROUP("narrowphase src" FILES ${PHYXGPU_NARROWPHASE_SOURCE})
 ADD_LIBRARY(PhysXNarrowphaseGpu ${PHYSXNARROWPHASEGPU_LIBTYPE}
 	# narrowphase
 	${PHYXGPU_NARROWPHASE_CUDA_INCLUDE}
-	${PHYXGPU_NARROWPHASE_CUDA_KERNELS}  # all .cu in original mode; empty in PTX mode
+	${PHYXGPU_NARROWPHASE_CUDA_KERNELS}  # .cu files not replaced by PTX
 	${PHYXGPU_NARROWPHASE_SOURCE}
 	${PHYXGPU_NARROWPHASE_HEADERS}
-	${ELYTAR_PTX_EXTRA_SOURCES}          # empty in original mode; generated stubs in PTX mode
+	${ELYTAR_PTX_EXTRA_SOURCES}          # generated stubs for PTX-replaced kernels
 )
 
-IF(PX_USE_PTX_KERNELS)
+IF(ELYTAR_PTX_EXTRA_SOURCES)
 	TARGET_INCLUDE_DIRECTORIES(PhysXNarrowphaseGpu PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/elytar_ptx)
 ENDIF()
 

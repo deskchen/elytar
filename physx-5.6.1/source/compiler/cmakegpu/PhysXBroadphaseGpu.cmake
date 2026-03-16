@@ -57,17 +57,35 @@ SET(PHYXGPU_BROADPHASE_CUDA_KERNELS
 )
 
 SET(ELYTAR_PTX_EXTRA_SOURCES "")
-IF(PX_USE_PTX_KERNELS)
-	INCLUDE("${CMAKE_CURRENT_LIST_DIR}/ElytarPtxReplace.cmake")
-	MESSAGE(STATUS "[Elytar] PTX mode ON for PhysXBroadphaseGpu (2 files)")
+IF(PX_PTX_REPLACE_LIST)
 	SET(_broadphase_ptx_dir "${BROAD_PHASE_SOURCE_DIR}/PTX")
+	SET(_eptx_included FALSE)
 	FOREACH(CU_FILE IN LISTS PHYXGPU_BROADPHASE_CUDA_KERNELS)
-		ELYTAR_REPLACE_CU_WITH_PTX(
-			KERNELS_VAR PHYXGPU_BROADPHASE_CUDA_KERNELS
-			CU_FILE     "${CU_FILE}"
-			PTX_DIR     "${_broadphase_ptx_dir}"
-		)
+		GET_FILENAME_COMPONENT(_stem "${CU_FILE}" NAME_WE)
+		SET(_use_ptx FALSE)
+		IF(PX_PTX_REPLACE_LIST STREQUAL "all")
+			SET(_use_ptx TRUE)
+		ELSE()
+			LIST(FIND PX_PTX_REPLACE_LIST "${_stem}" _idx)
+			IF(_idx GREATER_EQUAL 0)
+				SET(_use_ptx TRUE)
+			ENDIF()
+		ENDIF()
+		IF(_use_ptx)
+			IF(NOT _eptx_included)
+				INCLUDE("${CMAKE_CURRENT_LIST_DIR}/ElytarPtxReplace.cmake")
+				SET(_eptx_included TRUE)
+			ENDIF()
+			ELYTAR_REPLACE_CU_WITH_PTX(
+				KERNELS_VAR PHYXGPU_BROADPHASE_CUDA_KERNELS
+				CU_FILE     "${CU_FILE}"
+				PTX_DIR     "${_broadphase_ptx_dir}"
+			)
+		ENDIF()
 	ENDFOREACH()
+	LIST(LENGTH ELYTAR_PTX_EXTRA_SOURCES _n_ptx_broadphase)
+	MATH(EXPR _n_ptx_broadphase "${_n_ptx_broadphase} / 2")
+	MESSAGE(STATUS "[Elytar] PhysXBroadphaseGpu: ${_n_ptx_broadphase}/2 kernels from PTX")
 ENDIF()
 
 SOURCE_GROUP("broadphase kernels/CUDA" FILES ${PHYXGPU_BROADPHASE_CUDA_KERNELS})
@@ -82,12 +100,12 @@ SOURCE_GROUP("broadphase src" FILES ${PHYXGPU_BROADPHASE_SOURCE})
 ADD_LIBRARY(PhysXBroadphaseGpu ${PHYSXBROADPHASEGPU_LIBTYPE}
 	# broadphase
 	${PHYXGPU_BROADPHASE_HEADERS}
-	${PHYXGPU_BROADPHASE_CUDA_KERNELS}  # all .cu in original mode; empty in PTX mode
+	${PHYXGPU_BROADPHASE_CUDA_KERNELS}  # .cu files not replaced by PTX
 	${PHYXGPU_BROADPHASE_SOURCE}
-	${ELYTAR_PTX_EXTRA_SOURCES}         # empty in original mode; generated stubs in PTX mode
+	${ELYTAR_PTX_EXTRA_SOURCES}         # generated stubs for PTX-replaced kernels
 )
 
-IF(PX_USE_PTX_KERNELS)
+IF(ELYTAR_PTX_EXTRA_SOURCES)
 	TARGET_INCLUDE_DIRECTORIES(PhysXBroadphaseGpu PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/elytar_ptx)
 ENDIF()
 

@@ -16,24 +16,39 @@
 ##
 ## Usage in each sub-library .cmake file (BEFORE ADD_LIBRARY):
 ##
-##   IF(PX_USE_PTX_KERNELS)
-##       INCLUDE("${CMAKE_CURRENT_LIST_DIR}/ElytarPtxReplace.cmake")
-##       SET(ELYTAR_PTX_EXTRA_SOURCES "")
-##       SET(_ptx_dir "${MY_MODULE_SOURCE_DIR}/PTX")
+##   SET(ELYTAR_PTX_EXTRA_SOURCES "")
+##   IF(PX_PTX_REPLACE_LIST)
+##       SET(_eptx_included FALSE)
 ##       FOREACH(CU_FILE IN LISTS MY_CUDA_KERNELS_LIST)
-##           ELYTAR_REPLACE_CU_WITH_PTX(
-##               KERNELS_VAR MY_CUDA_KERNELS_LIST
-##               CU_FILE     "${CU_FILE}"
-##               PTX_DIR     "${_ptx_dir}")
+##           GET_FILENAME_COMPONENT(_stem "${CU_FILE}" NAME_WE)
+##           SET(_use_ptx FALSE)
+##           IF(PX_PTX_REPLACE_LIST STREQUAL "all")
+##               SET(_use_ptx TRUE)
+##           ELSE()
+##               LIST(FIND PX_PTX_REPLACE_LIST "${_stem}" _idx)
+##               IF(_idx GREATER_EQUAL 0)
+##                   SET(_use_ptx TRUE)
+##               ENDIF()
+##           ENDIF()
+##           IF(_use_ptx)
+##               IF(NOT _eptx_included)
+##                   INCLUDE("${CMAKE_CURRENT_LIST_DIR}/ElytarPtxReplace.cmake")
+##                   SET(_eptx_included TRUE)
+##               ENDIF()
+##               ELYTAR_REPLACE_CU_WITH_PTX(
+##                   KERNELS_VAR MY_CUDA_KERNELS_LIST
+##                   CU_FILE     "${CU_FILE}"
+##                   PTX_DIR     "${_ptx_dir}")
+##           ENDIF()
 ##       ENDFOREACH()
 ##   ENDIF()
 ##
 ##   ADD_LIBRARY(MyTarget ...
-##       ${MY_CUDA_KERNELS_LIST}         # empty in PTX mode
-##       ${ELYTAR_PTX_EXTRA_SOURCES}     # generated stubs in PTX mode
+##       ${MY_CUDA_KERNELS_LIST}         # .cu files not replaced by PTX
+##       ${ELYTAR_PTX_EXTRA_SOURCES}     # generated stubs for PTX-replaced kernels
 ##   )
 ##
-##   IF(PX_USE_PTX_KERNELS)
+##   IF(ELYTAR_PTX_EXTRA_SOURCES)
 ##       TARGET_INCLUDE_DIRECTORIES(MyTarget PRIVATE
 ##           ${CMAKE_CURRENT_BINARY_DIR}/elytar_ptx)
 ##   ENDIF()
