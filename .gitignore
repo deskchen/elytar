@@ -11,3 +11,12 @@ sapien-3.0.2/3rd_party/sapien-vulkan-2/app/assets/rosendal_mountain_midmorning_4
 benchmark/results/
 benchmark/results_*/
 
+# Generated PTX/fatbin files (produced by generate_ptx.sh or DSL; not committed)
+physx-5.6.1/source/gpuarticulation/src/PTX/*
+physx-5.6.1/source/gpubroadphase/src/PTX/*
+physx-5.6.1/source/gpucommon/src/PTX/*
+physx-5.6.1/source/gpunarrowphase/src/PTX/*
+physx-5.6.1/source/gpusimulationcontroller/src/PTX/*
+physx-5.6.1/source/gpusolver/src/PTX/*
+physx-5.6.1/source/**/PTX/*
+
