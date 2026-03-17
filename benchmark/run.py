@@ -32,7 +32,7 @@ def _parse_args() -> argparse.Namespace:
         "--tasks",
         type=str,
         default="cube_stack,pouring_balls",
-        help="Comma-separated list of tasks",
+        help='Comma-separated tasks. Sequential mode: "cube_stack,pouring_balls". Mixed mode: "cube_stack:4,franka:16".',
     )
     parser.add_argument("--steps", type=int, default=600, help="Measured simulation steps")
     parser.add_argument("--warmup-steps", type=int, default=120, help="Warmup steps")
@@ -94,11 +94,42 @@ from benchmark.output_csv import (
     append_rows,
     write_rows,
 )
-from envs import get_task_builder, list_tasks, resolve_task_name
+from envs import get_task_builder, get_task_scene_builder, list_tasks, resolve_task_name
+from envs.base import TaskRuntime
+
+TaskSpec = tuple[str, int | None]
 
 
 def parse_args() -> argparse.Namespace:
     return _ARGS
+
+
+def parse_task_specs(tasks_arg: str) -> tuple[list[TaskSpec], bool]:
+    specs: list[TaskSpec] = []
+    has_explicit_counts = False
+    for token in tasks_arg.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        if ":" in item:
+            task_name_raw, count_raw = item.split(":", 1)
+            task_name = resolve_task_name(task_name_raw)
+            count = int(count_raw)
+            if count < 1:
+                raise ValueError(f"Task '{task_name_raw}' has invalid env count '{count_raw}' (must be >= 1)")
+            specs.append((task_name, count))
+            has_explicit_counts = True
+        else:
+            specs.append((resolve_task_name(item), None))
+
+    if not specs:
+        raise ValueError("No tasks selected")
+    if has_explicit_counts and any(count is None for _, count in specs):
+        raise ValueError(
+            "Mixed task syntax is ambiguous. When using task counts, provide all as task:count "
+            '(e.g. --tasks "cube_stack:4,franka:16").'
+        )
+    return specs, has_explicit_counts
 
 
 def _has_display() -> bool:
@@ -201,41 +232,33 @@ def _set_physx_scene_config() -> None:
     )
 
 
-def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict]:
-    builder = get_task_builder(task_name)
-    num_envs = getattr(args, "num_envs", 1)
+def _build_gpu_memory_config(num_envs: int) -> dict:
     gpu_config = GPUMemoryConfig().to_dict()
     if num_envs > 1:
         # ManiSkill-style: heap/temp stay at defaults (64 MB, 16 MB); PhysX grows heap if needed.
         # Only scale contact/patch per ManiSkill (rotate_single_object_in_hand, insert_flower).
-        n = num_envs
-        base = n * max(1024, n)
-        # gpu_config["max_rigid_contact_count"] = base * 8
         gpu_config["max_rigid_contact_count"] = 67141632
         gpu_config["max_rigid_patch_count"] = 16785408
-        # gpu_config["max_rigid_patch_count"] = base * 2
         gpu_config["found_lost_pairs_capacity"] = 2**26
         # Do NOT override heap_capacity or temp_buffer_capacity - use GPUMemoryConfig defaults
-    if getattr(args, "debug_gpu_config", False):
-        _print_gpu_config_debug(gpu_config, num_envs)
+    return gpu_config
 
+
+def _apply_gpu_memory_config(gpu_config: dict) -> None:
     try:
         sapien.physx.set_gpu_memory_config(**gpu_config)
     except TypeError:
         gpu_config.pop("collision_stack_size")
         sapien.physx.set_gpu_memory_config(**gpu_config)
 
-    # Match ManiSkill: set scene/body/shape/material config before creating PhysxGpuSystem.
-    _set_physx_scene_config()
 
-    runtime = builder(args)
-
+def _run_runtime(args: argparse.Namespace, task_label: str, num_envs: int, runtime: TaskRuntime) -> tuple[list[dict], dict]:
     if not isinstance(runtime.physx_system, sapien.physx.PhysxGpuSystem):
-        raise RuntimeError(f"Task '{task_name}' did not create a PhysxGpuSystem")
+        raise RuntimeError(f"Task '{task_label}' did not create a PhysxGpuSystem")
 
-    print(f"[{task_name}] Initializing GPU ...", flush=True)
+    print(f"[{task_label}] Initializing GPU ...", flush=True)
     runtime.physx_system.gpu_init()
-    print(f"[{task_name}] GPU ready", flush=True)
+    print(f"[{task_label}] GPU ready", flush=True)
 
     # Optional viewer for --render (scene(s) must have been built with RenderSystem).
     viewer = None
@@ -258,28 +281,42 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
             # Skip cubemap to avoid bright sky HDR washing out colors to white.
             vs = viewer.window._internal_scene
             vs.set_ambient_light([0.15, 0.15, 0.15])
+            if len(scenes) > 1:
+                center_xy = offsets[:, :2].mean(axis=0)
+                span_xy = offsets[:, :2].max(axis=0) - offsets[:, :2].min(axis=0)
+                span = float(max(span_xy[0], span_xy[1], 1.0))
+                # Overview camera for mixed/vectorized runs so env clusters are visible.
+                viewer.set_camera_pose(
+                    sapien.Pose(
+                        p=[float(center_xy[0] - 0.35 * span), float(center_xy[1]), 0.18 * span + 0.6]
+                    )
+                )
+                viewer.window.set_camera_parameters(0.05, 3000, math.pi / 5)
+            else:
+                # Close-up camera for single scene.
+                viewer.set_camera_pose(sapien.Pose(p=[-0.2, 0, 0.12]))
+                viewer.window.set_camera_parameters(0.01, 1000, math.pi / 6)
         else:
             viewer.set_scene(runtime.scene)
-        # Close-up camera for stacked cubes
-        viewer.set_camera_pose(sapien.Pose(p=[-0.2, 0, 0.12]))
-        viewer.window.set_camera_parameters(0.01, 1000, math.pi / 6)
+            viewer.set_camera_pose(sapien.Pose(p=[-0.2, 0, 0.12]))
+            viewer.window.set_camera_parameters(0.01, 1000, math.pi / 6)
         print("Viewer: scroll wheel=zoom, right-drag=rotate, middle-drag=pan, F=focus selected", flush=True)
 
     before_step = runtime.before_step
     dt = float(args.dt)
 
     # Warmup (cap for large num_envs so we don't sit on CPU-bound setup forever before GPU runs)
-    warmup_steps = args.warmup_steps
+    warmup_steps = int(args.warmup_steps)
     if num_envs > 512:
         warmup_steps = min(warmup_steps, 30)
-    print(f"[{task_name}] Warmup ({warmup_steps} steps) ...", flush=True)
+    print(f"[{task_label}] Warmup ({warmup_steps} steps) ...", flush=True)
     for step_idx in range(warmup_steps):
         if before_step is not None:
             before_step(step_idx, step_idx * dt)
         runtime.physx_system.step()
-    print(f"[{task_name}] Warmup done", flush=True)
+    print(f"[{task_label}] Warmup done", flush=True)
 
-    print(f"[{task_name}] Running {args.steps} steps ...", flush=True)
+    print(f"[{task_label}] Running {args.steps} steps ...", flush=True)
     rows: list[dict] = []
     for step_idx in range(args.steps):
         if before_step is not None:
@@ -290,6 +327,12 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
         sapien.physx.stage_profiler_end_frame()
 
         if viewer is not None:
+            # Keep articulation links (e.g., Franka) in sync for rendering in GPU mode.
+            # Without this, mixed articulated scenes can appear overlapped or scrambled.
+            if hasattr(runtime.physx_system, "gpu_update_articulation_kinematics"):
+                runtime.physx_system.gpu_update_articulation_kinematics()
+            if hasattr(runtime.physx_system, "gpu_fetch_articulation_link_pose"):
+                runtime.physx_system.gpu_fetch_articulation_link_pose()
             runtime.physx_system.sync_poses_gpu_to_cpu()
             scenes = getattr(runtime, "scenes", None) or ([runtime.scene] if runtime.scene else [])
             for s in scenes:
@@ -314,7 +357,7 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
         }
         rows.append(row)
 
-    print(f"[{task_name}] Done ({args.steps} steps)", flush=True)
+    print(f"[{task_label}] Done ({args.steps} steps)", flush=True)
     task_config = metadata_to_string(runtime.metadata)
     config = runtime.metadata.get("config", "N/A")
     summary = summarize_task_rows(
@@ -337,6 +380,68 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
     return rows, summary
 
 
+def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict]:
+    builder = get_task_builder(task_name)
+    num_envs = max(1, int(getattr(args, "num_envs", 1)))
+    gpu_config = _build_gpu_memory_config(num_envs)
+    if getattr(args, "debug_gpu_config", False):
+        _print_gpu_config_debug(gpu_config, num_envs)
+    _apply_gpu_memory_config(gpu_config)
+
+    # Match ManiSkill: set scene/body/shape/material config before creating PhysxGpuSystem.
+    _set_physx_scene_config()
+    runtime = builder(args)
+    return _run_runtime(args, task_name, num_envs, runtime)
+
+
+def run_combined_task(args: argparse.Namespace, task_specs: list[tuple[str, int]]) -> tuple[list[dict], dict]:
+    total_envs = sum(count for _, count in task_specs)
+    gpu_config = _build_gpu_memory_config(total_envs)
+    if getattr(args, "debug_gpu_config", False):
+        _print_gpu_config_debug(gpu_config, total_envs)
+    _apply_gpu_memory_config(gpu_config)
+    _set_physx_scene_config()
+
+    px = sapien.physx.PhysxGpuSystem(device=args.device)
+    scenes = []
+    before_steps = []
+    metadata: dict[str, object] = {"total_envs": total_envs}
+    scene_offset = 0
+
+    for task_name, count in task_specs:
+        scene_builder = get_task_scene_builder(task_name)
+        if scene_builder is None:
+            raise RuntimeError(
+                f"Task '{task_name}' does not support mixed-env mode yet. "
+                "Only tasks with build_scenes_into_<task>() are supported."
+            )
+        task_scenes, task_before_step, task_meta = scene_builder(px, scene_offset, count, total_envs, args)
+        if len(task_scenes) != count:
+            raise RuntimeError(f"Task '{task_name}' built {len(task_scenes)} scenes, expected {count}")
+        scenes.extend(task_scenes)
+        if task_before_step is not None:
+            before_steps.append(task_before_step)
+        metadata[f"{task_name}_num_envs"] = count
+        for k, v in task_meta.items():
+            metadata[f"{task_name}_{k}"] = v
+        scene_offset += count
+
+    def combined_before_step(step_idx: int, time_s: float) -> None:
+        for hook in before_steps:
+            hook(step_idx, time_s)
+
+    task_name = "+".join(f"{name}:{count}" for name, count in task_specs)
+    runtime = TaskRuntime(
+        name=task_name,
+        scene=scenes[0],
+        physx_system=px,
+        before_step=combined_before_step if before_steps else None,
+        metadata=metadata,
+        scenes=scenes,
+    )
+    return _run_runtime(args, task_name, total_envs, runtime)
+
+
 def main() -> int:
     args = parse_args()
 
@@ -344,9 +449,7 @@ def main() -> int:
         print("\n".join(list_tasks()))
         return 0
 
-    requested_tasks = [resolve_task_name(t) for t in args.tasks.split(",") if t.strip()]
-    if not requested_tasks:
-        raise ValueError("No tasks selected")
+    requested_task_specs, has_explicit_counts = parse_task_specs(args.tasks)
     if args.num_envs < 1:
         args.num_envs = 1
 
@@ -377,19 +480,33 @@ def main() -> int:
     sapien.physx.set_stage_profiler_enabled(True)
 
     summary_rows: list[dict] = []
-
-    for task_name in requested_tasks:
-        _, summary = run_task(args, task_name)
+    if has_explicit_counts:
+        combined_specs = [(task_name, int(count)) for task_name, count in requested_task_specs if count is not None]
+        _, summary = run_combined_task(args, combined_specs)
         summary_rows.append(summary)
-
+        task_label = summary["task"]
         if args.prefix:
             print(
-                f"[{task_name}] total_mean_ms={summary['total_mean_ms']:.4f}, "
+                f"[{task_label}] total_mean_ms={summary['total_mean_ms']:.4f}, "
                 f"total_p90_ms={summary['total_p90_ms']:.4f}"
             )
         else:
             parts = [f"{s}_mean={summary[f'{s}_mean_ms']:.4f}" for s in STAGE_NAMES]
-            print(f"[{task_name}] " + ", ".join(parts))
+            print(f"[{task_label}] " + ", ".join(parts))
+    else:
+        requested_tasks = [name for name, _ in requested_task_specs]
+        for task_name in requested_tasks:
+            _, summary = run_task(args, task_name)
+            summary_rows.append(summary)
+
+            if args.prefix:
+                print(
+                    f"[{task_name}] total_mean_ms={summary['total_mean_ms']:.4f}, "
+                    f"total_p90_ms={summary['total_p90_ms']:.4f}"
+                )
+            else:
+                parts = [f"{s}_mean={summary[f'{s}_mean_ms']:.4f}" for s in STAGE_NAMES]
+                print(f"[{task_name}] " + ", ".join(parts))
 
     if args.prefix:
         output_dir = Path(args.output_dir)
