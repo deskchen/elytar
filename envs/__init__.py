@@ -9,6 +9,7 @@ from typing import Any
 from envs.base import TaskRuntime
 
 TaskBuilder = Callable[[Any], TaskRuntime]
+TaskSceneBuilder = Callable[[Any, int, int, int, Any], tuple[list[Any], Any, dict[str, Any]]]
 
 TASK_ALIASES = {
     "cube": "cube_stack",
@@ -68,6 +69,26 @@ def get_task_builder(name: str) -> TaskBuilder:
     return builders[resolved]
 
 
+def get_task_scene_builder(name: str) -> TaskSceneBuilder | None:
+    """Return optional scene-builder hook for mixed task mode."""
+    resolved = resolve_task_name(name)
+    build_fn = get_task_builder(resolved)
+    module_name = build_fn.__module__
+    module = importlib.import_module(module_name)
+    scene_builder_name = f"build_scenes_into_{resolved}"
+    scene_builder = getattr(module, scene_builder_name, None)
+    if scene_builder is None and hasattr(module, "__path__"):
+        # Task builders are often re-exported from package __init__.py, while scene builders live in .builder.
+        try:
+            builder_module = importlib.import_module(f"{module_name}.builder")
+            scene_builder = getattr(builder_module, scene_builder_name, None)
+        except Exception:
+            scene_builder = None
+    if callable(scene_builder):
+        return scene_builder
+    return None
+
+
 def list_tasks() -> list[str]:
     return sorted(_get_builders().keys())
 
@@ -84,6 +105,7 @@ __all__ = [
     "TaskRuntime",
     "discover_envs",
     "get_task_builder",
+    "get_task_scene_builder",
     "list_tasks",
     "resolve_task_name",
     "add_all_env_args",
