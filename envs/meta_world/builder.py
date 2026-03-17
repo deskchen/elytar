@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import math
 from pathlib import Path
 
 import sapien
 
-from envs.base import TaskRuntime
+from envs.base import SceneBuildResult, TaskRuntime
 
 try:
     import torch
@@ -209,57 +208,27 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     pass
 
 
-def _scene_offset(scene_idx: int, total_envs: int, env_spacing: float = 50.0) -> list[float]:
-    scene_grid_length = int(math.ceil(math.sqrt(total_envs)))
-    scene_x = scene_idx % scene_grid_length - scene_grid_length // 2
-    scene_y = scene_idx // scene_grid_length - scene_grid_length // 2
-    return [scene_x * env_spacing, scene_y * env_spacing, 0.0]
-
-
-def build_scenes_into_cylinder(
-    physx_system: sapien.physx.PhysxGpuSystem,
-    start_idx: int,
-    count: int,
-    total_envs: int,
+def build_scene_cylinder(
+    scene: sapien.Scene,
     args: argparse.Namespace,
-) -> tuple[list[sapien.Scene], None, dict[str, int]]:
-    """Build `count` cylinder scenes into an existing PhysX GPU system."""
+) -> SceneBuildResult:
+    """Build one cylinder scene into an existing scene."""
     render = getattr(args, "render", False)
-    scenes: list[sapien.Scene] = []
-    for local_idx in range(count):
-        scene_idx = start_idx + local_idx
-        systems = [physx_system]
-        if render:
-            systems.append(sapien.render.RenderSystem())
-        scene = sapien.Scene(systems)
-        physx_system.set_scene_offset(scene, _scene_offset(scene_idx, total_envs))
-        _build_into_scene_cylinder(scene, args, render)
-        scenes.append(scene)
-    return scenes, None, {"num_envs": count}
+    _build_into_scene_cylinder(scene, args, render)
+    return SceneBuildResult(metadata={})
 
 
-def build_scenes_into_franka_cylinder(
-    physx_system: sapien.physx.PhysxGpuSystem,
-    start_idx: int,
-    count: int,
-    total_envs: int,
+def build_scene_franka_cylinder(
+    scene: sapien.Scene,
     args: argparse.Namespace,
-) -> tuple[list[sapien.Scene], object, dict[str, int]]:
-    """Build `count` franka+cylinder scenes into an existing PhysX GPU system."""
+) -> SceneBuildResult:
+    """Build one franka+cylinder scene into an existing scene."""
     render = getattr(args, "render", False)
-    scenes: list[sapien.Scene] = []
-    frankas: list[sapien.Articulation] = []
-    for local_idx in range(count):
-        scene_idx = start_idx + local_idx
-        systems = [physx_system]
-        if render:
-            systems.append(sapien.render.RenderSystem())
-        scene = sapien.Scene(systems)
-        physx_system.set_scene_offset(scene, _scene_offset(scene_idx, total_envs))
-        franka, _ = _build_into_scene_franka_cylinder(scene, args, render)
-        scenes.append(scene)
-        frankas.append(franka)
-    return scenes, _make_before_step_gpu(physx_system, frankas, FRANKA_DEFAULT_DOF), {"num_envs": count}
+    franka, _ = _build_into_scene_franka_cylinder(scene, args, render)
+    return SceneBuildResult(
+        before_step=_make_before_step_gpu(scene.physx_system, [franka], FRANKA_DEFAULT_DOF),
+        metadata={},
+    )
 
 
 def build_cylinder(args: argparse.Namespace) -> TaskRuntime:
@@ -269,12 +238,19 @@ def build_cylinder(args: argparse.Namespace) -> TaskRuntime:
 
     if num_envs > 1:
         px = sapien.physx.PhysxGpuSystem(device=args.device)
-        scenes, _, metadata = build_scenes_into_cylinder(px, 0, num_envs, num_envs, args)
+        scenes = []
+        for _ in range(num_envs):
+            systems = [px]
+            if render:
+                systems.append(sapien.render.RenderSystem())
+            scene = sapien.Scene(systems)
+            build_scene_cylinder(scene, args)
+            scenes.append(scene)
         return TaskRuntime(
             name="cylinder",
             scene=scenes[0],
             physx_system=px,
-            metadata=metadata,
+            metadata={"num_envs": num_envs},
             scenes=scenes,
         )
 
@@ -282,7 +258,7 @@ def build_cylinder(args: argparse.Namespace) -> TaskRuntime:
     if render:
         systems.append(sapien.render.RenderSystem())
     scene = sapien.Scene(systems)
-    _build_into_scene_cylinder(scene, args, render)
+    build_scene_cylinder(scene, args)
     return TaskRuntime(
         name="cylinder",
         scene=scene,
@@ -298,23 +274,38 @@ def build_franka_cylinder(args: argparse.Namespace) -> TaskRuntime:
 
     if num_envs > 1:
         px = sapien.physx.PhysxGpuSystem(device=args.device)
-        scenes, before_step, metadata = build_scenes_into_franka_cylinder(px, 0, num_envs, num_envs, args)
+        scenes = []
+        before_steps = []
+        for _ in range(num_envs):
+            systems = [px]
+            if render:
+                systems.append(sapien.render.RenderSystem())
+            scene = sapien.Scene(systems)
+            result = build_scene_franka_cylinder(scene, args)
+            scenes.append(scene)
+            if result.before_step is not None:
+                before_steps.append(result.before_step)
+
+        def before_step(step_idx: int, time_s: float) -> None:
+            for hook in before_steps:
+                hook(step_idx, time_s)
+
         return TaskRuntime(
             name="franka_cylinder",
             scene=scenes[0],
             physx_system=px,
-            before_step=before_step,
-            metadata=metadata,
+            before_step=before_step if before_steps else None,
+            metadata={"num_envs": num_envs},
             scenes=scenes,
         )
 
     systems = [sapien.physx.PhysxGpuSystem(device=args.device), sapien.render.RenderSystem()]
     scene = sapien.Scene(systems)
-    franka, _ = _build_into_scene_franka_cylinder(scene, args, render)
+    result = build_scene_franka_cylinder(scene, args)
     return TaskRuntime(
         name="franka_cylinder",
         scene=scene,
         physx_system=scene.physx_system,
-        before_step=_make_before_step_gpu(scene.physx_system, [franka], FRANKA_DEFAULT_DOF),
+        before_step=result.before_step,
         metadata={"num_envs": num_envs},
     )

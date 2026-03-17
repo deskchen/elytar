@@ -9,7 +9,7 @@ from typing import Any
 from envs.base import TaskRuntime
 
 TaskBuilder = Callable[[Any], TaskRuntime]
-TaskSceneBuilder = Callable[[Any, int, int, int, Any], tuple[list[Any], Any, dict[str, Any]]]
+TaskSceneBuilder = Callable[[Any, Any], Any]
 
 TASK_ALIASES = {
     "cube": "cube_stack",
@@ -37,6 +37,8 @@ def discover_envs() -> dict[str, tuple[TaskBuilder, Callable[[Any], None] | None
             continue
         add_args_fn = getattr(mod, "add_args", None)
         for attr in dir(mod):
+            if attr.startswith("build_scene_"):
+                continue
             if attr.startswith("build_") and callable(getattr(mod, attr)):
                 build_fn = getattr(mod, attr)
                 name = attr[6:]  # build_cube_stack -> cube_stack
@@ -70,12 +72,12 @@ def get_task_builder(name: str) -> TaskBuilder:
 
 
 def get_task_scene_builder(name: str) -> TaskSceneBuilder | None:
-    """Return optional scene-builder hook for mixed task mode."""
+    """Return optional single-scene builder hook for centralized vectorization."""
     resolved = resolve_task_name(name)
     build_fn = get_task_builder(resolved)
     module_name = build_fn.__module__
     module = importlib.import_module(module_name)
-    scene_builder_name = f"build_scenes_into_{resolved}"
+    scene_builder_name = f"build_scene_{resolved}"
     scene_builder = getattr(module, scene_builder_name, None)
     if scene_builder is None and hasattr(module, "__path__"):
         # Task builders are often re-exported from package __init__.py, while scene builders live in .builder.

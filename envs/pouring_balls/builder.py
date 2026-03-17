@@ -6,7 +6,7 @@ import random
 
 import sapien
 
-from envs.base import TaskRuntime
+from envs.base import SceneBuildResult, TaskRuntime
 
 
 def _add_static_box(scene, half_size, pose, render: bool = False):
@@ -29,7 +29,7 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=0)
 
 
-def build_pouring_balls(args) -> TaskRuntime:
+def build_scene_pouring_balls(scene: sapien.Scene, args) -> SceneBuildResult:
     ball_count = args.ball_count
     radius = args.ball_radius
     container_half_extent = args.container_half_extent
@@ -37,10 +37,6 @@ def build_pouring_balls(args) -> TaskRuntime:
     wall_thickness = args.container_wall_thickness
     render = getattr(args, "render", False)
 
-    systems = [sapien.physx.PhysxGpuSystem(device=args.device)]
-    if render:
-        systems.append(sapien.render.RenderSystem())
-    scene = sapien.Scene(systems)
     scene.set_timestep(args.dt)
     scene.add_ground(altitude=0.0, render=render)
 
@@ -111,10 +107,7 @@ def build_pouring_balls(args) -> TaskRuntime:
         builder.set_initial_pose(sapien.Pose(p=[x, y, z]))
         builder.build(name=f"ball_{idx}")
 
-    return TaskRuntime(
-        name="pouring_balls",
-        scene=scene,
-        physx_system=scene.physx_system,
+    return SceneBuildResult(
         metadata={
             "config": str(ball_count),
             "ball_count": ball_count,
@@ -124,4 +117,19 @@ def build_pouring_balls(args) -> TaskRuntime:
             "container_wall_thickness": wall_thickness,
             "seed": args.seed,
         },
+    )
+
+
+def build_pouring_balls(args) -> TaskRuntime:
+    render = getattr(args, "render", False)
+    systems = [sapien.physx.PhysxGpuSystem(device=args.device)]
+    if render:
+        systems.append(sapien.render.RenderSystem())
+    scene = sapien.Scene(systems)
+    result = build_scene_pouring_balls(scene, args)
+    return TaskRuntime(
+        name="pouring_balls",
+        scene=scene,
+        physx_system=scene.physx_system,
+        metadata=result.metadata,
     )

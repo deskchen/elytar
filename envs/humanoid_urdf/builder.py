@@ -6,7 +6,7 @@ from pathlib import Path
 
 import sapien
 
-from envs.base import TaskRuntime
+from envs.base import SceneBuildResult, TaskRuntime
 
 
 def add_args(parser: argparse.ArgumentParser) -> None:
@@ -24,7 +24,7 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--humanoid-joint-force-limit", type=float, default=400.0)
 
 
-def build_humanoid_from_urdf(args) -> TaskRuntime:
+def build_scene_humanoid_from_urdf(scene: sapien.Scene, args) -> SceneBuildResult:
     if not args.humanoid_urdf:
         raise ValueError("--humanoid-urdf is required when task includes humanoid_from_urdf")
 
@@ -32,7 +32,6 @@ def build_humanoid_from_urdf(args) -> TaskRuntime:
     if not urdf_path.is_file():
         raise FileNotFoundError(f"Humanoid URDF not found: {urdf_path}")
 
-    scene = sapien.Scene([sapien.physx.PhysxGpuSystem(device=args.device)])
     scene.set_timestep(args.dt)
     scene.add_ground(altitude=0.0, render=False)
 
@@ -84,10 +83,7 @@ def build_humanoid_from_urdf(args) -> TaskRuntime:
             target = base + amplitude * math.sin(phase + joint_phase)
             joint.set_drive_target(float(target))
 
-    return TaskRuntime(
-        name="humanoid_from_urdf",
-        scene=scene,
-        physx_system=scene.physx_system,
+    return SceneBuildResult(
         before_step=before_step,
         metadata={
             "config": args.humanoid_motion,
@@ -98,4 +94,16 @@ def build_humanoid_from_urdf(args) -> TaskRuntime:
             "humanoid_joint_damping": args.humanoid_joint_damping,
             "humanoid_joint_force_limit": args.humanoid_joint_force_limit,
         },
+    )
+
+
+def build_humanoid_from_urdf(args) -> TaskRuntime:
+    scene = sapien.Scene([sapien.physx.PhysxGpuSystem(device=args.device)])
+    result = build_scene_humanoid_from_urdf(scene, args)
+    return TaskRuntime(
+        name="humanoid_from_urdf",
+        scene=scene,
+        physx_system=scene.physx_system,
+        before_step=result.before_step,
+        metadata=result.metadata,
     )

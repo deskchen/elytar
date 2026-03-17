@@ -9,6 +9,14 @@ BeforeStepHook = Callable[[int, float], None]
 
 
 @dataclass
+class SceneBuildResult:
+    """Result of building one task scene."""
+
+    before_step: BeforeStepHook | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class TaskRuntime:
     name: str
     scene: Any

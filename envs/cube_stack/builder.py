@@ -6,11 +6,10 @@ No robot - physics-only benchmark.
 from __future__ import annotations
 
 import argparse
-import math
 
 import sapien
 
-from envs.base import TaskRuntime
+from envs.base import SceneBuildResult, TaskRuntime
 
 
 def _build_into_scene(
@@ -74,33 +73,14 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     pass
 
 
-def _scene_offset(scene_idx: int, total_envs: int, env_spacing: float = 50.0) -> list[float]:
-    scene_grid_length = int(math.ceil(math.sqrt(total_envs)))
-    scene_x = scene_idx % scene_grid_length - scene_grid_length // 2
-    scene_y = scene_idx // scene_grid_length - scene_grid_length // 2
-    return [scene_x * env_spacing, scene_y * env_spacing, 0.0]
-
-
-def build_scenes_into_cube_stack(
-    physx_system: sapien.physx.PhysxGpuSystem,
-    start_idx: int,
-    count: int,
-    total_envs: int,
+def build_scene_cube_stack(
+    scene: sapien.Scene,
     args,
-) -> tuple[list[sapien.Scene], None, dict[str, int]]:
-    """Build `count` cube_stack scenes into an existing PhysX GPU system."""
+) -> SceneBuildResult:
+    """Build one cube_stack scene into an existing scene."""
     render = getattr(args, "render", False)
-    scenes: list[sapien.Scene] = []
-    for local_idx in range(count):
-        scene_idx = start_idx + local_idx
-        systems = [physx_system]
-        if render:
-            systems.append(sapien.render.RenderSystem())
-        scene = sapien.Scene(systems)
-        physx_system.set_scene_offset(scene, _scene_offset(scene_idx, total_envs))
-        _build_into_scene(scene, args, render)
-        scenes.append(scene)
-    return scenes, None, {"num_envs": count}
+    _build_into_scene(scene, args, render)
+    return SceneBuildResult(metadata={})
 
 
 def build_cube_stack(args) -> TaskRuntime:
@@ -110,12 +90,19 @@ def build_cube_stack(args) -> TaskRuntime:
 
     if num_envs > 1:
         px = sapien.physx.PhysxGpuSystem(device=args.device)
-        scenes, _, metadata = build_scenes_into_cube_stack(px, 0, num_envs, num_envs, args)
+        scenes = []
+        for _ in range(num_envs):
+            systems = [px]
+            if render:
+                systems.append(sapien.render.RenderSystem())
+            scene = sapien.Scene(systems)
+            build_scene_cube_stack(scene, args)
+            scenes.append(scene)
         return TaskRuntime(
             name="cube_stack",
             scene=scenes[0],
             physx_system=px,
-            metadata=metadata,
+            metadata={"num_envs": num_envs},
             scenes=scenes,
         )
 
@@ -123,7 +110,7 @@ def build_cube_stack(args) -> TaskRuntime:
     if render:
         systems.append(sapien.render.RenderSystem())
     scene = sapien.Scene(systems)
-    _build_into_scene(scene, args, render)
+    build_scene_cube_stack(scene, args)
 
     return TaskRuntime(
         name="cube_stack",
