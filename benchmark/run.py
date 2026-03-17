@@ -94,7 +94,7 @@ from benchmark.output_csv import (
     append_rows,
     write_rows,
 )
-from envs import get_task_builder, get_task_scene_builder, list_tasks, resolve_task_name
+from envs import get_task_scene_builder, list_tasks, resolve_task_name
 from envs.base import TaskRuntime
 
 TaskSpec = tuple[str, int | None]
@@ -252,6 +252,67 @@ def _apply_gpu_memory_config(gpu_config: dict) -> None:
         sapien.physx.set_gpu_memory_config(**gpu_config)
 
 
+def _scene_offset(scene_idx: int, total_envs: int, env_spacing: float = 50.0) -> list[float]:
+    scene_grid_length = int(math.ceil(math.sqrt(total_envs)))
+    scene_x = scene_idx % scene_grid_length - scene_grid_length // 2
+    scene_y = scene_idx // scene_grid_length - scene_grid_length // 2
+    return [scene_x * env_spacing, scene_y * env_spacing, 0.0]
+
+
+def _build_runtime_from_specs(
+    args: argparse.Namespace,
+    task_specs: list[tuple[str, int]],
+    *,
+    runtime_name: str,
+) -> TaskRuntime:
+    total_envs = sum(count for _, count in task_specs)
+    if total_envs < 1:
+        raise ValueError("No environments requested")
+
+    px = sapien.physx.PhysxGpuSystem(device=args.device)
+    render = bool(getattr(args, "render", False))
+    scenes = []
+    before_steps = []
+    metadata: dict[str, object] = {"total_envs": total_envs}
+    scene_idx = 0
+
+    for task_name, count in task_specs:
+        scene_builder = get_task_scene_builder(task_name)
+        if scene_builder is None:
+            raise RuntimeError(
+                f"Task '{task_name}' does not expose build_scene_{task_name}(). "
+                "Please add a single-scene builder for centralized vectorization."
+            )
+        metadata[f"{task_name}_num_envs"] = count
+        for _ in range(count):
+            systems = [px]
+            if render:
+                systems.append(sapien.render.RenderSystem())
+            scene = sapien.Scene(systems)
+            px.set_scene_offset(scene, _scene_offset(scene_idx, total_envs))
+            result = scene_builder(scene, args)
+            scenes.append(scene)
+            if getattr(result, "before_step", None) is not None:
+                before_steps.append(result.before_step)
+            if getattr(result, "metadata", None):
+                for key, value in result.metadata.items():
+                    metadata[f"{task_name}_{key}"] = value
+            scene_idx += 1
+
+    def combined_before_step(step_idx: int, time_s: float) -> None:
+        for hook in before_steps:
+            hook(step_idx, time_s)
+
+    return TaskRuntime(
+        name=runtime_name,
+        scene=scenes[0],
+        physx_system=px,
+        before_step=combined_before_step if before_steps else None,
+        metadata=metadata,
+        scenes=scenes,
+    )
+
+
 def _run_runtime(args: argparse.Namespace, task_label: str, num_envs: int, runtime: TaskRuntime) -> tuple[list[dict], dict]:
     if not isinstance(runtime.physx_system, sapien.physx.PhysxGpuSystem):
         raise RuntimeError(f"Task '{task_label}' did not create a PhysxGpuSystem")
@@ -381,7 +442,6 @@ def _run_runtime(args: argparse.Namespace, task_label: str, num_envs: int, runti
 
 
 def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict]:
-    builder = get_task_builder(task_name)
     num_envs = max(1, int(getattr(args, "num_envs", 1)))
     gpu_config = _build_gpu_memory_config(num_envs)
     if getattr(args, "debug_gpu_config", False):
@@ -390,7 +450,7 @@ def run_task(args: argparse.Namespace, task_name: str) -> tuple[list[dict], dict
 
     # Match ManiSkill: set scene/body/shape/material config before creating PhysxGpuSystem.
     _set_physx_scene_config()
-    runtime = builder(args)
+    runtime = _build_runtime_from_specs(args, [(task_name, num_envs)], runtime_name=task_name)
     return _run_runtime(args, task_name, num_envs, runtime)
 
 
@@ -401,44 +461,8 @@ def run_combined_task(args: argparse.Namespace, task_specs: list[tuple[str, int]
         _print_gpu_config_debug(gpu_config, total_envs)
     _apply_gpu_memory_config(gpu_config)
     _set_physx_scene_config()
-
-    px = sapien.physx.PhysxGpuSystem(device=args.device)
-    scenes = []
-    before_steps = []
-    metadata: dict[str, object] = {"total_envs": total_envs}
-    scene_offset = 0
-
-    for task_name, count in task_specs:
-        scene_builder = get_task_scene_builder(task_name)
-        if scene_builder is None:
-            raise RuntimeError(
-                f"Task '{task_name}' does not support mixed-env mode yet. "
-                "Only tasks with build_scenes_into_<task>() are supported."
-            )
-        task_scenes, task_before_step, task_meta = scene_builder(px, scene_offset, count, total_envs, args)
-        if len(task_scenes) != count:
-            raise RuntimeError(f"Task '{task_name}' built {len(task_scenes)} scenes, expected {count}")
-        scenes.extend(task_scenes)
-        if task_before_step is not None:
-            before_steps.append(task_before_step)
-        metadata[f"{task_name}_num_envs"] = count
-        for k, v in task_meta.items():
-            metadata[f"{task_name}_{k}"] = v
-        scene_offset += count
-
-    def combined_before_step(step_idx: int, time_s: float) -> None:
-        for hook in before_steps:
-            hook(step_idx, time_s)
-
     task_name = "+".join(f"{name}:{count}" for name, count in task_specs)
-    runtime = TaskRuntime(
-        name=task_name,
-        scene=scenes[0],
-        physx_system=px,
-        before_step=combined_before_step if before_steps else None,
-        metadata=metadata,
-        scenes=scenes,
-    )
+    runtime = _build_runtime_from_specs(args, task_specs, runtime_name=task_name)
     return _run_runtime(args, task_name, total_envs, runtime)
 
 
