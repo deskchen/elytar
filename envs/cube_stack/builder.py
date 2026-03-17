@@ -74,6 +74,35 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     pass
 
 
+def _scene_offset(scene_idx: int, total_envs: int, env_spacing: float = 50.0) -> list[float]:
+    scene_grid_length = int(math.ceil(math.sqrt(total_envs)))
+    scene_x = scene_idx % scene_grid_length - scene_grid_length // 2
+    scene_y = scene_idx // scene_grid_length - scene_grid_length // 2
+    return [scene_x * env_spacing, scene_y * env_spacing, 0.0]
+
+
+def build_scenes_into_cube_stack(
+    physx_system: sapien.physx.PhysxGpuSystem,
+    start_idx: int,
+    count: int,
+    total_envs: int,
+    args,
+) -> tuple[list[sapien.Scene], None, dict[str, int]]:
+    """Build `count` cube_stack scenes into an existing PhysX GPU system."""
+    render = getattr(args, "render", False)
+    scenes: list[sapien.Scene] = []
+    for local_idx in range(count):
+        scene_idx = start_idx + local_idx
+        systems = [physx_system]
+        if render:
+            systems.append(sapien.render.RenderSystem())
+        scene = sapien.Scene(systems)
+        physx_system.set_scene_offset(scene, _scene_offset(scene_idx, total_envs))
+        _build_into_scene(scene, args, render)
+        scenes.append(scene)
+    return scenes, None, {"num_envs": count}
+
+
 def build_cube_stack(args) -> TaskRuntime:
     """ManiSkill StackCube scene: table + 2 cubes."""
     render = getattr(args, "render", False)
@@ -81,24 +110,12 @@ def build_cube_stack(args) -> TaskRuntime:
 
     if num_envs > 1:
         px = sapien.physx.PhysxGpuSystem(device=args.device)
-        scenes = []
-        env_spacing = 50.0
-        scene_grid_length = int(math.ceil(math.sqrt(num_envs)))
-        for scene_idx in range(num_envs):
-            scene_x = scene_idx % scene_grid_length - scene_grid_length // 2
-            scene_y = scene_idx // scene_grid_length - scene_grid_length // 2
-            systems = [px]
-            if render:
-                systems.append(sapien.render.RenderSystem())
-            scene = sapien.Scene(systems)
-            px.set_scene_offset(scene, [scene_x * env_spacing, scene_y * env_spacing, 0.0])
-            _build_into_scene(scene, args, render)
-            scenes.append(scene)
+        scenes, _, metadata = build_scenes_into_cube_stack(px, 0, num_envs, num_envs, args)
         return TaskRuntime(
             name="cube_stack",
             scene=scenes[0],
             physx_system=px,
-            metadata={"num_envs": num_envs},
+            metadata=metadata,
             scenes=scenes,
         )
 
