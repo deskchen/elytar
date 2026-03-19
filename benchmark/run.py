@@ -488,12 +488,12 @@ def main() -> int:
 
     # If not set, use PhysX under current working directory (run from repo root).
     if not os.environ.get("SAPIEN_PHYSX5_DIR"):
-        local_physx = Path.cwd() / "physx-5.6.1"
+        local_physx = Path.cwd() / "physx-5.6.1-capybara"
         if (local_physx / "bin").exists():
             os.environ["SAPIEN_PHYSX5_DIR"] = str(local_physx)
     if not os.environ.get("SAPIEN_PHYSX5_DIR"):
         print(
-            "ERROR: SAPIEN_PHYSX5_DIR is not set. Run from repo root (so cwd/physx-5.6.1 exists) after "
+            "ERROR: SAPIEN_PHYSX5_DIR is not set. Run from repo root (so cwd/physx-5.6.1-capybara exists) after "
             "scripts/update_toolchain.sh, or set SAPIEN_PHYSX5_DIR to your PhysX source directory.",
             file=sys.stderr,
         )

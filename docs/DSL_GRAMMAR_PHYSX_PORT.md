@@ -3,7 +3,7 @@
 This guideline is for AI assistants translating PhysX CUDA kernels to Capybara Python DSL in an apple-to-apple way (same algorithmic semantics, same control-flow intent, and PTX-targeted output).
 
 Primary use case:
-- Source workspace: `/home/zhuochen/elytar/physx-5.6.1/source/...`
+- Source workspace: `/home/zhuochen/elytar/physx-5.6.1-capybara/source/...`
 - Capybara workspace for references: `/home/zhuochen/capybara-triton`
 
 ---
@@ -89,11 +89,11 @@ Do not rely on docs alone. The source of truth is codegen + working kernels/test
 ### PhysX source anchors
 
 - Root GPU source:
-  - `/home/zhuochen/elytar/physx-5.6.1/source`
+  - `/home/zhuochen/elytar/physx-5.6.1-capybara/source`
 - Narrowphase CUDA:
-  - `/home/zhuochen/elytar/physx-5.6.1/source/gpunarrowphase/src/CUDA`
+  - `/home/zhuochen/elytar/physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA`
 - BV32 reference header:
-  - `/home/zhuochen/elytar/physx-5.6.1/source/gpunarrowphase/src/CUDA/bv32Traversal.cuh`
+  - `/home/zhuochen/elytar/physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA/bv32Traversal.cuh`
 
 ---
 

@@ -23,7 +23,7 @@
 set -euo pipefail
 
 ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
-PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx-5.6.1}"
+PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx-5.6.1-capybara}"
 CUDA_PATH="${CUDA_PATH:-/usr/local/cuda}"
 NVCC="${CUDA_PATH}/bin/nvcc"
 PX_PTX_ARCH="${PX_PTX_ARCH:-compute_86}"

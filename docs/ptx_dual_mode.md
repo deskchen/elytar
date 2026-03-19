@@ -49,7 +49,7 @@ PX_PTX_REPLACE_LIST="integration;solver" PX_PTX_ARCH=compute_86 ./scripts/update
 ### Generate a single file
 
 ```bash
-./scripts/generate_ptx.sh --cu physx-5.6.1/source/gpusolver/src/CUDA/integration.cu
+./scripts/generate_ptx.sh --cu physx-5.6.1-capybara/source/gpusolver/src/CUDA/integration.cu
 ```
 
 #### GPU architecture values
@@ -250,7 +250,7 @@ is called — otherwise the `.cu` stays in the kernel list and is compiled norma
 
 ### `ElytarPtxReplace.cmake` — the core macro
 
-`physx-5.6.1/source/compiler/cmakegpu/ElytarPtxReplace.cmake` provides the
+`physx-5.6.1-capybara/source/compiler/cmakegpu/ElytarPtxReplace.cmake` provides the
 `ELYTAR_REPLACE_CU_WITH_PTX()` macro. For each replaced `.cu` file it:
 
 1. Validates that the corresponding `.ptx` file exists (FATAL_ERROR if missing).
@@ -318,7 +318,7 @@ and exactly that many `_GLOBAL__sub_I_*_ptx_register.cpp` static-init entries.
 ## File Structure
 
 ```
-physx-5.6.1/source/
+physx-5.6.1-capybara/source/
 ├── compiler/cmakegpu/
 │   ├── CMakeLists.txt                     ← PX_PTX_REPLACE_LIST, PX_PTX_ARCH options
 │   ├── ElytarPtxReplace.cmake             ← ELYTAR_REPLACE_CU_WITH_PTX() macro
@@ -361,7 +361,7 @@ sub-libraries):
 
 ## CMake Options Reference
 
-Defined in `physx-5.6.1/source/compiler/cmakegpu/CMakeLists.txt`:
+Defined in `physx-5.6.1-capybara/source/compiler/cmakegpu/CMakeLists.txt`:
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -387,11 +387,11 @@ When your Triton-like DSL is ready to replace a kernel:
 1. Compile your DSL program to PTX targeting the appropriate architecture.
 2. Ensure the `.entry` names in the PTX match the original kernel names. Find them with:
    ```bash
-   grep '\.entry ' physx-5.6.1/source/gpusolver/src/PTX/integration.ptx
+   grep '\.entry ' physx-5.6.1-capybara/source/gpusolver/src/PTX/integration.ptx
    ```
 3. Place the PTX file at:
    ```
-   physx-5.6.1/source/<module>/src/PTX/<stem>.ptx
+   physx-5.6.1-capybara/source/<module>/src/PTX/<stem>.ptx
    ```
 4. Run:
    ```bash
@@ -433,7 +433,7 @@ The `.ptx` file must exist before cmake can configure in PTX mode.
 
 For a specific stem:
 ```bash
-./scripts/generate_ptx.sh --cu physx-5.6.1/source/gpusolver/src/CUDA/integration.cu
+./scripts/generate_ptx.sh --cu physx-5.6.1-capybara/source/gpusolver/src/CUDA/integration.cu
 ```
 
 For a list:

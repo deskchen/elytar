@@ -21,7 +21,7 @@ Use `--cube-count N`, `--ball-count N` to customize.
 - **Local build only**: The benchmark uses GPU and **requires** a local SAPIEN + PhysX build. It does **not** fall back to prebuilt downloads; if the local build is missing or not found, the script exits with an error.
 - Build the toolchain once from repo root:
   - `scripts/update_toolchain.sh` (builds PhysX and SAPIEN from source, installs the wheel).
-- Run the benchmark from **repo root** so `SAPIEN_PHYSX5_DIR` is set automatically to the repo’s `physx-5.6.1` tree. Otherwise set `SAPIEN_PHYSX5_DIR` (and optionally `PHYSX_CONFIG`) yourself.
+- Run the benchmark from **repo root** so `SAPIEN_PHYSX5_DIR` is set automatically to the repo’s `physx-5.6.1-capybara` tree. Otherwise set `SAPIEN_PHYSX5_DIR` (and optionally `PHYSX_CONFIG`) yourself.
 
 **Per-stage timings** (broadphase, narrowphase, solver, etc.) are only reported when the PhysX GPU lib is built with profiling (e.g. `PHYSX_CONFIG=checked` or `profile`); in `release`, `PX_PROFILE_ZONE` is compiled out and stage columns will be zero.
 

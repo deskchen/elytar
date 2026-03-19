@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="${ROOT_DIR:-/workspace}"
-PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx-5.6.1}"
+PHYSX_DIR="${PHYSX_DIR:-${ROOT_DIR}/physx-5.6.1-capybara}"
 SAPIEN_DIR="${SAPIEN_DIR:-${ROOT_DIR}/sapien-3.0.2}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 # PhysX 5.6 uses linux-clang preset.
@@ -160,8 +160,8 @@ echo "  PhysX libs at: ${PHYSX_LIB_DIR}"
 # built from PTX and that any others used the original .cu path.
 # ---------------------------------------------------------------------------
 verify_ptx_mode() {
-  local lib_dir="$1"   # e.g. physx-5.6.1/bin/linux.clang/profile
-  local build_dir="$2" # e.g. physx-5.6.1/compiler/linux-clang-profile
+  local lib_dir="$1"   # e.g. physx-5.6.1-capybara/bin/linux.clang/profile
+  local build_dir="$2" # e.g. physx-5.6.1-capybara/compiler/linux-clang-profile
   local replace_list="$3"  # value of PX_PTX_REPLACE_LIST
 
   local ok=true

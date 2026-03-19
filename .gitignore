@@ -12,11 +12,11 @@ benchmark/results/
 benchmark/results_*/
 
 # Generated PTX/fatbin files (produced by generate_ptx.sh or DSL; not committed)
-physx-5.6.1/source/gpuarticulation/src/PTX/*
-physx-5.6.1/source/gpubroadphase/src/PTX/*
-physx-5.6.1/source/gpucommon/src/PTX/*
-physx-5.6.1/source/gpunarrowphase/src/PTX/*
-physx-5.6.1/source/gpusimulationcontroller/src/PTX/*
-physx-5.6.1/source/gpusolver/src/PTX/*
-physx-5.6.1/source/**/PTX/*
+physx-5.6.1-capybara/source/gpuarticulation/src/PTX/*
+physx-5.6.1-capybara/source/gpubroadphase/src/PTX/*
+physx-5.6.1-capybara/source/gpucommon/src/PTX/*
+physx-5.6.1-capybara/source/gpunarrowphase/src/PTX/*
+physx-5.6.1-capybara/source/gpusimulationcontroller/src/PTX/*
+physx-5.6.1-capybara/source/gpusolver/src/PTX/*
+physx-5.6.1-capybara/source/**/PTX/*
 

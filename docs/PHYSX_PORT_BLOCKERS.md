@@ -1,11 +1,11 @@
 # PhysX Kernel Port Blockers Audit
 
-This document catalogs every CUDA pattern found across PhysX 5.6.1 GPU source that cannot be directly ported to Capybara DSL in an apple-to-apple way. It was produced by scanning all `.cu` and `.cuh` files under `physx-5.6.1/source/` (55 `.cu` files, 62+ `.cuh` files, hundreds of `__global__` kernels across six GPU modules).
+This document catalogs every CUDA pattern found across PhysX 5.6.1 GPU source that cannot be directly ported to Capybara DSL in an apple-to-apple way. It was produced by scanning all `.cu` and `.cuh` files under `physx-5.6.1-capybara/source/` (55 `.cu` files, 62+ `.cuh` files, hundreds of `__global__` kernels across six GPU modules).
 
 Reference documents:
 
 - Capybara DSL grammar guide: [`docs/DSL_GRAMMAR_PHYSX_PORT.md`](DSL_GRAMMAR_PHYSX_PORT.md)
-- Existing blocker note: [`physx-5.6.1/source/gpucommon/src/capybara/MemCopyBalanced_PORT_BLOCKER.md`](../physx-5.6.1/source/gpucommon/src/capybara/MemCopyBalanced_PORT_BLOCKER.md)
+- Existing blocker note: [`physx-5.6.1-capybara/source/gpucommon/src/capybara/MemCopyBalanced_PORT_BLOCKER.md`](../physx-5.6.1-capybara/source/gpucommon/src/capybara/MemCopyBalanced_PORT_BLOCKER.md)
 
 ---
 
@@ -13,12 +13,12 @@ Reference documents:
 
 | Module | Path |
 |--------|------|
-| gpucommon | `physx-5.6.1/source/gpucommon/src/CUDA/` |
-| gpubroadphase | `physx-5.6.1/source/gpubroadphase/src/CUDA/` |
-| gpunarrowphase | `physx-5.6.1/source/gpunarrowphase/src/CUDA/` |
-| gpuarticulation | `physx-5.6.1/source/gpuarticulation/src/CUDA/` |
-| gpusolver | `physx-5.6.1/source/gpusolver/src/CUDA/` |
-| gpusimulationcontroller | `physx-5.6.1/source/gpusimulationcontroller/src/CUDA/` |
+| gpucommon | `physx-5.6.1-capybara/source/gpucommon/src/CUDA/` |
+| gpubroadphase | `physx-5.6.1-capybara/source/gpubroadphase/src/CUDA/` |
+| gpunarrowphase | `physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA/` |
+| gpuarticulation | `physx-5.6.1-capybara/source/gpuarticulation/src/CUDA/` |
+| gpusolver | `physx-5.6.1-capybara/source/gpusolver/src/CUDA/` |
+| gpusimulationcontroller | `physx-5.6.1-capybara/source/gpusimulationcontroller/src/CUDA/` |
 
 Existing Capybara ports (both in `gpucommon/src/capybara/`):
 
