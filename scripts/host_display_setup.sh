@@ -48,7 +48,7 @@ if DISPLAY="${DISPLAY_NUM}" xdpyinfo >/dev/null 2>&1; then
   echo "  VNC: localhost:${VNC_PORT} (SSH tunnel: ssh -L ${VNC_PORT}:localhost:${VNC_PORT} <user>@<host>)"
   echo ""
   echo "In Docker: export DISPLAY=${DISPLAY_NUM}"
-  echo "          python3 -m benchmark.run --tasks cube_stack --steps 20 --render"
+  echo "          python3 -m benchmark.sapien.run --tasks cube_stack --steps 20 --render"
   exit 0
 fi
 
@@ -148,4 +148,4 @@ echo "  Xorg log: ${XORG_LOG}"
 echo "  VNC: localhost:${VNC_PORT} (SSH tunnel: ssh -L ${VNC_PORT}:localhost:${VNC_PORT} <user>@<host>)"
 echo ""
 echo "In Docker: export DISPLAY=${DISPLAY_NUM}"
-echo "          python3 -m benchmark.run --tasks cube_stack --steps 20 --render"
+echo "          python3 -m benchmark.sapien.run --tasks cube_stack --steps 20 --render"
