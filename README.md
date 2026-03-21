@@ -25,7 +25,7 @@ docker build -f docker/Dockerfile.dev -t elytar-dev:cuda12.8-clang .
 **4. Run the benchmark:**
 
 ```bash
-python3 -m benchmark.run --tasks cube_stack --difficulty easy --steps 5 --output-dir benchmark/results
+python3 -m benchmark.sapien.run --tasks cube_stack --difficulty easy --steps 5 --output-dir benchmark/sapien/results
 ```
 
-List tasks: `python3 -m benchmark.run --list-tasks`
+List tasks: `python3 -m benchmark.sapien.run --list-tasks`

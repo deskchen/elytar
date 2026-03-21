@@ -2,7 +2,7 @@
 """
 Plot solver/total percentage across num_envs.
 Reads from results_history.csv (or --input).
-Run from repo root: python3 benchmark/plot_solver_ratio.py
+Run from repo root: python3 benchmark/sapien/plot_solver_ratio.py
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def main() -> int:
     parser.add_argument(
         "--input",
         type=Path,
-        default=Path("benchmark/results/results_history.csv"),
+        default=Path("benchmark/sapien/results/results_history.csv"),
         help="Input CSV (history file)",
     )
     parser.add_argument(
@@ -111,3 +111,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

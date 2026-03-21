@@ -19,3 +19,4 @@ class GPUMemoryConfig:
 
     def to_dict(self) -> dict:
         return {k: v for k, v in asdict(self).items()}
+

@@ -7,7 +7,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Run from repo root so "benchmark" and "envs" are importable:  python3 -m benchmark.run [args]
+# Run from repo root so "benchmark" and "envs" are importable:
+#   python3 -m benchmark.sapien.run [args]
 #
 # GPU memory flow (to debug OOM / CUDA 700):
 # 1. main() calls sapien.physx.enable_gpu() (once, before any PhysX)
@@ -41,7 +42,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("benchmark/results"),
+        default=Path("benchmark/sapien/results"),
         help="Directory to write CSV outputs",
     )
     parser.add_argument(
@@ -86,8 +87,8 @@ import math
 
 import sapien
 
-from benchmark.config import GPUMemoryConfig
-from benchmark.output_csv import (
+from benchmark.sapien.config import GPUMemoryConfig
+from benchmark.sapien.output_csv import (
     STAGE_NAMES,
     metadata_to_string,
     summary_columns,
