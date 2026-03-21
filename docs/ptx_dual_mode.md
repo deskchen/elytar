@@ -382,23 +382,37 @@ cmake -DPX_PTX_REPLACE_LIST="integration;solver" -DPX_PTX_ARCH=compute_90 ...
 
 ## How to Add DSL-Generated PTX
 
-When your Triton-like DSL is ready to replace a kernel:
+When your Triton-like DSL (e.g. Capybara) is ready to replace a kernel:
 
-1. Compile your DSL program to PTX targeting the appropriate architecture.
+1. Compile your DSL program to PTX.
+   - Put per-kernel dummy arg specs in sibling JSON next to the DSL module:
+     `<module>/src/capybara/<stem>.json` with `<module>/src/capybara/<stem>.py`
+   - Then run the generic scanner:
+   ```bash
+   python scripts/compile_capybara_ptx.py -v
+   ```
+   - The script scans all `capybara` directories, compiles matching `<stem>.py + <stem>.json`,
+     and writes `<module>/src/PTX/<stem>.capybara.ptx` by default.
+   See `docs/PHYSX_DSL_WHY_NOT_DIRECT_COMPILE.md` for why the PhysX build does not compile the DSL directly.
 2. Ensure the `.entry` names in the PTX match the original kernel names. Find them with:
    ```bash
-   grep '\.entry ' physx-5.6.1-capybara/source/gpusolver/src/PTX/integration.ptx
+   grep '\.entry ' physx-5.6.1-capybara/source/gpusolver/src/PTX/integration.capybara.ptx
    ```
 3. Place the PTX file at:
    ```
-   physx-5.6.1-capybara/source/<module>/src/PTX/<stem>.ptx
+   physx-5.6.1-capybara/source/<module>/src/PTX/<stem>.capybara.ptx
    ```
 4. Run:
    ```bash
-   PX_PTX_REPLACE_LIST="<stem>" ./scripts/update_toolchain.sh
+   PX_PTX_REPLACE_LIST="<stem>" PX_PTX_SOURCE=auto ./scripts/update_toolchain.sh
    ```
 
-The CMake pipeline picks up your file automatically; no cmake changes are needed.
+`update_toolchain.sh` materializes CMake's required `<stem>.ptx` before configure:
+- `PX_PTX_SOURCE=auto` (default): prefer `<stem>.capybara.ptx` if present, else use `<stem>.ptx`
+- `PX_PTX_SOURCE=capybara`: require `<stem>.capybara.ptx` and copy it to `<stem>.ptx`
+- `PX_PTX_SOURCE=nvcc`: use `<stem>.ptx` only (from `scripts/generate_ptx.sh`)
+
+The CMake pipeline still consumes `<stem>.ptx`, so no PhysX CMake changes are needed.
 
 > **Tip:** The kernel name strings that PhysX uses for wrangler lookups are in the kernel
 > index headers, e.g., `PxgSolverKernelIndices.h`, `PxgNarrowphaseKernelIndices.h`.
