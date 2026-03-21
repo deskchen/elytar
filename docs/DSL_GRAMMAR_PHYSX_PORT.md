@@ -3,7 +3,7 @@
 This guideline is for AI assistants translating PhysX CUDA kernels to Capybara Python DSL in an apple-to-apple way (same algorithmic semantics, same control-flow intent, and PTX-targeted output).
 
 Primary use case:
-- Source workspace: `/home/zhuochen/elytar/physx-5.6.1-capybara/source/...`
+- Source workspace: `/home/zhuochen/elytar/physx-5.6.1/source/...`
 - Capybara workspace for references: `/home/zhuochen/capybara-triton`
 
 ---
@@ -29,6 +29,8 @@ Stop and ask when any of these appear:
 - Shared-memory aliasing or race-freedom cannot be proven.
 - A workaround changes algorithm behavior (not just syntax).
 - You see a compiler limitation and there are multiple plausible workarounds.
+- Kernel requires raw-address semantics (`u64 -> typed pointer -> dereference`) and equivalence is not proven.
+- Port requires exact CUDA ABI replacement but translation changes kernel argument shape.
 
 ### Required question format
 
@@ -66,12 +68,18 @@ Do not rely on docs alone. The source of truth is codegen + working kernels/test
 
 ### Compiler/codegen source
 
+- `/home/zhuochen/capybara-triton/python/capybara/__init__.py`
+- `/home/zhuochen/capybara-triton/python/capybara/runtime/__init__.py`
+- `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/main.py`
+- `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/stmts.py`
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/control_flow.py`
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/exprs.py`
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/dispatch.py`
+- `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/dispatch_block.py`
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/regions.py`
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/view_construction.py`
 - `/home/zhuochen/capybara-triton/python/capybara/language/__init__.py`
+- `/home/zhuochen/capybara-triton/include/capybara/Dialect/CapybaraIntr/IR/CapybaraIntrOps.td`
 
 ### Canonical examples for this port
 
@@ -85,15 +93,19 @@ Do not rely on docs alone. The source of truth is codegen + working kernels/test
   - `/home/zhuochen/capybara-triton/python/test/capybara/bench/capybara_kernels/cagra_search.py`
 - Struct patterns:
   - `/home/zhuochen/capybara-triton/python/test/capybara/test_struct_e2e.py`
+- First-class struct load/store + methods:
+  - `/home/zhuochen/capybara-triton/python/test/capybara/test_first_class_struct.py`
 
 ### PhysX source anchors
 
 - Root GPU source:
-  - `/home/zhuochen/elytar/physx-5.6.1-capybara/source`
+  - `/home/zhuochen/elytar/physx-5.6.1/source`
 - Narrowphase CUDA:
-  - `/home/zhuochen/elytar/physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA`
+  - `/home/zhuochen/elytar/physx-5.6.1/source/gpunarrowphase/src/CUDA`
 - BV32 reference header:
-  - `/home/zhuochen/elytar/physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA/bv32Traversal.cuh`
+  - `/home/zhuochen/elytar/physx-5.6.1/source/gpunarrowphase/src/CUDA/bv32Traversal.cuh`
+- Memcpy/ABI blocker note:
+  - `/home/zhuochen/elytar/physx-5.6.1/source/gpucommon/src/capybara/MemCopyBalanced_PORT_BLOCKER.md`
 
 ---
 
@@ -106,6 +118,9 @@ This section describes what the frontend/codegen actually supports for kernel co
 Supported:
 - `@cp.kernel` for entry kernels.
 - `@cp.inline` helpers called inside kernels.
+- `@cp.kernel(...)` options such as `max_regs`, `verbose_ptxas`, `debug`,
+  `num_stages`, `grid_swizzle`, `index_bitwidth`, `readonly=[...]`, and
+  validated compiler knobs.
 
 Reference:
 - `/home/zhuochen/capybara-triton/python/capybara/language/__init__.py`
@@ -114,6 +129,7 @@ Reference:
 Notes:
 - Kernel functions must be in real `.py` files (source inspection requirement in runtime path).
 - Inline helpers are lowered/inlined by compiler pipeline; do not assume arbitrary Python call semantics.
+- Kernel body is compiled at block scope; there is no legacy implicit thread-mode wrapping.
 
 ## 2) Launch and unit scopes
 
@@ -121,6 +137,14 @@ Notes:
 
 Pattern:
 - `with cp.Kernel(grid..., threads=BLOCK_SIZE) as (..., block):`
+- `cp.Kernel` also supports `grid=` keyword form.
+
+Persistent work distribution:
+- `with cp.PersistentKernel(n_items, threads=..., mode="dynamic"|"static") as (item_id, block):`
+  with a single grid dimension and one persistent region per kernel.
+
+Codegen override region:
+- `with cp.codegen(knob=value, ...):` for constexpr integer knob overrides in a scoped block.
 
 ### Unit-binding forms
 
@@ -193,8 +217,12 @@ Useful constants and annotations:
 - `cp.float16_max`, `cp.bfloat16_max`, `cp.float32_max`, `cp.float64_max`
 
 Important nuance (apple-to-apple safety):
-- `language/__init__.py` exposes additional type tokens (`uint64`, `int16`, `uint16`) for dtype/token plumbing, but direct kernel cast call support must be confirmed in codegen before use.
-- If a PhysX kernel requires explicit `u64`, `i16`, or `u16` cast semantics and you cannot prove end-to-end support, stop and ask the user before choosing a workaround.
+- `cp.uint64` is exposed at the language level, but `exprs.py` direct `cp.*` cast
+  lowering only covers `int32`, `int64`, `uint32`, `int8`, `uint8`, and float casts.
+- `int16`/`uint16`/`uint64` semantics often require `thread.cast`/`thread.bitcast`
+  or a different representation; do not assume direct `cp.<type>(x)` parity.
+- If a PhysX kernel requires explicit `u64`, `i16`, or `u16` cast semantics and
+  you cannot prove end-to-end support, stop and ask before choosing a workaround.
 
 ---
 
@@ -210,6 +238,7 @@ Key implementation points:
 - `while` without break/continue is lowered via structured `scf.while` path.
 - `while` with break/continue uses `cp.while_loop` lowering path.
 - `while True:` is explicitly recognized; no synthetic condition-break is injected at top.
+- `for t in cp.pipelined(range(...), stages=K)` exists for software pipelining (`stages >= 2`).
 
 References:
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/control_flow.py`
@@ -239,6 +268,10 @@ References:
   - `block.alloc(...)`
   - `warp.alloc(...)`
   - `team.alloc(...)`
+- Struct tiles and cooperative struct I/O:
+  - `block.alloc_struct(Schema, N)`
+  - `block.load_struct(global_struct, smem_struct, offset, count, n_elems=...)`
+  - `block.store_struct(smem_struct, global_struct, offset, count, n_elems=...)`
 
 ## Loads/stores
 
@@ -251,6 +284,7 @@ References:
 Important:
 - Rebinding Python variable names does not store into memory.
 - Keep lvalue/rvalue semantics explicit when porting pointer-heavy CUDA code.
+- High-level DSL does not provide direct runtime raw-address dereference from integer fields.
 
 References:
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/exprs.py`
@@ -287,6 +321,8 @@ Supported:
 - host-side `Schema.from_arrays(...)`
 - struct field validation and flattening
 - struct use inside kernels with inline helpers
+- first-class struct tiles with `block.alloc_struct`/`block.load_struct`/`block.store_struct`
+- struct helper methods callable on struct values (non-mutating patterns)
 
 Reference:
 - `/home/zhuochen/capybara-triton/python/capybara/language/__init__.py`
@@ -294,6 +330,8 @@ Reference:
 
 Stop-and-ask trigger:
 - If CUDA struct has bitfields, packed unions, or alignment-sensitive overlays and equivalent behavior is uncertain, stop and ask before changing representation.
+- If struct fields carry raw pointer addresses and the kernel dereferences them
+  (`reinterpret_cast`-style semantics), stop and ask before translating.
 
 ---
 
@@ -305,8 +343,10 @@ Examples:
 - arithmetic/comparison
 - `thread.load`
 - atomics (`thread.atomic_cas`, `thread.atomic_add`)
-- warp shuffles (`thread.shfl_*`)
-- `thread.popcount`
+- warp shuffles (`thread.shfl_up`, `thread.shfl_down`, `thread.shfl_xor`, `thread.shfl_idx`)
+- bit intrinsics (`thread.popcount`, `thread.popcount64`, `thread.clz`, `thread.ctz`, `thread.ffs`, and 64-bit variants)
+- memory fences (`thread.threadfence`, `thread.threadfence_block`)
+- casts/bitcasts (`thread.cast`, `thread.bitcast`)
 
 ## Collective namespace
 
@@ -320,6 +360,7 @@ Reference:
 
 - warp-level methods: `warp.sort_kv`, `warp.merge_sorted_kv`, etc.
 - block-level methods: `block.barrier`, `block.scan`, `block.sort_kv`, `block.compact`, `block.dot` (where applicable)
+- block async copy methods: `block.async_load`, `block.async_commit`, `block.async_wait`
 - team-level methods as implemented in dispatch table.
 
 Stop-and-ask trigger:
@@ -338,9 +379,11 @@ Use this as baseline mapping; verify per-kernel semantics.
 | warp lane id | `lane` from `for lane, thread in warp.threads():` |
 | `__shared__` | `block.alloc(...)` |
 | `__syncthreads()` | `block.barrier()` (or selector `barrier=True` exit semantics) |
+| `__threadfence()` | `thread.threadfence()` |
+| `__threadfence_block()` | `thread.threadfence_block()` |
 | atomic CAS | `thread.atomic_cas(...)` |
 | ballot + popc | `thread.coll.ballot(pred)` + `thread.popcount(mask)` |
-| warp shuffle | `thread.shfl_up/down/xor(...)` |
+| warp shuffle | `thread.shfl_up/down/xor(...)`, `thread.shfl_idx(...)` |
 | warp-level sort/merge idioms | `warp.sort_kv`, `warp.merge_sorted_kv` |
 
 ---
@@ -374,9 +417,33 @@ These require extra care and usually user confirmation if non-trivial:
 - Warp-synchronous algorithms with implicit convergence assumptions.
 - Ballot-driven compaction and stack writes (e.g., BV32 DFS compaction).
 - Pointer alias tricks and type punning.
+- Raw-address pointer fields in descriptors (`size_t` / `uint64`) that are dereferenced in-kernel.
 - Mixed precision math where operation ordering matters.
 - Control flow where CUDA relied on undefined-but-observed behavior.
 - Any replacement of `while(true)+break` patterns that may alter divergence.
+
+---
+
+## 11a) Raw-address memcpy / ABI blocker
+
+For PhysX-style kernels like `MemCopyBalanced`, treat this as a hard blocker until confirmed:
+
+- Current high-level DSL does not support direct `u64 address -> typed pointer -> load/store`.
+- `cp_intr.base_ptr` and `cp_intr.ptr_add` exist, but they operate on refs/pointers
+  already in the IR; there is no source-verified `inttoptr`-style bridge from a runtime integer address.
+- Therefore, an offset-based rewrite (adding explicit `src_words`/`dst_words` args) is
+  an ABI change, not an apple-to-apple translation.
+
+Required behavior:
+- If exact CUDA ABI replacement is required (e.g., kernel args must stay `(desc, count)`),
+  stop and ask for one of:
+  1. approved intrinsic extension path,
+  2. approved caller/ABI rewrite,
+  3. explicit defer/block decision.
+
+References:
+- `/home/zhuochen/elytar/physx-5.6.1/source/gpucommon/src/capybara/MemCopyBalanced_PORT_BLOCKER.md`
+- `/home/zhuochen/capybara-triton/include/capybara/Dialect/CapybaraIntr/IR/CapybaraIntrOps.td`
 
 ---
 
@@ -415,6 +482,9 @@ Common examples from source:
 - invalid `block.threads(M,N,...)` dimensions/product -> `RuntimeError`.
 - unsupported `sum(generator)` forms (filtered generators, unsupported iterators) -> `NotImplementedError`.
 - `padded_view()` path deprecated (use `pad().view()`) -> `RuntimeError`.
+- Assuming direct `cp.uint64(...)` cast parity with CUDA pointer casts -> unsupported unless source-verified.
+- Dereferencing raw address integers from struct fields in high-level DSL -> unsupported.
+- Silent ABI rewrites (e.g., `(desc, count)` to `(desc, src_words, dst_words, count)`) without approval -> not allowed.
 
 Reference files:
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/exprs.py`
@@ -447,6 +517,7 @@ Capybara has a lower-level intrinsics dialect (`cp.intr`) in the pipeline.
 For this guideline, keep mention brief:
 - use high-level DSL first,
 - if an operation is not expressible with proven equivalence, stop and ask whether to use intrinsics-level implementation.
+- do not assume intrinsics can recover raw-address dereference automatically; verify available ops first.
 
 Do not auto-switch to an intrinsics workaround without user approval.
 
@@ -464,6 +535,9 @@ Do not auto-switch to an intrinsics workaround without user approval.
   - `/home/zhuochen/capybara-triton/python/test/capybara/bench/capybara_kernels/tsne_repulsion.py`
 - Structs:
   - `/home/zhuochen/capybara-triton/python/test/capybara/test_struct_e2e.py`
+  - `/home/zhuochen/capybara-triton/python/test/capybara/test_first_class_struct.py`
+- Thread fences:
+  - `/home/zhuochen/capybara-triton/python/test/capybara/bench/capybara_kernels/tsne_summarize.py`
 
 ---
 
@@ -478,6 +552,10 @@ Use for conceptual context, then verify against source behavior:
 - `/home/zhuochen/capybara-triton/docs/capybara/design/05_DESIGN_TYPES_MEMORY_MODEL.md`
 - `/home/zhuochen/capybara-triton/docs/capybara/design/06_DESIGN_VIEWS_LAYOUT.md`
 - `/home/zhuochen/capybara-triton/docs/capybara/design/09_DESIGN_FRONTEND_LOWERING.md`
+
+Note:
+- Some secondary docs/examples may still mention legacy `padded_view()` wording.
+  For current behavior, treat source code (`exprs.py`/`view_construction.py`) as authoritative.
 
 ---
 

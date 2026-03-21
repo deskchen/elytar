@@ -1,3 +1,351 @@
+# PhysX Kernel Port Blockers Audit (Refreshed)
+
+This audit tracks apple-to-apple port blockers from PhysX CUDA to Capybara DSL, updated against:
+
+- [`docs/DSL_GRAMMAR_PHYSX_PORT.md`](DSL_GRAMMAR_PHYSX_PORT.md)
+- [`physx-5.6.1-capybara/source/gpucommon/src/capybara/MemCopyBalanced_PORT_BLOCKER.md`](../physx-5.6.1-capybara/source/gpucommon/src/capybara/MemCopyBalanced_PORT_BLOCKER.md)
+
+Scope scanned: all GPU CUDA sources under `physx-5.6.1-capybara/source/` (`gpucommon`, `gpubroadphase`, `gpunarrowphase`, `gpuarticulation`, `gpusolver`, `gpusimulationcontroller`).
+
+---
+
+## Severity key
+
+| Label | Meaning |
+|---|---|
+| CRITICAL | No high-level DSL path with proven semantic parity; blocks apple-to-apple without explicit decision or extension |
+| HIGH | Primitive exists or partial mapping exists, but parity/legality/race/layout risks remain significant |
+| MEDIUM | Usually workable with explicit rewrite and validation; still needs documented decision |
+
+---
+
+## What changed vs prior revision
+
+Three categories are downgraded/split due to newly documented grammar support:
+
+1. `reinterpret_cast` is split into:
+   - scalar reinterpretation (now mostly supported via `thread.bitcast`)  
+   - aggregate/pointer alias reinterpretation (still blocker)
+2. PhysX math types no longer claim "no struct method support" in general:
+   - Capybara first-class structs + helper methods exist  
+   - direct parity with PhysX C++ math APIs still costs rewrite work
+3. Warp intrinsics table is updated:
+   - `thread.shfl_idx`, `thread.popcount64`, `thread.clz`, `thread.ctz`, `thread.ffs`, and 64-bit variants are now documented  
+   - remaining concern is semantic parity/scope legality, not primitive absence in many cases
+
+---
+
+## Blocker 1 - Raw-address dereference / ABI shape mismatch
+
+**Severity: CRITICAL**
+
+### Why it remains a blocker
+
+High-level DSL still does not provide a proven runtime bridge from integer address fields to typed dereference (`u64 -> typed pointer -> load/store`).  
+If CUDA ABI requires `(desc, count)` but DSL rewrite introduces explicit buffers `(desc, src_words, dst_words, count)`, that is an ABI change.
+
+### Representative examples
+
+- `gpucommon/src/CUDA/MemCopyBalanced.cu`
+- `gpuarticulation/src/CUDA/articulationDirectGpuApi.cu`
+
+### Decision required
+
+- Is exact CUDA ABI replacement mandatory?
+- If yes, is `cp.intr` extension approved, or should this kernel be deferred?
+
+---
+
+## Blocker 2a - Scalar bit reinterpretation
+
+**Severity: MEDIUM (downgraded)**
+
+### Current status
+
+Many scalar type-punning idioms map to `thread.bitcast` / `thread.cast` and are no longer "missing primitive" blockers.
+
+### Examples now likely mappable
+
+- `__float_as_int`, `__int_as_float`
+- width-preserving scalar cast/bitcast paths
+
+### Remaining risk
+
+- Exact rounding/approximation semantics still need validation case-by-case.
+
+---
+
+## Blocker 2b - Aggregate/pointer alias reinterpretation
+
+**Severity: CRITICAL**
+
+### Why it remains a blocker
+
+Pointer-level aliasing via `reinterpret_cast<T*>` between incompatible aggregate layouts is still not a direct high-level DSL operation.
+
+### Representative examples
+
+- `gpunarrowphase/src/CUDA/cudaGJKEPA.cu`
+- `gpucommon/src/CUDA/vector.cuh`
+- `gpusimulationcontroller/src/CUDA/diffuseParticles.cu`
+
+### Typical hard patterns
+
+- `reinterpret_cast<float4*>(opaque_ptr)`
+- aliasing struct storage as multiple aggregate types
+- shared-memory alias overlays
+
+---
+
+## Blocker 3 - C++ template-heavy device code
+
+**Severity: CRITICAL**
+
+### Why it remains a blocker
+
+`cp.constexpr` helps constant specialization, but there is no direct equivalent for C++ `template<typename T, bool Flag, ...>` generic instantiation behavior in CUDA helper stacks.
+
+### Representative examples
+
+- `gpuarticulation/src/CUDA/internalConstraints2.cu`
+- `gpuarticulation/src/CUDA/forwardDynamic2.cu`
+- `gpucommon/src/CUDA/RadixSort.cuh`
+- `gpucommon/src/CUDA/reduction.cuh`
+
+### Decision required
+
+- Explicit monomorphic variants only, or Python codegen/metaprogramming policy for generated inline variants.
+
+---
+
+## Blocker 4 - PhysX math API parity (`PxVec3`, `PxQuat`, `PxMat33`, ...)
+
+**Severity: HIGH (weakened wording)**
+
+### Updated assessment
+
+Capybara supports first-class structs and struct helper methods.  
+The blocker is not "struct methods impossible"; it is parity cost against PhysX C++ math APIs and operator-overloaded behavior.
+
+### Why still hard
+
+- PhysX kernels rely on rich math types and implicit operator semantics.
+- Port must translate/normalize into explicit DSL-safe helpers while preserving numeric behavior.
+
+### Representative files
+
+- `gpusolver/src/CUDA/contactConstraintBlockPrep.cuh`
+- `gpunarrowphase/src/CUDA/cudaGJKEPA.cu`
+- `gpusimulationcontroller/src/CUDA/FEMClothUtil.cuh`
+
+---
+
+## Blocker 5 - Packed pointer arithmetic and binary layout coupling
+
+**Severity: HIGH**
+
+### Why it remains a blocker
+
+Contact streams and other buffers use heavy byte-offset arithmetic, alignment assumptions, and packed layouts tied to C++ ABI expectations.
+
+### Representative files
+
+- `gpunarrowphase/src/CUDA/convexTriangle.cuh`
+- `gpunarrowphase/src/CUDA/cudaGJKEPA.cu`
+- `gpunarrowphase/src/CUDA/midphaseAllocate.cuh`
+- `gpusolver/src/CUDA/contactConstraintBlockPrep.cuh`
+
+### Decision required
+
+- Preserve exact binary layout (hard) vs approve layout normalization for DSL-friendly views.
+
+---
+
+## Blocker 6 - CUDA `__constant__` / module-level device state
+
+**Severity: HIGH**
+
+### Why it remains a blocker
+
+High-level DSL has no direct `__constant__` memory-space declaration with same linkage/init model.
+
+### Representative files
+
+- `gpunarrowphase/src/CUDA/epa.cuh`
+- `gpunarrowphase/src/CUDA/cudaGJKEPA.cu`
+- `gpusimulationcontroller/src/CUDA/marchingCubesTables.cuh`
+- `gpusolver/src/CUDA/constant.cuh`
+
+### Decision required
+
+- Pass as read-only args, inline constants, or use approved low-level path.
+
+---
+
+## Blocker 7 - Warp intrinsic parity (updated)
+
+**Severity: HIGH (reframed)**
+
+### Updated support baseline
+
+Grammar now documents support for:
+
+- `thread.shfl_idx` (in addition to `shfl_up/down/xor`)
+- `thread.popcount64`
+- `thread.clz`, `thread.ctz`, `thread.ffs`
+- 64-bit variants in the bit-intrinsic family
+
+### Why still high-risk
+
+Remaining risk is parity/legality, not pure primitive absence:
+
+- mask semantics (`FULL_MASK` expectations)
+- lane source behavior equivalence
+- scope legality (`warp.threads` vs `team.threads` vs `block.threads`)
+- interaction with divergence and collectives
+
+### Representative files
+
+- `gpunarrowphase/src/CUDA/cudaGJKEPA.cu`
+- `gpuarticulation/src/CUDA/internalConstraints2.cu`
+- `gpubroadphase/src/CUDA/broadphase.cu`
+
+---
+
+## Blocker 8 - Inline PTX (`asm`, `bar.sync N`, custom ops)
+
+**Severity: HIGH**
+
+### Why it remains a blocker
+
+No high-level DSL inline PTX surface. `cp.intr` may help but is explicit policy/approval territory.
+
+### Representative files
+
+- `gpunarrowphase/src/CUDA/convexMeshMidphase.cu` (`bar.sync 1/2/...`)
+- `gpunarrowphase/src/CUDA/warpHelpers.cuh` (custom asm shuffle/scan paths)
+- `gpucommon/src/CUDA/atomic.cuh` (`red.global.add.f32`)
+
+---
+
+## Blocker 9 - `volatile` shared-memory coordination idioms
+
+**Severity: MEDIUM**
+
+### Why it remains a blocker
+
+`volatile` patterns are often used to enforce ordering/visibility assumptions in warp-synchronous code. DSL has no explicit volatile qualifier.
+
+### Representative files
+
+- `gpunarrowphase/src/CUDA/warpHelpers.cuh`
+- `gpusolver/src/CUDA/constraintBlockPrep.cu`
+- `gpunarrowphase/src/CUDA/epa.cuh`
+
+### Porting note
+
+Often rewritable, but correctness depends on proving equivalent synchronization semantics.
+
+---
+
+## Blocker 10 - Unroll-dependent behavior and limits
+
+**Severity: MEDIUM**
+
+### Why it remains a blocker
+
+PhysX uses extensive `#pragma unroll` in performance-sensitive kernels. DSL loop lowering may differ in unroll strategy and resulting instruction shape.
+
+### Representative files
+
+- `gpuarticulation/src/CUDA/forwardDynamic2.cu`
+- `gpucommon/src/CUDA/RadixSort.cuh`
+- `gpunarrowphase/src/CUDA/cudaGJKEPA.cu`
+
+---
+
+## Blocker 11 - Union-based storage overlays
+
+**Severity: MEDIUM**
+
+### Why it remains a blocker
+
+`@cp.struct` does not directly model C-style unions/anonymous overlays. Scalar-like cases may be handled via `thread.bitcast`; larger overlays need explicit layout redesign.
+
+### Representative files
+
+- `gpunarrowphase/src/CUDA/cudaGJKEPA.cu`
+- `gpunarrowphase/src/CUDA/dataReadWriteHelper.cuh`
+
+---
+
+## Blocker 12 - Texture memory (`tex3D`)
+
+**Severity: MEDIUM**
+
+### Why it remains a blocker
+
+No high-level texture object/fetch model equivalent to CUDA texture units.
+
+### Representative file
+
+- `gpunarrowphase/src/CUDA/sdfCollision.cuh`
+
+### Scope
+
+Localized to SDF-related paths, not the full kernel set.
+
+---
+
+## Blocker 13 - Deep device helper call graphs and include webs
+
+**Severity: MEDIUM**
+
+### Why it remains a blocker
+
+Porting requires flattening/reorganizing large multi-file helper stacks into DSL inline helpers while preserving semantics and controlling compile complexity.
+
+### Representative heavy files
+
+- `gpuarticulation/src/CUDA/internalConstraints2.cu`
+- `gpunarrowphase/src/CUDA/cudaGJKEPA.cu`
+- `gpusimulationcontroller/src/CUDA/particlesystem.cu`
+
+---
+
+## Non-blockers / lower concern areas (context)
+
+- Dynamic parallelism: not observed as a major factor in this corpus.
+- Cooperative groups: not a major observed dependency.
+- Variable-length loops: generally expressible with `while` + explicit convergence care.
+- Large fixed shared arrays: generally representable with compile-time-sized allocs.
+
+---
+
+## Module-level impact summary
+
+| Module | Dominant blockers | Practical status |
+|---|---|---|
+| `gpunarrowphase` | 2b, 5, 7, 8, 13 | Hardest near-term |
+| `gpuarticulation` | 1, 3, 4, 7, 13 | Hardest near-term |
+| `gpusimulationcontroller` | 2b, 4, 5, 6, 13 | Broad but mixed |
+| `gpusolver` | 3, 4, 5, 6, 9 | Medium-hard |
+| `gpubroadphase` | 1/2b paths + 7 | Medium-hard |
+| `gpucommon` | mixed, includes Blocker 1 kernel | Smaller scope |
+
+---
+
+## Required decision matrix before new ports
+
+| Area | Decision needed |
+|---|---|
+| Raw-address ABI | Require exact CUDA ABI or allow argument-shape rewrite |
+| Binary stream layout | Preserve exact packed layout or normalize to view-friendly layout |
+| Template policy | Manual monomorphic expansion vs generated helper variants |
+| Intrinsics/asm gaps | Approve `cp.intr` use case-by-case |
+| Warp parity | Treat as semantic-validation task (mask/lane/scope) even when primitive exists |
+| Constant data | Argumentized constants vs approved low-level constant-memory path |
+
 # PhysX Kernel Port Blockers Audit
 
 This document catalogs every CUDA pattern found across PhysX 5.6.1 GPU source that cannot be directly ported to Capybara DSL in an apple-to-apple way. It was produced by scanning all `.cu` and `.cuh` files under `physx-5.6.1-capybara/source/` (55 `.cu` files, 62+ `.cuh` files, hundreds of `__global__` kernels across six GPU modules).
