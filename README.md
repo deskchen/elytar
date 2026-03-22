@@ -22,6 +22,18 @@ docker build -f docker/Dockerfile.dev -t elytar-dev:cuda12.8-clang .
 /workspace/scripts/update_toolchain.sh
 ```
 
+### PhysX-only mode
+
+Use `ELYTAR_PHYSX_ONLY=1` to compile and verify PhysX only, without building or installing the SAPIEN wheel. Useful for rapid PhysX iteration (e.g. PTX changes, headless snippets):
+
+```bash
+ELYTAR_PHYSX_ONLY=1 \
+ELYTAR_BUILD_PHYSX_SNIPPETS=1 \
+PHYSX_DIR=/workspace/physx-5.6.1-capybara \
+PX_PTX_REPLACE_LIST=utility \
+./scripts/update_toolchain.sh
+```
+
 **4. Run the benchmark:**
 
 ```bash
@@ -54,4 +66,8 @@ ELYTAR_BUILD_PHYSX_SNIPPETS=1 \
 ./scripts/update_toolchain.sh
 ```
 
-Then benchmark chosen snippet binaries with `./benchmark/physx_snippets/run_ptx_ab.sh`.
+Then run the benchmark with headless binaries:
+
+```bash
+python3 benchmark/physx_snippets/run.py --snippet Isosurface --reps 10
+```
