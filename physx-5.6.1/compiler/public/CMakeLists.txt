@@ -97,6 +97,8 @@ IF(PX_BUILDPVDRUNTIME)
 		ADD_SUBDIRECTORY(${PHYSX_ROOT_DIR}/pvdruntime/compiler/cmake ${CMAKE_CURRENT_BINARY_DIR}/pvdruntime_bin)
 		MESSAGE("Added PVDRuntime")
 	ENDIF()
+ELSE()
+	SET(PVDRuntimeBuilt 0 CACHE INTERNAL "PVDRuntime not built")
 ENDIF()
 
 IF(PX_BUILDSNIPPETS)

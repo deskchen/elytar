@@ -39,6 +39,8 @@ OPTION(PX_GENERATE_GPU_REDUCED_ARCHITECTURES "Generate only a reduced number of 
 SET(PX_PTX_REPLACE_LIST "" CACHE STRING
     "Semicolon-separated list of kernel stems to build from pre-generated PTX instead of .cu (e.g. integration;solver). Use 'all' to replace all 61 kernels.")
 SET(PX_PTX_ARCH "compute_86" CACHE STRING "Target architecture for PTX compilation (e.g. compute_86 for RTX 3090, compute_90 for H200)")
+SET(ELYTAR_PTX_INPUT_SUFFIX ".ptx" CACHE STRING
+    "Filename suffix for PTX replacement inputs (e.g. .ptx or .capybara.ptx).")
 
 CMAKE_POLICY(SET CMP0057 NEW) # Enable IN_LIST
 

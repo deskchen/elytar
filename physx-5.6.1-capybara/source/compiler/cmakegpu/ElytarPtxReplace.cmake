@@ -6,8 +6,9 @@
 ## with pre-generated PTX at build time.
 ##
 ## Pipeline per .cu file:
-##   1. Pre-generated <stem>.ptx  (by scripts/generate_ptx.sh)
-##   2. nvcc -fatbin .ptx -> <stem>.fatbin  (build time, custom command)
+##   1. Pre-generated <stem><suffix> PTX file
+##      (suffix is ELYTAR_PTX_INPUT_SUFFIX; default ".ptx")
+##   2. nvcc -fatbin PTX -> <stem>.fatbin  (build time, custom command)
 ##   3. bin2c .fatbin -> <stem>_fatbin.h   (build time, custom command)
 ##   4. Auto-generated <stem>_host_stub.cpp  (configure time, file(GENERATE))
 ##   5. Auto-generated <stem>_ptx_register.cpp  (configure time, file(GENERATE))
@@ -56,6 +57,15 @@
 cmake_minimum_required(VERSION 3.16)
 include_guard(GLOBAL)
 
+# PTX source filename suffix consumed by this CMake replacement path.
+# Examples:
+#   ".ptx"          -> use <stem>.ptx
+#   ".capybara.ptx" -> use <stem>.capybara.ptx
+if(NOT DEFINED ELYTAR_PTX_INPUT_SUFFIX)
+    set(ELYTAR_PTX_INPUT_SUFFIX ".ptx" CACHE STRING
+        "Filename suffix for PTX replacement inputs, appended to each kernel stem.")
+endif()
+
 # ---- Locate bin2c (ships with CUDA toolkit) --------------------------------
 if(NOT DEFINED BIN2C_EXECUTABLE)
     find_program(BIN2C_EXECUTABLE bin2c
@@ -79,7 +89,7 @@ endif()
 # ELYTAR_REPLACE_CU_WITH_PTX(
 #     KERNELS_VAR <list-variable-name>
 #     CU_FILE     <absolute-path-to-.cu>
-#     PTX_DIR     <directory-containing-.ptx-files>
+#     PTX_DIR     <directory-containing-pre-generated-PTX-files>
 # )
 #
 # Effect on calling scope:
@@ -91,7 +101,7 @@ macro(ELYTAR_REPLACE_CU_WITH_PTX)
 
     get_filename_component(_eptx_stem "${_EPTX_CU_FILE}" NAME_WE)
 
-    set(_eptx_ptx_file    "${_EPTX_PTX_DIR}/${_eptx_stem}.ptx")
+    set(_eptx_ptx_file    "${_EPTX_PTX_DIR}/${_eptx_stem}${ELYTAR_PTX_INPUT_SUFFIX}")
     set(_eptx_gen_dir     "${CMAKE_CURRENT_BINARY_DIR}/elytar_ptx")
     set(_eptx_fatbin_file "${_eptx_gen_dir}/${_eptx_stem}.fatbin")
     set(_eptx_fatbin_hdr  "${_eptx_gen_dir}/${_eptx_stem}_fatbin.h")
@@ -209,7 +219,7 @@ macro(ELYTAR_REPLACE_CU_WITH_PTX)
 
     file(GENERATE OUTPUT "${_eptx_reg_file}" CONTENT "${_eptx_reg_content}")
 
-    # ---- Custom command: .ptx -> .fatbin -----------------------------------
+    # ---- Custom command: PTX -> .fatbin ------------------------------------
     add_custom_command(
         OUTPUT  "${_eptx_fatbin_file}"
         COMMAND "${CMAKE_CUDA_COMPILER}" -fatbin
@@ -217,7 +227,7 @@ macro(ELYTAR_REPLACE_CU_WITH_PTX)
                 -o "${_eptx_fatbin_file}"
                 -arch=${ELYTAR_PTX_SM_ARCH}
         DEPENDS "${_eptx_ptx_file}"
-        COMMENT "[Elytar] ${_eptx_stem}.ptx -> fatbin (${ELYTAR_PTX_SM_ARCH})"
+        COMMENT "[Elytar] ${_eptx_stem}${ELYTAR_PTX_INPUT_SUFFIX} -> fatbin (${ELYTAR_PTX_SM_ARCH})"
         VERBATIM
     )
 

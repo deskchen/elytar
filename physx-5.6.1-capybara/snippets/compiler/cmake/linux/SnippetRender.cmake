@@ -29,7 +29,9 @@
 #
 
 IF(NOT ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "aarch64")
-	FIND_PACKAGE(OpenGL $ENV{PM_OpenGL_VERSION} CONFIG REQUIRED) # Pull in OpenGL and GLUT
+	# Use MODULE mode; CONFIG looks for OpenGLConfig.cmake which Ubuntu does not provide.
+	FIND_PACKAGE(OpenGL REQUIRED)
+	FIND_PACKAGE(GLUT REQUIRED)
 ENDIF()
 
 SET(SNIPPETRENDER_COMPILE_DEFS
@@ -45,12 +47,8 @@ SET(SNIPPETRENDER_COMPILE_DEFS
 
 SET(SNIPPETRENDER_PLATFORM_INCLUDES)
 
-# gwoolery: aarch64 requires glut library to be lower case, for whatever reason
-IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-	SET(GLUT_LIB "glut")
-ELSE()
-	SET(GLUT_LIB "GLUT")
-ENDIF()
+# freeglut on Linux provides libglut.so (lowercase); -lGLUT would fail
+SET(GLUT_LIB "glut")
 
 SET(SNIPPETRENDER_PLATFORM_LINKED_LIBS GL GLU ${GLUT_LIB})
 
