@@ -4,12 +4,12 @@ set -euo pipefail
 # Repeated A/B wall-clock runner for PhysX snippet binaries.
 #
 # Required:
-#   BENCH_CMD_A: command for variant A (usually PTX nvcc)
-#   BENCH_CMD_B: command for variant B (usually PTX Capybara)
+#   BENCH_CMD_A: command for variant A (usually vanilla .cu tree binary)
+#   BENCH_CMD_B: command for variant B (usually capybara-tree PTX binary)
 #
 # Optional:
-#   LABEL_A         default: ptx_nvcc
-#   LABEL_B         default: ptx_capybara
+#   LABEL_A         default: vanilla_cu
+#   LABEL_B         default: capybara_ptx
 #   REPS            default: 10
 #   STEPS_PER_RUN   default: 100
 #   OUTPUT_CSV      default: benchmark/physx_snippets/results/ptx_ab_results.csv
@@ -17,17 +17,17 @@ set -euo pipefail
 
 BENCH_CMD_A="${BENCH_CMD_A:-}"
 BENCH_CMD_B="${BENCH_CMD_B:-}"
-LABEL_A="${LABEL_A:-ptx_nvcc}"
-LABEL_B="${LABEL_B:-ptx_capybara}"
-REPS="${REPS:-10}"
-STEPS_PER_RUN="${STEPS_PER_RUN:-100}"
+LABEL_A="${LABEL_A:-vanilla_cu}"
+LABEL_B="${LABEL_B:-capybara_ptx}"
+REPS="${REPS:-1}"
+STEPS_PER_RUN="${STEPS_PER_RUN:-10}"
 OUTPUT_CSV="${OUTPUT_CSV:-benchmark/physx_snippets/results/ptx_ab_results.csv}"
 RUN_ID="${RUN_ID:-$(date +%Y%m%d-%H%M%S)}"
 
 if [[ -z "${BENCH_CMD_A}" || -z "${BENCH_CMD_B}" ]]; then
   echo "ERROR: BENCH_CMD_A and BENCH_CMD_B are required."
   echo "Example:"
-  echo "  BENCH_CMD_A=\"/path/SnippetIsosurfaceHeadless\" BENCH_CMD_B=\"/path/SnippetIsosurfaceHeadless\" ./benchmark/physx_snippets/run_ptx_ab.sh"
+  echo "  BENCH_CMD_A=\"/workspace/physx-5.6.1/bin/linux.x86_64/profile/SnippetIsosurface_64\" BENCH_CMD_B=\"/workspace/physx-5.6.1-capybara/bin/linux.x86_64/profile/SnippetIsosurface_64\" ./benchmark/physx_snippets/run_ptx_ab.sh"
   exit 1
 fi
 

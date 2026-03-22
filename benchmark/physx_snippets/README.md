@@ -1,57 +1,53 @@
-# PhysX Snippet Benchmarks (PTX A/B)
+# PhysX Snippet Benchmarks (Two-tree A/B)
 
-This suite benchmarks PhysX C++ snippets for end-to-end latency/throughput while
-comparing PTX sources:
+This suite compares PhysX snippet binaries built from two source trees:
 
-- PTX nvcc (`generate_ptx.sh`)
-- PTX Capybara (`compile_capybara_ptx.py`, materialized by `update_toolchain.sh`)
+- **A (baseline):** `physx-5.6.1` with pure `.cu` kernels (`PX_PTX_REPLACE_LIST=""`)
+- **B (capybara):** `physx-5.6.1-capybara` with selected kernels from
+  `*.capybara.ptx`
 
-Primary workload: `SnippetIsosurface` (touches `utility` via
-`interleaveGpuBuffers` -> `interleaveBuffers` kernel path).
+There is no special headless snippet target in this workflow. Benchmark standard
+`Snippet*` executables (for example `SnippetIsosurface`) from each tree.
 
-## Build matrix
+## Build both variants with `update_toolchain.sh`
 
-Use one Elytar tree for PTX comparison (`physx-5.6.1-capybara`) and optionally
-one frozen vanilla baseline (`physx-5.6.1`).
+`update_toolchain.sh` now supports snippets via `ELYTAR_BUILD_PHYSX_SNIPPETS=1`,
+always enables GPU project generation, and consumes PTX suffixes directly
+(no copying `.capybara.ptx -> .ptx`).
 
-### PTX nvcc vs PTX Capybara (strict PTX A/B)
+### A: baseline tree (`physx-5.6.1`, pure `.cu`)
 
 ```bash
-# A: nvcc PTX
-PX_PTX_REPLACE_LIST="utility" PX_PTX_SOURCE=nvcc ./scripts/update_toolchain.sh
+PHYSX_DIR="/workspace/physx-5.6.1" \
+PX_PTX_REPLACE_LIST="" \
+ELYTAR_BUILD_PHYSX_SNIPPETS=1 \
+./scripts/update_toolchain.sh
+```
 
-# B: capybara PTX
+### B: capybara tree (`physx-5.6.1-capybara`, PTX replacement)
+
+```bash
 python3 scripts/compile_capybara_ptx.py -v
-PX_PTX_REPLACE_LIST="utility" PX_PTX_SOURCE=capybara ./scripts/update_toolchain.sh
+
+PHYSX_DIR="/workspace/physx-5.6.1-capybara" \
+PX_PTX_REPLACE_LIST="utility" \
+PX_PTX_SOURCE=capybara \
+ELYTAR_BUILD_PHYSX_SNIPPETS=1 \
+./scripts/update_toolchain.sh
 ```
 
-## Build snippets
-
-`update_toolchain.sh` builds SDK/SAPIEN with snippets disabled by design, so use
-a dedicated snippets configure/build:
-
-```bash
-cmake -S physx-5.6.1-capybara/compiler/public \
-  -B physx-5.6.1-capybara/compiler/linux-clang-profile-snippets \
-  -DPX_BUILDSNIPPETS=ON \
-  -DPX_BUILDPVDRUNTIME=FALSE \
-  -DPX_GENERATE_GPU_PROJECTS=ON \
-  -DPX_PTX_REPLACE_LIST="utility" \
-  -DPX_PTX_ARCH=compute_86 \
-  -DELYTAR_BUILD_HEADLESS_SNIPPET_BENCHES=ON
-cmake --build physx-5.6.1-capybara/compiler/linux-clang-profile-snippets -- -j"$(nproc)"
-```
-
-With `ELYTAR_BUILD_HEADLESS_SNIPPET_BENCHES=ON`, an extra
-`SnippetIsosurfaceHeadless` target is built on Linux.
+Notes:
+- `PX_PTX_SOURCE=capybara` selects `*.capybara.ptx`.
+- Override suffix directly with `ELYTAR_PTX_INPUT_SUFFIX` if needed.
+- Pick a replace list appropriate for your experiment (`utility`, custom list, or `all`).
 
 ## Run repeated A/B benchmark
 
-Use `run_ptx_ab.sh`:
+Use `run_ptx_ab.sh` with executable paths from each tree:
 
 ```bash
-BENCH_CMD_A="/abs/path/SnippetIsosurfaceHeadless" \
-BENCH_CMD_B="/abs/path/SnippetIsosurfaceHeadless" \
+BENCH_CMD_A="/workspace/physx-5.6.1/bin/linux.x86_64/profile/SnippetIsosurface_64" \
+BENCH_CMD_B="/workspace/physx-5.6.1-capybara/bin/linux.x86_64/profile/SnippetIsosurface_64" \
 REPS=10 \
 STEPS_PER_RUN=100 \
 ./benchmark/physx_snippets/run_ptx_ab.sh
@@ -65,8 +61,8 @@ Columns:
 
 ## Notes
 
-- This benchmark is **end-to-end wall-clock**; it measures total snippet runtime,
-  not isolated single-kernel time.
-- Keep `PX_PTX_ARCH`, GPU, clock settings, and PhysX config consistent between A/B.
-- For kernel-only profiling, add Nsight/CUDA instrumentation in a later phase.
+- This benchmark is **end-to-end wall-clock**; it measures total process runtime
+  of each snippet command.
+- Keep GPU, clocks, PhysX config, and run conditions consistent between A/B.
+- You can benchmark any snippet binary by changing `BENCH_CMD_A/B`.
 
