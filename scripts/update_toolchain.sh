@@ -21,6 +21,8 @@ PX_PTX_ARCH="${PX_PTX_ARCH:-compute_86}"
 PX_PTX_SOURCE="${PX_PTX_SOURCE:-auto}"
 ELYTAR_PTX_INPUT_SUFFIX="${ELYTAR_PTX_INPUT_SUFFIX:-}"
 ELYTAR_BUILD_PHYSX_SNIPPETS="${ELYTAR_BUILD_PHYSX_SNIPPETS:-0}"
+# ELYTAR_PHYSX_ONLY=1: compile and verify PhysX only, skip SAPIEN wheel build
+ELYTAR_PHYSX_ONLY="${ELYTAR_PHYSX_ONLY:-1}"
 SAPIEN_BUILD_MODE="${SAPIEN_BUILD_MODE:---profile}"
 SAPIEN_BUILD_DIR="${SAPIEN_BUILD_DIR:-docker_sapien_build}"
 SAPIEN_LOCAL_BUILD_MARKER="${SAPIEN_LOCAL_BUILD_MARKER:-elytar}"
@@ -49,13 +51,17 @@ if [[ "$(uname -s)" != "Linux" ]]; then
   exit 1
 fi
 
-if [[ ! -d "${PHYSX_DIR}" || ! -d "${SAPIEN_DIR}" ]]; then
-  echo "Expected both ${PHYSX_DIR} and ${SAPIEN_DIR} to exist."
+if [[ ! -d "${PHYSX_DIR}" ]]; then
+  echo "Expected ${PHYSX_DIR} to exist."
+  exit 1
+fi
+if [[ "${ELYTAR_PHYSX_ONLY}" != "1" ]] && [[ ! -d "${SAPIEN_DIR}" ]]; then
+  echo "Expected ${SAPIEN_DIR} to exist (or use ELYTAR_PHYSX_ONLY=1 for PhysX-only build)."
   exit 1
 fi
 
-if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
-  echo "Python interpreter not found: ${PYTHON_BIN}"
+if [[ "${ELYTAR_PHYSX_ONLY}" != "1" ]] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+  echo "Python interpreter not found: ${PYTHON_BIN} (required for SAPIEN build; use ELYTAR_PHYSX_ONLY=1 to skip)"
   exit 1
 fi
 
@@ -89,6 +95,14 @@ case "${ELYTAR_BUILD_PHYSX_SNIPPETS}" in
   0|1) ;;
   *)
     echo "Invalid ELYTAR_BUILD_PHYSX_SNIPPETS=${ELYTAR_BUILD_PHYSX_SNIPPETS}. Use 0 or 1."
+    exit 1
+    ;;
+esac
+
+case "${ELYTAR_PHYSX_ONLY}" in
+  0|1) ;;
+  *)
+    echo "Invalid ELYTAR_PHYSX_ONLY=${ELYTAR_PHYSX_ONLY}. Use 0 or 1."
     exit 1
     ;;
 esac
@@ -207,6 +221,12 @@ else
   _px_buildsnippets=FALSE
 fi
 
+if [[ "${ELYTAR_BUILD_PHYSX_SNIPPETS}" == "1" ]]; then
+  _px_headless_benches=ON
+else
+  _px_headless_benches=OFF
+fi
+
 echo "[2/4] Configure PhysX (snippets=${_px_buildsnippets}, PTX_LIST=${PX_PTX_REPLACE_LIST:-none}, PTX_SOURCE=${PX_PTX_SOURCE}, PTX_SUFFIX=${ELYTAR_PTX_INPUT_SUFFIX:-.ptx})"
 cmake -S "${PHYSX_DIR}/compiler/public" -B "${PHYSX_BUILD_DIR}" \
   -DPX_BUILDSNIPPETS="${_px_buildsnippets}" \
@@ -214,7 +234,8 @@ cmake -S "${PHYSX_DIR}/compiler/public" -B "${PHYSX_BUILD_DIR}" \
   -DPX_GENERATE_GPU_PROJECTS=ON \
   -DPX_PTX_REPLACE_LIST="${PX_PTX_REPLACE_LIST}" \
   -DPX_PTX_ARCH="${PX_PTX_ARCH}" \
-  -DELYTAR_PTX_INPUT_SUFFIX="${ELYTAR_PTX_INPUT_SUFFIX:-.ptx}"
+  -DELYTAR_PTX_INPUT_SUFFIX="${ELYTAR_PTX_INPUT_SUFFIX:-.ptx}" \
+  -DELYTAR_BUILD_HEADLESS_SNIPPET_BENCHES="${_px_headless_benches}"
 
 echo "[3/4] Build PhysX (${PHYSX_CONFIG}, PTX_LIST=${PX_PTX_REPLACE_LIST:-none})"
 cmake --build "${PHYSX_BUILD_DIR}" -- -j"$(nproc)"
@@ -420,31 +441,68 @@ if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
   verify_ptx_mode "${PHYSX_LIB_DIR}" "${PHYSX_BUILD_DIR}" "${PX_PTX_REPLACE_LIST}" "${ELYTAR_PTX_INPUT_SUFFIX:-.ptx}"
 fi
 
-echo "[4/4] Build SAPIEN wheel using local PhysX"
-(
-  cd "${SAPIEN_DIR}"
-
-  # Force CMake reconfigure so it picks up the (potentially changed) PhysX tree.
-  SAPIEN_CMAKE_BUILD="${SAPIEN_BUILD_DIR}/_sapien_build"
-  if [[ -f "${SAPIEN_CMAKE_BUILD}/CMakeCache.txt" ]]; then
-    cached_dir=$(sed -n 's/^SAPIEN_PHYSX5_DIR:STRING=//p' "${SAPIEN_CMAKE_BUILD}/CMakeCache.txt")
-    if [[ "${cached_dir}" != "${SAPIEN_PHYSX5_DIR}" ]]; then
-      echo "  PhysX dir changed (${cached_dir} → ${SAPIEN_PHYSX5_DIR}), cleaning SAPIEN build cache"
-      rm -rf "${SAPIEN_CMAKE_BUILD}"
+if [[ "${ELYTAR_PHYSX_ONLY}" == "1" ]]; then
+  # PhysX-only: verify libs and optionally run a headless snippet
+  echo ""
+  echo "=============================="
+  echo " PhysX-only verification"
+  echo "=============================="
+  if [[ ! -f "${PHYSX_LIB_DIR}/libPhysX_static_64.a" ]]; then
+    echo "libPhysX_static_64.a not found under ${PHYSX_LIB_DIR}"
+    exit 1
+  fi
+  if [[ ! -f "${PHYSX_LIB_DIR}/libPhysXGpu_64.so" && ! -f "${PHYSX_LIB_DIR}/libPhysXGpu_static_64.a" ]]; then
+    echo "Neither libPhysXGpu_64.so nor libPhysXGpu_static_64.a found under ${PHYSX_LIB_DIR}"
+    exit 1
+  fi
+  if [[ "${ELYTAR_BUILD_PHYSX_SNIPPETS}" == "1" ]]; then
+    _headless_binary=""
+    for _cand in "${PHYSX_LIB_DIR}/SnippetIsosurfaceHeadless_64" \
+                 "${PHYSX_BUILD_DIR}/sdk_snippets_bin/SnippetIsosurfaceHeadless_64" \
+                 "${PHYSX_BUILD_DIR}/sdk_snippets_bin/Snippets/SnippetIsosurfaceHeadless_64"; do
+      if [[ -x "${_cand}" ]]; then
+        _headless_binary="${_cand}"
+        break
+      fi
+    done
+    if [[ -n "${_headless_binary}" ]]; then
+      echo "  Running headless snippet: ${_headless_binary}"
+      timeout 10 "${_headless_binary}" >/dev/null 2>&1
+      _exit=$?
+      if [[ ${_exit} -ne 0 ]]; then
+        echo "SnippetIsosurfaceHeadless_64 failed (exit code ${_exit})"
+        exit 1
+      fi
+      echo "  Headless snippet OK"
     fi
   fi
+  echo "PhysX build and verification OK"
+else
+  echo "[4/4] Build SAPIEN wheel using local PhysX"
+  (
+    cd "${SAPIEN_DIR}"
 
-  "${PYTHON_BIN}" -m pip install -U pip setuptools wheel
-  rm -f dist/sapien-*.whl
-  "${PYTHON_BIN}" setup.py bdist_wheel "${SAPIEN_BUILD_MODE}" --build-dir="${SAPIEN_BUILD_DIR}"
-  # Symlink so C++ IDE/clangd finds compile_commands.json when editing sapien C++ sources.
-  if [[ -f "${SAPIEN_BUILD_DIR}/_sapien_build/compile_commands.json" ]]; then
-    ln -sf "${SAPIEN_BUILD_DIR}/_sapien_build/compile_commands.json" "${SAPIEN_DIR}/compile_commands.json"
-  fi
-)
+    # Force CMake reconfigure so it picks up the (potentially changed) PhysX tree.
+    SAPIEN_CMAKE_BUILD="${SAPIEN_BUILD_DIR}/_sapien_build"
+    if [[ -f "${SAPIEN_CMAKE_BUILD}/CMakeCache.txt" ]]; then
+      cached_dir=$(sed -n 's/^SAPIEN_PHYSX5_DIR:STRING=//p' "${SAPIEN_CMAKE_BUILD}/CMakeCache.txt")
+      if [[ "${cached_dir}" != "${SAPIEN_PHYSX5_DIR}" ]]; then
+        echo "  PhysX dir changed (${cached_dir} → ${SAPIEN_PHYSX5_DIR}), cleaning SAPIEN build cache"
+        rm -rf "${SAPIEN_CMAKE_BUILD}"
+      fi
+    fi
 
-LATEST_WHEEL="$(
-  "${PYTHON_BIN}" - <<'PY'
+    "${PYTHON_BIN}" -m pip install -U pip setuptools wheel
+    rm -f dist/sapien-*.whl
+    "${PYTHON_BIN}" setup.py bdist_wheel "${SAPIEN_BUILD_MODE}" --build-dir="${SAPIEN_BUILD_DIR}"
+    # Symlink so C++ IDE/clangd finds compile_commands.json when editing sapien C++ sources.
+    if [[ -f "${SAPIEN_BUILD_DIR}/_sapien_build/compile_commands.json" ]]; then
+      ln -sf "${SAPIEN_BUILD_DIR}/_sapien_build/compile_commands.json" "${SAPIEN_DIR}/compile_commands.json"
+    fi
+  )
+
+  LATEST_WHEEL="$(
+    "${PYTHON_BIN}" - <<'PY'
 import os
 from pathlib import Path
 import sys
@@ -457,17 +515,18 @@ print(wheels[-1] if wheels else "")
 PY
 )"
 
-if [[ -z "${LATEST_WHEEL}" || ! -f "${LATEST_WHEEL}" ]]; then
-  echo "No wheel matching ${PYTHON_BIN} found under ${SAPIEN_DIR}/dist."
-  exit 1
+  if [[ -z "${LATEST_WHEEL}" || ! -f "${LATEST_WHEEL}" ]]; then
+    echo "No wheel matching ${PYTHON_BIN} found under ${SAPIEN_DIR}/dist."
+    exit 1
+  fi
+
+  echo "Reinstall SAPIEN wheel: ${LATEST_WHEEL}"
+  "${PYTHON_BIN}" -m pip uninstall -y sapien >/dev/null 2>&1 || true
+  "${PYTHON_BIN}" -m pip install --force-reinstall "${LATEST_WHEEL}"
+
+  echo ""
+  echo "=============================="
+  echo " Verifying toolchain update (PhysX + SAPIEN + wheel)"
+  echo "=============================="
+  "${PYTHON_BIN}" "${ROOT_DIR}/scripts/verify_toolchain.py"
 fi
-
-echo "Reinstall SAPIEN wheel: ${LATEST_WHEEL}"
-"${PYTHON_BIN}" -m pip uninstall -y sapien >/dev/null 2>&1 || true
-"${PYTHON_BIN}" -m pip install --force-reinstall "${LATEST_WHEEL}"
-
-echo ""
-echo "=============================="
-echo " Verifying toolchain update (PhysX + SAPIEN + wheel)"
-echo "=============================="
-"${PYTHON_BIN}" "${ROOT_DIR}/scripts/verify_toolchain.py"
