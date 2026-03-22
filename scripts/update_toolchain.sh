@@ -13,11 +13,14 @@ PHYSX_CONFIG="${PHYSX_CONFIG:-profile}"
 # e.g. PX_PTX_REPLACE_LIST="integration;solver" ./scripts/update_toolchain.sh
 PX_PTX_REPLACE_LIST="${PX_PTX_REPLACE_LIST:-}"
 PX_PTX_ARCH="${PX_PTX_ARCH:-compute_86}"
-# PTX source preference when PTX replacement is enabled:
-#   auto     -> prefer <stem>.capybara.ptx when present, else use <stem>.ptx
-#   nvcc     -> require/use <stem>.ptx only
-#   capybara -> require/use <stem>.capybara.ptx (copied to <stem>.ptx for CMake)
+# PTX source preference when PTX replacement is enabled.
+# CMake now consumes a single suffix directly (no file copying):
+#   nvcc     -> use <stem>.ptx
+#   capybara -> use <stem>.capybara.ptx
+#   auto     -> use .capybara.ptx when all requested stems exist; else .ptx
 PX_PTX_SOURCE="${PX_PTX_SOURCE:-auto}"
+ELYTAR_PTX_INPUT_SUFFIX="${ELYTAR_PTX_INPUT_SUFFIX:-}"
+ELYTAR_BUILD_PHYSX_SNIPPETS="${ELYTAR_BUILD_PHYSX_SNIPPETS:-0}"
 SAPIEN_BUILD_MODE="${SAPIEN_BUILD_MODE:---profile}"
 SAPIEN_BUILD_DIR="${SAPIEN_BUILD_DIR:-docker_sapien_build}"
 SAPIEN_LOCAL_BUILD_MARKER="${SAPIEN_LOCAL_BUILD_MARKER:-elytar}"
@@ -82,6 +85,14 @@ case "${PX_PTX_SOURCE}" in
     ;;
 esac
 
+case "${ELYTAR_BUILD_PHYSX_SNIPPETS}" in
+  0|1) ;;
+  *)
+    echo "Invalid ELYTAR_BUILD_PHYSX_SNIPPETS=${ELYTAR_BUILD_PHYSX_SNIPPETS}. Use 0 or 1."
+    exit 1
+    ;;
+esac
+
 if [[ ! -f "${PHYSX_BUILD_DIR}/CMakeCache.txt" ]]; then
   echo "[1/4] Generate PhysX build files (${PHYSX_PRESET})"
   (
@@ -97,13 +108,10 @@ if [[ ! -d "${PHYSX_BUILD_DIR}" ]]; then
   exit 1
 fi
 
-# When PTX kernels are requested, materialize each required <stem>.ptx for CMake.
-# CMake consumes <stem>.ptx only; in capybara/auto mode we copy
-# <stem>.capybara.ptx -> <stem>.ptx before configure.
+# When PTX kernels are requested, validate each required <stem><suffix> source.
+# CMake consumes the selected suffix directly via ELYTAR_PTX_INPUT_SUFFIX.
 if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
   _ptx_missing=0
-  _ptx_from_capybara=0
-  _ptx_from_nvcc=0
   declare -A _ptx_src_dirs=(
     [gpusolver]="${PHYSX_DIR}/source/gpusolver/src/PTX"
     [gpubroadphase]="${PHYSX_DIR}/source/gpubroadphase/src/PTX"
@@ -126,71 +134,87 @@ if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
     IFS=';' read -ra _check_stems <<< "${PX_PTX_REPLACE_LIST}"
   fi
 
+  if [[ -z "${ELYTAR_PTX_INPUT_SUFFIX}" ]]; then
+    case "${PX_PTX_SOURCE}" in
+      nvcc)
+        ELYTAR_PTX_INPUT_SUFFIX=".ptx"
+        ;;
+      capybara)
+        ELYTAR_PTX_INPUT_SUFFIX=".capybara.ptx"
+        ;;
+      auto)
+        _all_capybara=1
+        _all_nvcc=1
+        for _stem in "${_check_stems[@]}"; do
+          _mod="${_ptx_stem_to_mod[$_stem]:-}"
+          if [[ -z "${_mod}" ]]; then
+            echo "ERROR: Unknown kernel stem '${_stem}' in PX_PTX_REPLACE_LIST."
+            exit 1
+          fi
+          _ptx_file="${_ptx_src_dirs[$_mod]}/${_stem}.ptx"
+          _capybara_ptx_file="${_ptx_src_dirs[$_mod]}/${_stem}.capybara.ptx"
+          [[ -f "${_capybara_ptx_file}" ]] || _all_capybara=0
+          [[ -f "${_ptx_file}" ]] || _all_nvcc=0
+        done
+        if [[ "${_all_capybara}" -eq 1 ]]; then
+          ELYTAR_PTX_INPUT_SUFFIX=".capybara.ptx"
+        elif [[ "${_all_nvcc}" -eq 1 ]]; then
+          ELYTAR_PTX_INPUT_SUFFIX=".ptx"
+        else
+          echo "ERROR: PX_PTX_SOURCE=auto could not resolve a single PTX suffix for all requested stems."
+          echo "       Set PX_PTX_SOURCE=capybara or PX_PTX_SOURCE=nvcc,"
+          echo "       or set ELYTAR_PTX_INPUT_SUFFIX explicitly."
+          exit 1
+        fi
+        ;;
+    esac
+  fi
+
   for _stem in "${_check_stems[@]}"; do
     _mod="${_ptx_stem_to_mod[$_stem]:-}"
     if [[ -z "${_mod}" ]]; then
       echo "ERROR: Unknown kernel stem '${_stem}' in PX_PTX_REPLACE_LIST."
       exit 1
     fi
-    _ptx_file="${_ptx_src_dirs[$_mod]}/${_stem}.ptx"
-    _capybara_ptx_file="${_ptx_src_dirs[$_mod]}/${_stem}.capybara.ptx"
-
-    case "${PX_PTX_SOURCE}" in
-      nvcc)
-        if [[ -f "${_ptx_file}" ]]; then
-          ((_ptx_from_nvcc++)) || true
-        else
-          echo "ERROR: PTX file not found (nvcc mode): ${_ptx_file}"
-          ((_ptx_missing++)) || true
-        fi
-        ;;
-      capybara)
-        if [[ -f "${_capybara_ptx_file}" ]]; then
-          cp -f "${_capybara_ptx_file}" "${_ptx_file}"
-          ((_ptx_from_capybara++)) || true
-        else
-          echo "ERROR: Capybara PTX file not found: ${_capybara_ptx_file}"
-          ((_ptx_missing++)) || true
-        fi
-        ;;
-      auto)
-        if [[ -f "${_capybara_ptx_file}" ]]; then
-          cp -f "${_capybara_ptx_file}" "${_ptx_file}"
-          ((_ptx_from_capybara++)) || true
-        elif [[ -f "${_ptx_file}" ]]; then
-          ((_ptx_from_nvcc++)) || true
-        else
-          echo "ERROR: PTX file not found for ${_stem}:"
-          echo "       missing ${_ptx_file}"
-          echo "       missing ${_capybara_ptx_file}"
-          ((_ptx_missing++)) || true
-        fi
-        ;;
-    esac
+    _ptx_input_file="${_ptx_src_dirs[$_mod]}/${_stem}${ELYTAR_PTX_INPUT_SUFFIX}"
+    if [[ -f "${_ptx_input_file}" ]]; then
+      :
+    else
+      echo "ERROR: PTX file not found: ${_ptx_input_file}"
+      ((_ptx_missing++)) || true
+    fi
   done
 
-  echo "  PTX source mode: ${PX_PTX_SOURCE} (capybara=${_ptx_from_capybara}, nvcc=${_ptx_from_nvcc})"
+  echo "  PTX source mode: ${PX_PTX_SOURCE}"
+  echo "  PTX input suffix: ${ELYTAR_PTX_INPUT_SUFFIX}"
 
   if [[ "${_ptx_missing}" -gt 0 ]]; then
     echo "  ${_ptx_missing} PTX file(s) missing. Generate them first, e.g.:"
-    if [[ "${PX_PTX_SOURCE}" == "nvcc" ]]; then
+    if [[ "${ELYTAR_PTX_INPUT_SUFFIX}" == ".ptx" ]]; then
       echo "    scripts/generate_ptx.sh --list \"${PX_PTX_REPLACE_LIST}\""
-    elif [[ "${PX_PTX_SOURCE}" == "capybara" ]]; then
+    elif [[ "${ELYTAR_PTX_INPUT_SUFFIX}" == ".capybara.ptx" ]]; then
       echo "    python scripts/compile_capybara_ptx.py -v"
     else
-      echo "    python scripts/compile_capybara_ptx.py -v"
       echo "    scripts/generate_ptx.sh --list \"${PX_PTX_REPLACE_LIST}\""
     fi
     exit 1
   fi
 fi
 
-echo "[2/4] Configure PhysX (snippets/PVD off, PTX_LIST=${PX_PTX_REPLACE_LIST:-none}, PTX_SOURCE=${PX_PTX_SOURCE})"
+if [[ "${ELYTAR_BUILD_PHYSX_SNIPPETS}" == "1" ]]; then
+  _px_buildsnippets=TRUE
+else
+  _px_buildsnippets=FALSE
+fi
+
+echo "[2/4] Configure PhysX (snippets=${_px_buildsnippets}, PTX_LIST=${PX_PTX_REPLACE_LIST:-none}, PTX_SOURCE=${PX_PTX_SOURCE}, PTX_SUFFIX=${ELYTAR_PTX_INPUT_SUFFIX:-.ptx})"
 cmake -S "${PHYSX_DIR}/compiler/public" -B "${PHYSX_BUILD_DIR}" \
-  -DPX_BUILDSNIPPETS=FALSE \
+  -DPX_BUILDSNIPPETS="${_px_buildsnippets}" \
   -DPX_BUILDPVDRUNTIME=FALSE \
+  -DPX_GENERATE_GPU_PROJECTS=ON \
   -DPX_PTX_REPLACE_LIST="${PX_PTX_REPLACE_LIST}" \
-  -DPX_PTX_ARCH="${PX_PTX_ARCH}"
+  -DPX_PTX_ARCH="${PX_PTX_ARCH}" \
+  -DELYTAR_PTX_INPUT_SUFFIX="${ELYTAR_PTX_INPUT_SUFFIX:-.ptx}"
 
 echo "[3/4] Build PhysX (${PHYSX_CONFIG}, PTX_LIST=${PX_PTX_REPLACE_LIST:-none})"
 cmake --build "${PHYSX_BUILD_DIR}" -- -j"$(nproc)"
@@ -217,6 +241,7 @@ verify_ptx_mode() {
   local lib_dir="$1"   # e.g. physx-5.6.1-capybara/bin/linux.clang/profile
   local build_dir="$2" # e.g. physx-5.6.1-capybara/compiler/linux-clang-profile
   local replace_list="$3"  # value of PX_PTX_REPLACE_LIST
+  local ptx_suffix="$4"    # value of ELYTAR_PTX_INPUT_SUFFIX
 
   local ok=true
   local n_pass=0
@@ -261,9 +286,9 @@ verify_ptx_mode() {
   echo ""
 
   # ------------------------------------------------------------------
-  # Check 1: Each configured PTX stem has a .ptx file on disk
+  # Check 1: Each configured PTX stem has the configured PTX source on disk
   # ------------------------------------------------------------------
-  echo "  [1] PTX source files (<stem>.ptx consumed by CMake; may be materialized from .capybara.ptx):"
+  echo "  [1] PTX source files (<stem>${ptx_suffix} consumed by CMake):"
   local -A _mod_ptx_dirs=(
     [gpusolver]="${PHYSX_DIR}/source/gpusolver/src/PTX"
     [gpubroadphase]="${PHYSX_DIR}/source/gpubroadphase/src/PTX"
@@ -278,11 +303,11 @@ verify_ptx_mode() {
       _ptx_check_fail "Unknown stem '${stem}' in PX_PTX_REPLACE_LIST"
       continue
     fi
-    local ptx_file="${_mod_ptx_dirs[$mod]}/${stem}.ptx"
+    local ptx_file="${_mod_ptx_dirs[$mod]}/${stem}${ptx_suffix}"
     if [[ -f "${ptx_file}" ]]; then
-      _ptx_check_pass "${stem}.ptx found (${mod})"
+      _ptx_check_pass "${stem}${ptx_suffix} found (${mod})"
     else
-      _ptx_check_fail "${stem}.ptx missing at ${ptx_file} — run generate_ptx.sh"
+      _ptx_check_fail "${stem}${ptx_suffix} missing at ${ptx_file}"
     fi
   done
 
@@ -392,7 +417,7 @@ verify_ptx_mode() {
 }
 
 if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
-  verify_ptx_mode "${PHYSX_LIB_DIR}" "${PHYSX_BUILD_DIR}" "${PX_PTX_REPLACE_LIST}"
+  verify_ptx_mode "${PHYSX_LIB_DIR}" "${PHYSX_BUILD_DIR}" "${PX_PTX_REPLACE_LIST}" "${ELYTAR_PTX_INPUT_SUFFIX:-.ptx}"
 fi
 
 echo "[4/4] Build SAPIEN wheel using local PhysX"
