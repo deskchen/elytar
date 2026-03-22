@@ -75,6 +75,9 @@ PxIsosurfaceExtractor* gIsosurfaceExtractor;
 void* gVerticesGpu;
 void* gNormalsGpu;
 void* gInterleavedVerticesAndNormalsGpu;
+#ifdef ELYTAR_HEADLESS_BENCH
+static void* sHeadlessTriIndicesGpu = NULL;
+#endif
 
 class IsosurfaceCallback : public PxParticleSystemCallback
 {
@@ -136,7 +139,7 @@ public:
 
 	virtual void onPostSolve(const PxGpuMirroredPointer<PxGpuParticleSystem>& gpuParticleSystem, CUstream stream)
 	{
-#if RENDER_SNIPPET
+#if RENDER_SNIPPET || defined(ELYTAR_HEADLESS_BENCH)
 		PxGpuParticleSystem& p = *gpuParticleSystem.mHostPtr;		
 
 		if (mAnisotropyGenerator) 
@@ -341,11 +344,16 @@ void initPhysics(bool /*interactive*/)
 {
 	gFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, gAllocator, gErrorCallback);
 
+#ifdef ELYTAR_HEADLESS_BENCH
+	gPvd = NULL;  /* No PVD for headless benchmarking */
+	gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale(), true, NULL);
+#else
 	gPvd = PxCreatePvd(*gFoundation);
 	PxPvdTransport* transport = PxDefaultPvdSocketTransportCreate(PVD_HOST, 5425, 10);
 	gPvd->connect(*transport, PxPvdInstrumentationFlag::eALL);
 
 	gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale(), true, gPvd);
+#endif
 
 	// initialize cuda
 	PxCudaContextManagerDesc cudaContextManagerDesc;
@@ -359,6 +367,7 @@ void initPhysics(bool /*interactive*/)
 
 	initScene();
 
+#ifndef ELYTAR_HEADLESS_BENCH
 	PxPvdSceneClient* pvdClient = gScene->getScenePvdClient();
 	if (pvdClient)
 	{
@@ -366,6 +375,7 @@ void initPhysics(bool /*interactive*/)
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_CONTACTS, true);
 		pvdClient->setScenePvdFlag(PxPvdSceneFlag::eTRANSMIT_SCENEQUERIES, true);
 	}
+#endif
 	gMaterial = gPhysics->createMaterial(0.5f, 0.5f, 0.6f);
 
 	// Setup PBF
@@ -423,6 +433,26 @@ void initPhysics(bool /*interactive*/)
 		gParticleSystem->setParticleSystemCallback(&gIsosuraceCallback);
 	}
 
+#ifdef ELYTAR_HEADLESS_BENCH
+	{
+		const PxU32 maxVertices = 2*1024*1024;
+		const PxU32 maxTriangles = 4*1024*1024;
+		PxCudaContextManager* ccm = gScene->getCudaContextManager();
+		if (ccm && gIsosurfaceExtractor)
+		{
+			PxVec4* verticesGpu = PX_EXT_DEVICE_MEMORY_ALLOC(PxVec4, *ccm, maxVertices);
+			PxU32* triIndicesGpu = PX_EXT_DEVICE_MEMORY_ALLOC(PxU32, *ccm, 3 * maxTriangles);
+			PxVec4* normalsGpu = PX_EXT_DEVICE_MEMORY_ALLOC(PxVec4, *ccm, maxVertices);
+			PxVec3* interleavedGpu = PX_EXT_DEVICE_MEMORY_ALLOC(PxVec3, *ccm, 2 * maxVertices);
+			gVerticesGpu = verticesGpu;
+			gNormalsGpu = normalsGpu;
+			gInterleavedVerticesAndNormalsGpu = interleavedGpu;
+			sHeadlessTriIndicesGpu = triIndicesGpu;
+			gIsosurfaceExtractor->setResultBufferDevice(verticesGpu, triIndicesGpu, normalsGpu);
+		}
+	}
+#endif
+
 	// Setup rigid bodies
 	const PxReal dynamicsDensity = fluidDensity * 0.5f;
 	const PxReal boxSize = 1.0f;
@@ -479,18 +509,37 @@ void cleanupPhysics(bool /*interactive*/)
 	{
 		gParticleSystem->setParticleSystemCallback(NULL);
 	}
+#ifdef ELYTAR_HEADLESS_BENCH
+	if (gCudaContextManager && gVerticesGpu)
+	{
+		PxVec4* v = static_cast<PxVec4*>(gVerticesGpu);
+		PxU32* t = static_cast<PxU32*>(sHeadlessTriIndicesGpu);
+		PxVec4* n = static_cast<PxVec4*>(gNormalsGpu);
+		PxVec3* i = static_cast<PxVec3*>(gInterleavedVerticesAndNormalsGpu);
+		PX_EXT_DEVICE_MEMORY_FREE(*gCudaContextManager, v);
+		PX_EXT_DEVICE_MEMORY_FREE(*gCudaContextManager, t);
+		PX_EXT_DEVICE_MEMORY_FREE(*gCudaContextManager, n);
+		PX_EXT_DEVICE_MEMORY_FREE(*gCudaContextManager, i);
+		gVerticesGpu = NULL;
+		gNormalsGpu = NULL;
+		gInterleavedVerticesAndNormalsGpu = NULL;
+		sHeadlessTriIndicesGpu = NULL;
+	}
+#endif
 	gIsosuraceCallback.release();
-	
+
 	PX_RELEASE(gScene);
 	PX_RELEASE(gDispatcher);
 	PX_RELEASE(gPhysics);
 	PX_RELEASE(gCudaContextManager);
+#ifndef ELYTAR_HEADLESS_BENCH
 	if(gPvd)
 	{
 		PxPvdTransport* transport = gPvd->getTransport();
 		PX_RELEASE(gPvd);
 		PX_RELEASE(transport);
 	}
+#endif
 	PX_RELEASE(gFoundation);
 	
 	printf("SnippetIsosurface done.\n");

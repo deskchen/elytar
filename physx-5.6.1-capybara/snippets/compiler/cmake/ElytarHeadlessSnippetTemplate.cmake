@@ -1,0 +1,111 @@
+## Redistribution and use in source and binary forms, with or without
+## modification, are permitted provided that the following conditions
+## are met:
+##  * Redistributions of source code must retain the above copyright
+##    notice, this list of conditions and the following disclaimer.
+##  * Redistributions in binary form must reproduce the above copyright
+##    notice, this list of conditions and the following disclaimer in the
+##    documentation and/or other materials provided with the distribution.
+##  * Neither the name of NVIDIA CORPORATION nor the names of its
+##    contributors may be used to endorse or promote products derived
+##    from this software without specific prior written permission.
+##
+## THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+## EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+## IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+## PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+## CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+## EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+## PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+## PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+## OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+## (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+## OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+##
+## Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
+
+#
+# Elytar headless snippet template: builds non-interactive snippet variants
+# for benchmarking. Excludes *Render.cpp, does not define RENDER_SNIPPET.
+#
+
+IF(NOT TARGET_BUILD_PLATFORM STREQUAL "linux")
+	RETURN()
+ENDIF()
+
+# EXE_PLATFORM_DIR may be unset; default to empty for headless
+IF(NOT DEFINED EXE_PLATFORM_DIR)
+	SET(EXE_PLATFORM_DIR "")
+ENDIF()
+
+SET(ELYTAR_HEADLESS_SNIPPET_LIST Isosurface SDF PBF PBDCloth SplitSim RBDirectGPUAPI)
+
+# Headless compile defs: same as platform but WITHOUT RENDER_SNIPPET
+SET(ELYTAR_HEADLESS_COMPILE_DEFS
+	${PHYSX_LINUX_COMPILE_DEFS}
+	$<$<CONFIG:debug>:${PHYSX_LINUX_DEBUG_COMPILE_DEFS};>
+	$<$<CONFIG:checked>:${PHYSX_LINUX_CHECKED_COMPILE_DEFS};>
+	$<$<CONFIG:profile>:${PHYSX_LINUX_PROFILE_COMPILE_DEFS};>
+	$<$<CONFIG:release>:${PHYSX_LINUX_RELEASE_COMPILE_DEFS};>
+)
+
+# Headless link libs: PhysX + SnippetUtils, no SnippetRender/GLUT
+SET(ELYTAR_HEADLESS_LINK_LIBS rt pthread dl -Wl,-rpath='${ORIGIN}')
+
+IF(PVDRuntimeBuilt)
+	LIST(APPEND ELYTAR_HEADLESS_LINK_LIBS PVDRuntime)
+ENDIF()
+
+IF(PX_GENERATE_GPU_STATIC_LIBRARIES)
+	LIST(APPEND ELYTAR_HEADLESS_LINK_LIBS PhysXGpu)
+ENDIF()
+
+FOREACH(SNIPPET_NAME ${ELYTAR_HEADLESS_SNIPPET_LIST})
+	STRING(TOLOWER ${SNIPPET_NAME} SNIPPET_NAME_LOWER)
+	FILE(GLOB _HEADLESS_SOURCES ${PHYSX_ROOT_DIR}/snippets/snippet${SNIPPET_NAME_LOWER}/*.cpp ${PHYSX_ROOT_DIR}/snippets/snippet${SNIPPET_NAME_LOWER}/*.h)
+
+	# Exclude *Render.cpp
+	SET(HEADLESS_SOURCES "")
+	FOREACH(SRC ${_HEADLESS_SOURCES})
+		GET_FILENAME_COMPONENT(FNAME ${SRC} NAME)
+		IF(NOT FNAME MATCHES "Render\\.cpp$")
+			LIST(APPEND HEADLESS_SOURCES ${SRC})
+		ENDIF()
+	ENDFOREACH()
+
+	ADD_EXECUTABLE(Snippet${SNIPPET_NAME}Headless
+		${PHYSX_ROOT_DIR}/snippets/snippetcommon/ClassicMain.cpp
+		${HEADLESS_SOURCES}
+	)
+
+	TARGET_INCLUDE_DIRECTORIES(Snippet${SNIPPET_NAME}Headless PRIVATE
+		${PHYSX_ROOT_DIR}/include/
+		${PHYSX_ROOT_DIR}/source/physxextensions/src
+	)
+
+	# Compile defs: add ELYTAR_HEADLESS_BENCH for Isosurface
+	SET(HEADLESS_DEFS ${ELYTAR_HEADLESS_COMPILE_DEFS})
+	IF(${SNIPPET_NAME} STREQUAL "Isosurface")
+		LIST(APPEND HEADLESS_DEFS ELYTAR_HEADLESS_BENCH)
+	ENDIF()
+	TARGET_COMPILE_DEFINITIONS(Snippet${SNIPPET_NAME}Headless PRIVATE ${HEADLESS_DEFS})
+
+	SET_TARGET_PROPERTIES(Snippet${SNIPPET_NAME}Headless PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PX_EXE_OUTPUT_DIRECTORY_DEBUG}${EXE_PLATFORM_DIR}
+		RUNTIME_OUTPUT_DIRECTORY_PROFILE ${PX_EXE_OUTPUT_DIRECTORY_PROFILE}${EXE_PLATFORM_DIR}
+		RUNTIME_OUTPUT_DIRECTORY_CHECKED ${PX_EXE_OUTPUT_DIRECTORY_CHECKED}${EXE_PLATFORM_DIR}
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PX_EXE_OUTPUT_DIRECTORY_RELEASE}${EXE_PLATFORM_DIR}
+		OUTPUT_NAME Snippet${SNIPPET_NAME}Headless${EXE_SUFFIX}
+	)
+
+	TARGET_LINK_LIBRARIES(Snippet${SNIPPET_NAME}Headless
+		PUBLIC PhysXExtensions PhysXPvdSDK PhysX PhysXVehicle2 PhysXCharacterKinematic PhysXCooking PhysXCommon PhysXFoundation SnippetUtils
+		PUBLIC ${ELYTAR_HEADLESS_LINK_LIBS}
+	)
+
+	SET_PROPERTY(TARGET Snippet${SNIPPET_NAME}Headless PROPERTY FOLDER "Snippets/Headless")
+
+	IF(PX_GENERATE_GPU_PROJECTS OR PX_GENERATE_GPU_PROJECTS_ONLY)
+		ADD_DEPENDENCIES(Snippet${SNIPPET_NAME}Headless PhysXGpu)
+	ENDIF()
+ENDFOREACH()
