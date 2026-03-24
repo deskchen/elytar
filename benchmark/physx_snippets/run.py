@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -47,6 +48,39 @@ def resolve_binary(workspace: Path, tree: str, snippet: str, profile: str = "pro
     return None
 
 
+def compute_stats(values: list[float]) -> dict:
+    """Compute min, max, mean statistics."""
+    if not values:
+        return {"min": 0.0, "max": 0.0, "mean": 0.0}
+    return {
+        "min": min(values),
+        "max": max(values),
+        "mean": sum(values) / len(values),
+    }
+
+
+def write_summary_csv(path: Path, rows: list[dict]) -> None:
+    """Write summary rows to CSV, overwriting existing file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="") as f:
+        if rows:
+            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+
+
+def append_summary_csv(path: Path, rows: list[dict]) -> None:
+    """Append summary rows to CSV, creating if needed."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = path.exists() and path.stat().st_size > 0
+    with open(path, "a", newline="") as f:
+        if rows:
+            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+            if not file_exists:
+                writer.writeheader()
+            writer.writerows(rows)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="A/B benchmark PhysX headless snippets (vanilla vs capybara)."
@@ -54,8 +88,10 @@ def main() -> int:
     parser.add_argument("--snippet", required=True, help="Snippet name (e.g. Isosurface)")
     parser.add_argument("--reps", type=int, default=10, help="Repetitions per variant")
     parser.add_argument(
-        "--output",
-        help="Output CSV path (default: benchmark/physx_snippets/results/{snippet}.csv)",
+        "--output-dir",
+        type=Path,
+        default=Path("benchmark/physx_snippets/results"),
+        help="Output directory for CSV files",
     )
     parser.add_argument("--run-id", help="Run identifier for CSV (default: timestamp)")
     parser.add_argument("--verbose", action="store_true", help="Print subprocess output")
@@ -96,22 +132,15 @@ def main() -> int:
         return 1
 
     steps = args.steps if args.steps is not None else DEFAULT_STEPS.get(snippet, 100)
-    run_id = args.run_id or time.strftime("%Y%m%d-%H%M%S")
-    output = args.output or str(
-        workspace / "benchmark" / "physx_snippets" / "results" / f"{snippet}.csv"
-    )
-    output_path = Path(output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    run_id = args.run_id or datetime.now().strftime("%Y%m%d-%H%M%S")
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    csv_exists = output_path.exists() and output_path.stat().st_size > 0
-    csv_file = open(output_path, "a", newline="")
-    writer = csv.writer(csv_file)
-    if not csv_exists:
-        writer.writerow(
-            ["run_id", "variant", "rep", "elapsed_s", "throughput_steps_per_s", "steps_per_run", "command"]
-        )
+    # Collect results per variant
+    results_a: dict[str, list[float]] = {"elapsed_s": [], "throughput_steps_per_s": []}
+    results_b: dict[str, list[float]] = {"elapsed_s": [], "throughput_steps_per_s": []}
 
-    def run_one(label: str, cmd: list[str], rep: int) -> bool:
+    def run_one(label: str, cmd: list[str], rep: int, results: dict[str, list[float]]) -> bool:
         start = time.perf_counter()
         try:
             result = subprocess.run(
@@ -123,16 +152,15 @@ def main() -> int:
         except subprocess.TimeoutExpired:
             elapsed = args.timeout or 0
             print(f"[{label}] rep={rep} TIMEOUT after {elapsed}s")
-            writer.writerow([run_id, label, rep, "", "", steps, f"\"{' '.join(cmd)}\" (timeout)"])
             return False
         except Exception as e:
             print(f"[{label}] rep={rep} ERROR: {e}", file=sys.stderr)
-            writer.writerow([run_id, label, rep, "", "", steps, f"\"{' '.join(cmd)}\" (error: {e})"])
             return False
 
         elapsed = time.perf_counter() - start
         throughput = steps / elapsed if elapsed > 0 else 0.0
-        writer.writerow([run_id, label, rep, f"{elapsed:.6f}", f"{throughput:.2f}", steps, f"\"{' '.join(cmd)}\""])
+        results["elapsed_s"].append(elapsed)
+        results["throughput_steps_per_s"].append(throughput)
         print(f"[{label}] rep={rep} elapsed={elapsed:.3f}s throughput={throughput:.2f} steps/s")
 
         if result.returncode != 0:
@@ -142,14 +170,62 @@ def main() -> int:
     cmd_a = [str(cmd_a_path)]
     cmd_b = [str(cmd_b_path)]
 
+    print(f"\n=== Running {args.reps} repetitions per variant ===\n")
     for i in range(1, args.reps + 1):
-        run_one(args.label_a, cmd_a, i)
+        run_one(args.label_a, cmd_a, i, results_a)
         if args.delay_between_variants > 0:
             time.sleep(args.delay_between_variants)
-        run_one(args.label_b, cmd_b, i)
+        run_one(args.label_b, cmd_b, i, results_b)
 
-    csv_file.close()
-    print(f"Wrote {output_path}")
+    # Compute and print summary
+    print("\n=== Summary Statistics ===\n")
+    stats_a = {k: compute_stats(v) for k, v in results_a.items()}
+    stats_b = {k: compute_stats(v) for k, v in results_b.items()}
+
+    for metric in ["elapsed_s", "throughput_steps_per_s"]:
+        print(f"{metric}:")
+        print(f"  {args.label_a:20} min={stats_a[metric]['min']:.4f}  max={stats_a[metric]['max']:.4f}  mean={stats_a[metric]['mean']:.4f}")
+        print(f"  {args.label_b:20} min={stats_b[metric]['min']:.4f}  max={stats_b[metric]['max']:.4f}  mean={stats_b[metric]['mean']:.4f}")
+        if stats_a[metric]["mean"] > 0:
+            ratio = stats_b[metric]["mean"] / stats_a[metric]["mean"]
+            print(f"  Ratio (B/A): {ratio:.2f}x")
+        print()
+
+    # Write summary CSVs
+    summary_rows = [
+        {
+            "run_id": run_id,
+            "snippet": snippet,
+            "variant": args.label_a,
+            "steps": steps,
+            "elapsed_s_min": stats_a["elapsed_s"]["min"],
+            "elapsed_s_max": stats_a["elapsed_s"]["max"],
+            "elapsed_s_mean": stats_a["elapsed_s"]["mean"],
+            "throughput_min": stats_a["throughput_steps_per_s"]["min"],
+            "throughput_max": stats_a["throughput_steps_per_s"]["max"],
+            "throughput_mean": stats_a["throughput_steps_per_s"]["mean"],
+        },
+        {
+            "run_id": run_id,
+            "snippet": snippet,
+            "variant": args.label_b,
+            "steps": steps,
+            "elapsed_s_min": stats_b["elapsed_s"]["min"],
+            "elapsed_s_max": stats_b["elapsed_s"]["max"],
+            "elapsed_s_mean": stats_b["elapsed_s"]["mean"],
+            "throughput_min": stats_b["throughput_steps_per_s"]["min"],
+            "throughput_max": stats_b["throughput_steps_per_s"]["max"],
+            "throughput_mean": stats_b["throughput_steps_per_s"]["mean"],
+        },
+    ]
+
+    current_path = output_dir / f"{snippet}_current.csv"
+    history_path = output_dir / f"{snippet}_history.csv"
+    write_summary_csv(current_path, summary_rows)
+    append_summary_csv(history_path, summary_rows)
+
+    print(f"Wrote {current_path}")
+    print(f"Appended to {history_path}")
     return 0
 
 
