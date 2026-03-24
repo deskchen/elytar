@@ -12,7 +12,8 @@ fi
 
 if docker container inspect "${CONTAINER_NAME}" >/dev/null 2>&1; then
   docker start "${CONTAINER_NAME}" >/dev/null
-    docker exec -it \
+  docker exec -it \
+    -u dev \
     -e DISPLAY="${DISPLAY:-:0}" \
     -e VK_ICD_FILENAMES="${VK_ICD_FILENAMES:-/usr/share/vulkan/icd.d/nvidia_icd.json}" \
     -e __EGL_VENDOR_LIBRARY_FILENAMES="${__EGL_VENDOR_LIBRARY_FILENAMES:-/usr/share/glvnd/egl_vendor.d/10_nvidia.json}" \
@@ -30,7 +31,6 @@ else
     -v "${ROOT_DIR}:/workspace" \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
     -w /workspace \
-    --entrypoint "" \
     "${IMAGE_NAME}" \
     zsh
 fi
