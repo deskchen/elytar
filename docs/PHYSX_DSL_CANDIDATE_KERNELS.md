@@ -10,7 +10,6 @@ Selection principles (aligned to `docs/DSL_GRAMMAR_PHYSX_PORT.md`):
 - Exclude kernels dominated by hard blockers:
   - raw-address ABI (`u64 -> typed ptr deref`)
   - packed byte-pointer stream parsing
-  - inline PTX requirements
   - texture fetches
   - deep irregular collision/helper stacks
 
@@ -48,6 +47,8 @@ These kernels are still structured, but include moderate compaction/reduction de
 
 These are good DSL targets where logic is mostly per-element math over typed arrays.
 
+Note: `@cp.struct` now supports `@cp.inline` methods, so PhysX math types (`PxVec3.dot()`, `PxQuat.rotate()`, etc.) can be expressed naturally as struct methods rather than requiring manual scalar decomposition at every use site.
+
 | Rank | Kernel | File | Module | Why DSL should reduce LOC | Caveat |
 |---|---|---|---|---|---|
 | 11 | `bvhCalculateMortonCodes` | `physx-5.6.1-capybara/source/gpusimulationcontroller/src/CUDA/SDFConstruction.cu` | gpusimulationcontroller | Per-item map with straightforward arithmetic + writes | None major |
@@ -56,7 +57,7 @@ These are good DSL targets where logic is mostly per-element math over typed arr
 | 14 | `bvhBuildLeaves` | same | gpusimulationcontroller | Structured leaf construction with deterministic indexing | Struct field mapping validation |
 | 15 | `bvhComputeTotalBounds` | same | gpusimulationcontroller | Reduction-style aggregation with explicit block cooperation | Validate reduction semantics |
 | 16 | `initializeManifolds` | `physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA/pairManagement.cu` | gpunarrowphase | Shared staging + regular copy patterns | Keep scope narrow; avoid adjacent heavy paths |
-| 17 | `iso_CountCellVerts` | `physx-5.6.1-capybara/source/gpusimulationcontroller/src/CUDA/isosurfaceExtraction.cu` | gpusimulationcontroller | Structured grid-cell counting, regular per-cell branching | Confirm constant-table strategy |
+| 17 | `iso_CountCellVerts` | `physx-5.6.1-capybara/source/gpusimulationcontroller/src/CUDA/isosurfaceExtraction.cu` | gpusimulationcontroller | Structured grid-cell counting, regular per-cell branching | Low caveat (`__constant__` tables now handled via `constant=['arg']`) |
 | 18 | `iso_GridFilterGauss` | same | gpusimulationcontroller | Fixed-neighbor stencil smoothing pattern | Validate memory-access ordering/perf |
 
 ---
@@ -83,13 +84,13 @@ These kernels are currently dominated by hard blockers, so DSL work is unlikely 
 | `MemCopyBalanced` | `physx-5.6.1-capybara/source/gpucommon/src/CUDA/MemCopyBalanced.cu` | Raw-address ABI (`desc.source/dest` pointer deref) |
 | `convexConvexNphase_stage1Kernel` | `physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA/cudaGJKEPA.cu` | Packed streams, pointer aliasing, deep helper graph |
 | `convexConvexNphase_stage2Kernel` | same | Same as above, plus high irregularity |
-| `midphaseGeneratePairs` | `physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA/convexMeshMidphase.cu` | Pointer-heavy stacks + inline PTX barrier ecosystem |
-| `triangleTriangleCollision` | same | Shared-memory reinterpret overlays + heavy helper stack |
+| `midphaseGeneratePairs` | `physx-5.6.1-capybara/source/gpunarrowphase/src/CUDA/convexMeshMidphase.cu` | Pointer-heavy stacks (named PTX barriers now map to `block.barrier()`) |
+| `triangleTriangleCollision` | same | Cross-type pointer aliasing (`reinterpret_cast`) + heavy helper stack (same-type SMEM aliasing is now automatic) |
 | `performIncrementalSAP` | `physx-5.6.1-capybara/source/gpubroadphase/src/CUDA/broadphase.cu` | Descriptor pointer streams + reinterpret-heavy paths |
 | `artiUpdateKinematic` | `physx-5.6.1-capybara/source/gpuarticulation/src/CUDA/articulationDirectGpuApi.cu` | Raw pointer fields in descriptors |
 | `setupInternalConstraintLaunch1T` | `physx-5.6.1-capybara/source/gpuarticulation/src/CUDA/internalConstraints2.cu` | Template-heavy articulation internals |
 | `computeUnconstrainedVelocities1TLaunch` | `physx-5.6.1-capybara/source/gpuarticulation/src/CUDA/forwardDynamic2.cu` | Template + deep math helper parity burden |
-| `iso_CreateVerts` | `physx-5.6.1-capybara/source/gpusimulationcontroller/src/CUDA/isosurfaceExtraction.cu` | `__constant__` tables + atomic/PTX-adjacent paths |
+| `iso_CreateVerts` | `physx-5.6.1-capybara/source/gpusimulationcontroller/src/CUDA/isosurfaceExtraction.cu` | Atomic/PTX-adjacent paths (`__constant__` resolved via `constant=['arg']`; revisit for Tier 3) |
 
 ---
 

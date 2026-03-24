@@ -119,7 +119,9 @@ Supported:
 - `@cp.kernel` for entry kernels.
 - `@cp.inline` helpers called inside kernels.
 - `@cp.kernel(...)` options such as `max_regs`, `verbose_ptxas`, `debug`,
-  `num_stages`, `grid_swizzle`, `index_bitwidth`, `readonly=[...]`, and
+  `num_stages`, `grid_swizzle`, `index_bitwidth`, `readonly=[...]`,
+  `constant=['arg']` (places named args in CUDA constant memory, addrspace 4),
+  `constant_strategy='global'` (Strategy B global constants), and
   validated compiler knobs.
 
 Reference:
@@ -291,6 +293,25 @@ References:
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/stmts.py`
 - `/home/zhuochen/capybara-triton/docs/capybara/design/05_DESIGN_TYPES_MEMORY_MODEL.md`
 
+### Shared-memory lifetime aliasing
+
+The compiler automatically performs cross-type SMEM aliasing for allocations with
+non-overlapping liveness ranges. For sequential-phase kernels (e.g., phase 1 uses
+`float32[N]`, then a barrier, then phase 2 uses `int32[N]`), no user intervention
+is needed — the compiler reuses the same physical SMEM.
+
+For data-dependent control flow where the compiler cannot prove non-overlap,
+use the manual override:
+
+```python
+buf_a = block.alloc(cp.float32, N)
+buf_b = block.alloc(cp.int32, N)
+cp.alias_smem(buf_a, buf_b)
+```
+
+This forces `buf_a` and `buf_b` to share physical SMEM. The programmer takes
+responsibility for ensuring non-overlapping access.
+
 ---
 
 ## 6) Views, padding, layout grammar
@@ -323,10 +344,38 @@ Supported:
 - struct use inside kernels with inline helpers
 - first-class struct tiles with `block.alloc_struct`/`block.load_struct`/`block.store_struct`
 - struct helper methods callable on struct values (non-mutating patterns)
+- `@cp.inline` method definitions on `@cp.struct` types (works on both kernel-constructed
+  instances and values loaded from tiles)
+
+**Operator overloading** (`+`, `*`, etc.) on struct types is NOT supported. Use explicit
+method calls (`v.add(u)`, `v.dot(u)`) or free `@cp.inline` functions.
+
+Example (PhysX math type with struct methods):
+
+```python
+@cp.struct
+class PxVec3:
+    x: cp.float32
+    y: cp.float32
+    z: cp.float32
+
+    @cp.inline
+    def dot(self, other):
+        return self.x * other.x + self.y * other.y + self.z * other.z
+
+    @cp.inline
+    def cross(self, other):
+        return PxVec3(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x,
+        )
+```
 
 Reference:
 - `/home/zhuochen/capybara-triton/python/capybara/language/__init__.py`
 - `/home/zhuochen/capybara-triton/python/test/capybara/test_struct_e2e.py`
+- `/home/zhuochen/capybara-triton/python/test/capybara/test_first_class_struct.py`
 
 Stop-and-ask trigger:
 - If CUDA struct has bitfields, packed unions, or alignment-sensitive overlays and equivalent behavior is uncertain, stop and ask before changing representation.
@@ -344,7 +393,7 @@ Examples:
 - `thread.load`
 - atomics (`thread.atomic_cas`, `thread.atomic_add`)
 - warp shuffles (`thread.shfl_up`, `thread.shfl_down`, `thread.shfl_xor`, `thread.shfl_idx`)
-- bit intrinsics (`thread.popcount`, `thread.popcount64`, `thread.clz`, `thread.ctz`, `thread.ffs`, and 64-bit variants)
+- bit intrinsics (`thread.popcount`, `thread.popcount64`, `thread.clz`, `thread.clz64`, `thread.ctz`, `thread.ffs`, `thread.ffs64`, and `thread.fns(mask, n)` — find n-th set bit)
 - memory fences (`thread.threadfence`, `thread.threadfence_block`)
 - casts/bitcasts (`thread.cast`, `thread.bitcast`)
 
@@ -384,7 +433,12 @@ Use this as baseline mapping; verify per-kernel semantics.
 | atomic CAS | `thread.atomic_cas(...)` |
 | ballot + popc | `thread.coll.ballot(pred)` + `thread.popcount(mask)` |
 | warp shuffle | `thread.shfl_up/down/xor(...)`, `thread.shfl_idx(...)` |
+| `__shfl_sync(FULL_MASK, val, lane)` | `thread.shfl_idx(val, lane)` (already supported; no workaround needed) |
 | warp-level sort/merge idioms | `warp.sort_kv`, `warp.merge_sorted_kv` |
+| `__constant__ float lut[N]` | `@cp.kernel(constant=['lut'])` (places arg in constant memory, addrspace 4) |
+| `union { float f; int i; }` SMEM lifetime overlap | Automatic (compiler) for non-overlapping liveness; or `cp.alias_smem(a, b)` for manual override |
+| named PTX barriers (`bar.sync`, `bar.arrive`) | `block.barrier()` |
+| `asm("red.global.add.f32 ...")` (global reduction) | `thread.atomic_add(...)` |
 
 ---
 
@@ -485,6 +539,22 @@ Common examples from source:
 - Assuming direct `cp.uint64(...)` cast parity with CUDA pointer casts -> unsupported unless source-verified.
 - Dereferencing raw address integers from struct fields in high-level DSL -> unsupported.
 - Silent ABI rewrites (e.g., `(desc, count)` to `(desc, src_words, dst_words, count)`) without approval -> not allowed.
+
+### Union types and SMEM overlays — nuanced
+
+Union/`reinterpret_cast` patterns in CUDA fall into three categories with different DSL status:
+
+1. **Scalar bitcast** (e.g., `union { float f; uint32_t u; }` for bit manipulation):
+   Use `thread.bitcast(val, cp.float32)` / `thread.bitcast(val, cp.uint32)`.
+
+2. **Sequential-phase SMEM aliasing** (e.g., phase 1 writes `float32[]`, barrier, phase 2
+   reads `int32[]` from same physical SMEM): Handled automatically by the compiler's
+   lifetime aliasing pass. Use `cp.alias_smem(a, b)` as manual override when the compiler
+   cannot prove non-overlap.
+
+3. **Aggregate pointer aliasing / type-punning across incompatible struct types via
+   `reinterpret_cast<T*>(smem_base)`**: Still unsupported. These require ABI-level
+   decisions — stop and ask.
 
 Reference files:
 - `/home/zhuochen/capybara-triton/python/capybara/compiler/codegen/exprs.py`
