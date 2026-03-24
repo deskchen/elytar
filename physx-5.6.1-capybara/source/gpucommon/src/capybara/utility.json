@@ -3,133 +3,60 @@
     {
       "name": "interleaveBuffers",
       "args": [
-        { "kind": "tensor", "shape": [1024, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [1024, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [2048, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "int", "value": 1024 }
-      ]
-    },
-    {
-      "name": "normalVectorsAreaWeighted",
-      "args": [
-        {
-          "kind": "struct",
-          "class": "TrimeshSkinningBatch",
-          "fields": {
-            "guide_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_normals_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_triangles_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinning_info_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "half_surface_thickness": { "kind": "tensor", "shape": [1], "dtype": "float32", "device": "cuda" },
-            "nb_guide_triangles": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" }
-          }
-        },
-        { "kind": "tensor", "shape": [128, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [128, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [128], "dtype": "int32", "device": "cuda" },
-        { "kind": "int", "value": 4 },
-        { "kind": "int", "value": 1 }
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [2048, 3], "dtype": "float32", "device": "cuda" }
       ]
     },
     {
       "name": "zeroNormals",
       "args": [
-        {
-          "kind": "struct",
-          "class": "TrimeshSkinningBatch",
-          "fields": {
-            "guide_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_normals_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_triangles_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinning_info_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "half_surface_thickness": { "kind": "tensor", "shape": [1], "dtype": "float32", "device": "cuda" },
-            "nb_guide_triangles": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" }
-          }
-        },
         { "kind": "tensor", "shape": [128, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "int", "value": 4 },
-        { "kind": "int", "value": 1 }
+        { "kind": "int", "value": 128 },
+        { "kind": "int", "value": 4 }
+      ]
+    },
+    {
+      "name": "normalVectorsAreaWeighted",
+      "args": [
+        { "kind": "tensor", "shape": [128, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [128, 3], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [384], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 128 },
+        { "kind": "int", "value": 4 }
       ]
     },
     {
       "name": "normalizeNormals",
       "args": [
-        {
-          "kind": "struct",
-          "class": "TrimeshSkinningBatch",
-          "fields": {
-            "guide_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_normals_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_triangles_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinning_info_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "half_surface_thickness": { "kind": "tensor", "shape": [1], "dtype": "float32", "device": "cuda" },
-            "nb_guide_triangles": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" }
-          }
-        },
         { "kind": "tensor", "shape": [128, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "int", "value": 4 },
-        { "kind": "int", "value": 1 }
+        { "kind": "int", "value": 128 },
+        { "kind": "int", "value": 4 }
       ]
     },
     {
       "name": "interpolateSkinnedClothVertices",
       "args": [
-        {
-          "kind": "struct",
-          "class": "TrimeshSkinningBatch",
-          "fields": {
-            "guide_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_normals_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_triangles_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinning_info_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "half_surface_thickness": { "kind": "tensor", "shape": [1], "dtype": "float32", "device": "cuda" },
-            "nb_guide_triangles": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" }
-          }
-        },
+        { "kind": "tensor", "shape": [128, 4], "dtype": "float32", "device": "cuda" },
         { "kind": "tensor", "shape": [128, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [128, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [128], "dtype": "int32", "device": "cuda" },
-        { "kind": "tensor", "shape": [256, 2], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [256], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [256], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [384], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [256, 4], "dtype": "int32", "device": "cuda" },
         { "kind": "tensor", "shape": [256, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "int", "value": 4 },
-        { "kind": "int", "value": 1 }
+        { "kind": "int", "value": 256 },
+        { "kind": "float", "value": 0.01 },
+        { "kind": "int", "value": 4 }
       ]
     },
     {
       "name": "interpolateSkinnedSoftBodyVertices",
       "args": [
-        {
-          "kind": "struct",
-          "class": "TetmeshSkinningBatch",
-          "fields": {
-            "guide_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "guide_tetrahedra_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinned_vertices_count": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
-            "skinning_info_offset": { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" }
-          }
-        },
-        { "kind": "tensor", "shape": [128, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [256], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [128, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [256, 4], "dtype": "int32", "device": "cuda" },
         { "kind": "tensor", "shape": [256, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "tensor", "shape": [256], "dtype": "int32", "device": "cuda" },
-        { "kind": "tensor", "shape": [256, 3], "dtype": "float32", "device": "cuda" },
-        { "kind": "int", "value": 4 },
-        { "kind": "int", "value": 1 }
+        { "kind": "int", "value": 256 },
+        { "kind": "int", "value": 4 }
       ]
     }
   ]
