@@ -41,6 +41,9 @@
 #include "extensions/PxDeformableVolumeExt.h"
 
 #include "PxDeformableSkinning.h"
+#if defined(ELYTAR_CAPYBARA_SKINNING)
+#include "PxgDeformableSkinning.h"
+#endif
 #include "gpu/PxPhysicsGpu.h"
 #include "extensions/PxCudaHelpersExt.h"
 #include "extensions/PxDeformableSkinningExt.h"
@@ -227,7 +230,13 @@ struct PostSolveCallback : BasePostSolveCallback, PxUserAllocated
 		
 		packagedSkinningData.copyHostToDevice(skinningHelpers.size());
 
+#if defined(ELYTAR_CAPYBARA_SKINNING)
+		static_cast<PxgDeformableSkinning*>(skinning)->evaluateVerticesEmbeddedIntoVolume(
+			packagedSkinningData.mDeviceData, packagedSkinningData.mHostData,
+			skinningHelpers.size(), mSkinningStream);
+#else
 		skinning->evaluateVerticesEmbeddedIntoVolume(packagedSkinningData.mDeviceData, skinningHelpers.size(), mSkinningStream);
+#endif
 
 		//mSkinnedVertices.copyDeviceToHostAsync(mSkinningStream);
 	}

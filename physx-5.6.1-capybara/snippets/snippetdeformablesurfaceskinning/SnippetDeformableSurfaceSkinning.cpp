@@ -37,6 +37,9 @@
 #include "../snippetutils/SnippetUtils.h"
 #include "../snippetdeformablesurfaceskinning/SnippetDeformableSurfaceSkinning.h"
 #include "PxDeformableSkinning.h"
+#if defined(ELYTAR_CAPYBARA_SKINNING)
+#include "PxgDeformableSkinning.h"
+#endif
 #include "gpu/PxPhysicsGpu.h"
 #include "extensions/PxCudaHelpersExt.h"
 #include "extensions/PxDeformableSkinningExt.h"
@@ -241,8 +244,20 @@ struct PostSolveCallback : BasePostSolveCallback, PxUserAllocated
 		}
 		packagedSkinningData.copyHostToDevice(skinningHelpers.size());
 
+#if defined(ELYTAR_CAPYBARA_SKINNING)
+		// Pass the host mirror so the dispatcher can unpack struct fields without
+		// a device-to-host memcpy.  mHostData is pinned and already populated by
+		// the packageGpuData() loop above.
+		static_cast<PxgDeformableSkinning*>(skinning)->computeNormalVectors(
+			packagedSkinningData.mDeviceData, packagedSkinningData.mHostData,
+			skinningHelpers.size(), mSkinningStream);
+		static_cast<PxgDeformableSkinning*>(skinning)->evaluateVerticesEmbeddedIntoSurface(
+			packagedSkinningData.mDeviceData, packagedSkinningData.mHostData,
+			skinningHelpers.size(), mSkinningStream);
+#else
 		skinning->computeNormalVectors(packagedSkinningData.mDeviceData, skinningHelpers.size(), mSkinningStream);
 		skinning->evaluateVerticesEmbeddedIntoSurface(packagedSkinningData.mDeviceData, skinningHelpers.size(), mSkinningStream);
+#endif
 
 		//mSkinnedVertices.copyDeviceToHostAsync(mSkinningStream);
 	}

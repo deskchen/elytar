@@ -64,6 +64,28 @@ public:
 	virtual void evaluateVerticesEmbeddedIntoVolume(
 		PxTetmeshSkinningGpuData* skinningDataArrayD, PxU32 arrayLength,
 		CUstream stream, PxU32 numGpuThreads) PX_OVERRIDE;
+
+#if defined(ELYTAR_CAPYBARA_SKINNING)
+	// Host-pointer overloads: callers that already hold a host-side mirror of
+	// the struct array (pinned memory from HostAndDeviceBuffer) pass it here to
+	// avoid a device-to-host memcpy + sync in the dispatcher.  The host copy
+	// provides the GPU sub-buffer pointers that are unpacked per batch before
+	// launching the flat-arg Capybara kernels.
+	void computeNormalVectors(
+		PxTrimeshSkinningGpuData* skinningDataArrayD,
+		const PxTrimeshSkinningGpuData* skinningDataArrayH,
+		PxU32 arrayLength, CUstream stream, PxU32 numGpuThreads);
+
+	void evaluateVerticesEmbeddedIntoSurface(
+		PxTrimeshSkinningGpuData* skinningDataArrayD,
+		const PxTrimeshSkinningGpuData* skinningDataArrayH,
+		PxU32 arrayLength, CUstream stream, PxU32 numGpuThreads);
+
+	void evaluateVerticesEmbeddedIntoVolume(
+		PxTetmeshSkinningGpuData* skinningDataArrayD,
+		const PxTetmeshSkinningGpuData* skinningDataArrayH,
+		PxU32 arrayLength, CUstream stream, PxU32 numGpuThreads);
+#endif
 };
 
 #endif	

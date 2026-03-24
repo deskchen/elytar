@@ -252,6 +252,26 @@ TARGET_COMPILE_DEFINITIONS(PhysXSimulationControllerGpu
 	PRIVATE ${PHYSXSIMULATIONCONTROLLERGPU_COMPILE_DEFS}
 )
 
+# If utility.cu is replaced by a Capybara PTX, the skinning kernels change to a
+# flat per-batch ABI.  PxgDeformableSkinning.cpp uses this flag to select the
+# matching host-side launch path.
+IF(PX_PTX_REPLACE_LIST)
+	SET(_utility_use_ptx FALSE)
+	IF(PX_PTX_REPLACE_LIST STREQUAL "all")
+		SET(_utility_use_ptx TRUE)
+	ELSE()
+		LIST(FIND PX_PTX_REPLACE_LIST "utility" _utility_ptx_idx)
+		IF(_utility_ptx_idx GREATER_EQUAL 0)
+			SET(_utility_use_ptx TRUE)
+		ENDIF()
+	ENDIF()
+	IF(_utility_use_ptx)
+		TARGET_COMPILE_DEFINITIONS(PhysXSimulationControllerGpu
+			PRIVATE ELYTAR_CAPYBARA_SKINNING)
+		MESSAGE(STATUS "[Elytar] PhysXSimulationControllerGpu: ELYTAR_CAPYBARA_SKINNING enabled (utility.cu -> PTX)")
+	ENDIF()
+ENDIF()
+
 # Since we are setting the C++ standard explicitly for Linux
 # we need to do this for CUDA as well.
 IF(TARGET_BUILD_PLATFORM STREQUAL "linux")
