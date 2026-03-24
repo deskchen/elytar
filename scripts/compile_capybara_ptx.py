@@ -18,6 +18,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Bypass the Capybara kernel cache so every compile run produces fresh PTX.
+# Without this, kernels that were previously compiled with estimate=True return
+# ptx_text='' on cache hit (the cache stores only stats, not PTX text).
+os.environ.setdefault("CP_NO_CACHE", "1")
+
 import torch
 from capybara.runtime import _compile, _resolve_kernel_args
 
