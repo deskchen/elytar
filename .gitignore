@@ -10,15 +10,6 @@ sapien-3.0.2/3rd_party/sapien-vulkan-2/app/assets/rosendal_mountain_midmorning_4
 # Benchmark outputs (CSV and any other files under results dirs)
 benchmark/sapien/results/
 benchmark/physx_snippets/results/
-benchmark/results/
-benchmark/results_*/
 
 # Generated PTX/fatbin files (produced by generate_ptx.sh or DSL; not committed)
-physx-5.6.1-capybara/source/gpuarticulation/src/PTX/*
-physx-5.6.1-capybara/source/gpubroadphase/src/PTX/*
-physx-5.6.1-capybara/source/gpucommon/src/PTX/*
-physx-5.6.1-capybara/source/gpunarrowphase/src/PTX/*
-physx-5.6.1-capybara/source/gpusimulationcontroller/src/PTX/*
-physx-5.6.1-capybara/source/gpusolver/src/PTX/*
 physx-5.6.1-capybara/source/**/PTX/*
-
