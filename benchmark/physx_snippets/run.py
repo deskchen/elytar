@@ -90,9 +90,10 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("benchmark/physx_snippets/results"),
-        help="Output directory for CSV files",
+        default=None,
+        help="Output directory for CSV files (default: benchmark/physx_snippets/results; implies --dump)",
     )
+    parser.add_argument("--dump", action="store_true", help="Write results to CSV files")
     parser.add_argument("--run-id", help="Run identifier for CSV (default: timestamp)")
     parser.add_argument("--verbose", action="store_true", help="Print subprocess output")
     parser.add_argument("--timeout", type=float, help="Per-run timeout in seconds")
@@ -133,8 +134,9 @@ def main() -> int:
 
     steps = args.steps if args.steps is not None else DEFAULT_STEPS.get(snippet, 100)
     run_id = args.run_id or datetime.now().strftime("%Y%m%d-%H%M%S")
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # --output-dir implies --dump; --dump alone uses default dir
+    should_dump = args.dump or args.output_dir is not None
+    output_dir = args.output_dir or Path("benchmark/physx_snippets/results")
 
     # Collect results per variant
     results_a: dict[str, list[float]] = {"elapsed_s": [], "throughput_steps_per_s": []}
@@ -186,9 +188,15 @@ def main() -> int:
         print(f"{metric}:")
         print(f"  {args.label_a:20} min={stats_a[metric]['min']:.4f}  max={stats_a[metric]['max']:.4f}  mean={stats_a[metric]['mean']:.4f}")
         print(f"  {args.label_b:20} min={stats_b[metric]['min']:.4f}  max={stats_b[metric]['max']:.4f}  mean={stats_b[metric]['mean']:.4f}")
-        if stats_a[metric]["mean"] > 0:
-            ratio = stats_b[metric]["mean"] / stats_a[metric]["mean"]
-            print(f"  Ratio (B/A): {ratio:.2f}x")
+        if stats_a[metric]["mean"] > 0 and stats_b[metric]["mean"] > 0:
+            # For elapsed_s: speedup = A/B (lower B is better)
+            # For throughput: speedup = B/A (higher B is better)
+            if metric == "elapsed_s":
+                speedup = stats_a[metric]["mean"] / stats_b[metric]["mean"]
+            else:
+                speedup = stats_b[metric]["mean"] / stats_a[metric]["mean"]
+            label = "faster" if speedup >= 1.0 else "slower"
+            print(f"  Speedup: {speedup:.2f}x ({label})")
         print()
 
     # Write summary CSVs
@@ -219,13 +227,13 @@ def main() -> int:
         },
     ]
 
-    current_path = output_dir / f"{snippet}_current.csv"
-    history_path = output_dir / f"{snippet}_history.csv"
-    write_summary_csv(current_path, summary_rows)
-    append_summary_csv(history_path, summary_rows)
-
-    print(f"Wrote {current_path}")
-    print(f"Appended to {history_path}")
+    if should_dump:
+        current_path = output_dir / f"{snippet}_current.csv"
+        history_path = output_dir / f"{snippet}_history.csv"
+        write_summary_csv(current_path, summary_rows)
+        append_summary_csv(history_path, summary_rows)
+        print(f"Wrote {current_path}")
+        print(f"Appended to {history_path}")
     return 0
 
 
