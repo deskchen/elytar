@@ -1,0 +1,20 @@
+{
+  "kernels": [
+    {
+      "name": "clampMaxValue",
+      "args": [
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 }
+      ]
+    },
+    {
+      "name": "clampMaxValues",
+      "args": [
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 }
+      ]
+    }
+  ]
+}
