@@ -1814,6 +1814,59 @@ void PxgCudaSolverCore::integrateCoreParallel(const PxU32 offset, const PxU32 nb
 	CUdeviceptr islandStaticTouchCounts = mIslandStaticTouchCount.getDevicePtr();
 	CUdeviceptr nodeIteractionCounts = mNodeInteractionCounts.getDevicePtr();
 
+#if defined(ELYTAR_CAPYBARA_INTEGRATION)
+	// ---- Capybara path: flat per-field arguments ----
+	// The Capybara PTX kernel takes 20 individual arguments instead of
+	// struct pointers.  We read device-pointer fields from the host-side
+	// descriptor mirrors (mSolverCoreDesc, mSharedDesc) and pass them
+	// directly as CUdeviceptr kernel params.
+	const PxgSolverCoreDesc& cd = *mSolverCoreDesc;
+	const PxgSolverSharedDesc<IterativeSolveData>& sd = *mSharedDesc;
+
+	CUdeviceptr motionVelocityArray             = reinterpret_cast<CUdeviceptr>(cd.motionVelocityArray);
+	PxU32       numSolverBodies                 = cd.numSolverBodies;
+	CUdeviceptr solverBodyVelPool               = reinterpret_cast<CUdeviceptr>(sd.iterativeData.solverBodyVelPool);
+	CUdeviceptr solverBodyDataPool              = reinterpret_cast<CUdeviceptr>(cd.solverBodyDataPool);
+	CUdeviceptr solverBodyTxIDataPool           = reinterpret_cast<CUdeviceptr>(cd.solverBodyTxIDataPool);
+	CUdeviceptr outSolverVelocity               = reinterpret_cast<CUdeviceptr>(cd.outSolverVelocity);
+	CUdeviceptr outBody2World                   = reinterpret_cast<CUdeviceptr>(cd.outBody2World);
+	CUdeviceptr bodySimBuffer                   = reinterpret_cast<CUdeviceptr>(cd.mBodySimBufferDeviceData);
+	CUdeviceptr sleepDataPool                   = reinterpret_cast<CUdeviceptr>(cd.solverBodySleepDataPool);
+	PxU32       accumulatedDeltaVOffset         = cd.accumulatedBodyDeltaVOffset;
+	PxU32       enableStabilization             = cd.enableStabilization ? 1u : 0u;
+	CUdeviceptr prevVelocities                  = reinterpret_cast<CUdeviceptr>(cd.mBodySimPrevVelocitiesBufferDeviceData);
+	PxU32       prevVelocitiesValid             = (cd.mBodySimPrevVelocitiesBufferDeviceData != nullptr) ? 1u : 0u;
+	PxReal      dt                              = sd.dt;
+	PxReal      invDtF32                        = sd.invDtF32;
+
+	const PxU32 nbBlocks = (nbSolverBodies - offset + PxgKernelBlockDim::INTEGRATE_CORE_PARALLEL - 1) / PxgKernelBlockDim::INTEGRATE_CORE_PARALLEL;
+	PxU32       gridX    = nbBlocks;
+
+	PxCudaKernelParam kernelParams[] =
+	{
+		PX_CUDA_KERNEL_PARAM(offset),                    // param 0: u32
+		PX_CUDA_KERNEL_PARAM(motionVelocityArray),       // param 1: u64 ptr
+		PX_CUDA_KERNEL_PARAM(numSolverBodies),           // param 2: u32
+		PX_CUDA_KERNEL_PARAM(solverBodyVelPool),         // param 3: u64 ptr
+		PX_CUDA_KERNEL_PARAM(solverBodyDataPool),        // param 4: u64 ptr
+		PX_CUDA_KERNEL_PARAM(solverBodyTxIDataPool),     // param 5: u64 ptr
+		PX_CUDA_KERNEL_PARAM(outSolverVelocity),         // param 6: u64 ptr
+		PX_CUDA_KERNEL_PARAM(outBody2World),             // param 7: u64 ptr
+		PX_CUDA_KERNEL_PARAM(bodySimBuffer),             // param 8: u64 ptr
+		PX_CUDA_KERNEL_PARAM(sleepDataPool),             // param 9: u64 ptr
+		PX_CUDA_KERNEL_PARAM(accumulatedDeltaVOffset),   // param 10: u32
+		PX_CUDA_KERNEL_PARAM(enableStabilization),       // param 11: u32
+		PX_CUDA_KERNEL_PARAM(prevVelocities),            // param 12: u64 ptr
+		PX_CUDA_KERNEL_PARAM(prevVelocitiesValid),       // param 13: u32
+		PX_CUDA_KERNEL_PARAM(dt),                        // param 14: f32
+		PX_CUDA_KERNEL_PARAM(invDtF32),                  // param 15: f32
+		PX_CUDA_KERNEL_PARAM(islandIds),                 // param 16: u64 ptr
+		PX_CUDA_KERNEL_PARAM(islandStaticTouchCounts),   // param 17: u64 ptr
+		PX_CUDA_KERNEL_PARAM(nodeIteractionCounts),      // param 18: u64 ptr
+		PX_CUDA_KERNEL_PARAM(gridX)                      // param 19: u32
+	};
+#else
+	// ---- CUDA path: original struct-pointer launch ----
 	PxCudaKernelParam kernelParams[] =
 	{
 		PX_CUDA_KERNEL_PARAM(offset),
@@ -1825,6 +1878,7 @@ void PxgCudaSolverCore::integrateCoreParallel(const PxU32 offset, const PxU32 nb
 	};
 
 	const PxU32 nbBlocks = (nbSolverBodies - offset + PxgKernelBlockDim::INTEGRATE_CORE_PARALLEL-1)/PxgKernelBlockDim::INTEGRATE_CORE_PARALLEL;
+#endif
 
 	if(nbBlocks)
 	{

@@ -1,0 +1,29 @@
+{
+  "kernels": [
+    {
+      "name": "integrateCoreParallelLaunch",
+      "args": [
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [256, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 128 },
+        { "kind": "tensor", "shape": [256, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [128, 24], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [128, 16], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [256, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [128, 8], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [128, 60], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [128, 2], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 0 },
+        { "kind": "int", "value": 1 },
+        { "kind": "tensor", "shape": [128, 8], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1 },
+        { "kind": "float", "value": 0.004166 },
+        { "kind": "float", "value": 240.0 },
+        { "kind": "tensor", "shape": [128], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [64], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [128], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1 }
+      ]
+    }
+  ]
+}
