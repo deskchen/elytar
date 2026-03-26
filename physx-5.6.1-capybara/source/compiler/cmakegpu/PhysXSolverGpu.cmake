@@ -227,6 +227,25 @@ TARGET_COMPILE_DEFINITIONS(PhysXSolverGpu
 	PRIVATE ${PHYSXSOLVERGPU_COMPILE_DEFS}
 )
 
+# If integration.cu is replaced by Capybara PTX, the host adapter in
+# PxgCudaSolverCore.cpp unpacks struct fields into flat kernel arguments.
+IF(PX_PTX_REPLACE_LIST)
+	SET(_integration_use_ptx FALSE)
+	IF(PX_PTX_REPLACE_LIST STREQUAL "all")
+		SET(_integration_use_ptx TRUE)
+	ELSE()
+		LIST(FIND PX_PTX_REPLACE_LIST "integration" _integration_ptx_idx)
+		IF(_integration_ptx_idx GREATER_EQUAL 0)
+			SET(_integration_use_ptx TRUE)
+		ENDIF()
+	ENDIF()
+	IF(_integration_use_ptx)
+		TARGET_COMPILE_DEFINITIONS(PhysXSolverGpu
+			PRIVATE ELYTAR_CAPYBARA_INTEGRATION)
+		MESSAGE(STATUS "[Elytar] PhysXSolverGpu: ELYTAR_CAPYBARA_INTEGRATION enabled (integration.cu -> PTX)")
+	ENDIF()
+ENDIF()
+
 # Since we are setting the C++ standard explicitly for Linux
 # we need to do this for CUDA as well.
 IF(TARGET_BUILD_PLATFORM STREQUAL "linux")
