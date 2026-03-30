@@ -1,5 +1,7 @@
 # DSL Grammar Guideline for PhysX Port
 
+> **Capybara DSL source code**: `~/capybara-triton` — compiler, codegen, language runtime, and test examples.
+
 This guideline is for AI assistants translating PhysX CUDA kernels to Capybara Python DSL in an apple-to-apple way (same algorithmic semantics, same control-flow intent, and PTX-targeted output).
 
 Primary use case:

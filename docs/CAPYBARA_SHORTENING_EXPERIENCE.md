@@ -1,0 +1,261 @@
+# Capybara Port: Shortening Experience
+
+Lessons learned from reviewing the first three ported files (`utility.py`, `MemCopyBalanced.py`, `integration.py`) against their CUDA counterparts. The goal: Capybara kernel code should be no longer than the CUDA kernel code. Shared data-structure definitions (in a separate module) are not counted.
+
+---
+
+## Current state
+
+| File | Capybara | CUDA kernel lines | Ratio |
+|------|----------|-------------------|-------|
+| utility.py | 449 | ~196 | 2.3x |
+| MemCopyBalanced.py | 42 | ~14 | 3.0x (tiny; boilerplate-dominated) |
+| integration.py | 668 | ~550 (cu + cuh) | 1.2x |
+
+The dominant expansion factor is **manual scalar decomposition** of PxVec3/PxQuat/PxMat33 operations. CUDA gets these for free via header-defined operator overloading.
+
+---
+
+## Technique 1: @cp.struct with @cp.inline methods
+
+**Impact: HIGH** — saves ~100 lines in utility.py, ~42 lines in integration.py.
+
+Capybara supports `@cp.struct` types with `@cp.inline` methods (see `DSL_GRAMMAR_PHYSX_PORT.md` section 7). This is the single biggest shortening opportunity.
+
+### Before (manual scalar decomposition)
+
+```python
+# Cross product: 3 lines
+nx = e10y * e20z - e10z * e20y
+ny = e10z * e20x - e10x * e20z
+nz = e10x * e20y - e10y * e20x
+
+# Dot product: 1 long line or 3 lines
+scale1 = (qx - ax) * nAx + (qy - ay) * nAy + (qz - az) * nAz
+
+# Matrix-vector multiply: 3 lines
+body_ang_x = m00 * ang_vel_x + m01 * ang_vel_y + m02 * ang_vel_z
+body_ang_y = m10 * ang_vel_x + m11 * ang_vel_y + m12 * ang_vel_z
+body_ang_z = m20 * ang_vel_x + m21 * ang_vel_y + m22 * ang_vel_z
+
+# Quaternion multiply: ~14 lines (cross, scalar products, combine)
+cross_x = qv_y * b2w_qz - qv_z * b2w_qy
+cross_y = qv_z * b2w_qx - qv_x * b2w_qz
+cross_z = qv_x * b2w_qy - qv_y * b2w_qx
+res_x = b2w_qw * qv_x + cross_x
+# ... 10 more lines
+```
+
+### After (struct methods)
+
+```python
+n = e10.cross(e20)                              # 1 line
+scale1 = q.sub(a).dot(nA)                       # 1 line
+body_ang = sqrt_inv_inertia.multiply_vec(ang_vel)  # 1 line
+result = quat_vel.qmul(b2w_q)                   # 1 line
+```
+
+### Recommended struct definitions
+
+Create a shared module (e.g., `physx_math.py`) with:
+
+```python
+@cp.struct
+class PxVec3:
+    x: cp.float32
+    y: cp.float32
+    z: cp.float32
+
+    @cp.inline
+    def dot(self, other):
+        return self.x * other.x + self.y * other.y + self.z * other.z
+
+    @cp.inline
+    def cross(self, other):
+        return PxVec3(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x,
+        )
+
+    @cp.inline
+    def add(self, other):
+        return PxVec3(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    @cp.inline
+    def sub(self, other):
+        return PxVec3(self.x - other.x, self.y - other.y, self.z - other.z)
+
+    @cp.inline
+    def scale(self, s):
+        return PxVec3(self.x * s, self.y * s, self.z * s)
+
+    @cp.inline
+    def magnitude_sq(self):
+        return self.dot(self)
+
+    @cp.inline
+    def normalize_safe(self, thread):
+        mag2 = self.magnitude_sq()
+        eps = cp.float32(1.0e-20)
+        tiny = cp.float32(1.0e-30)
+        mask = mag2 / (mag2 + eps)
+        inv = thread.rsqrt(mag2 + tiny)
+        mag = thread.sqrt(mag2 + tiny) * mask
+        return PxVec3(self.x * mask * inv, self.y * mask * inv, self.z * mask * inv), mag
+```
+
+Similar definitions for PxQuat (rotate, rotateInv, qmul, normalize) and PxMat33 (multiply_vec).
+
+### Per-kernel savings estimate (utility.py)
+
+| Kernel | Current | After | Saved |
+|--------|---------|-------|-------|
+| `_evaluate_point_phong` | 48 | ~23 | 25 |
+| `_normalize_safe` | 20 | 0 (moved to struct) | 20 |
+| `normalVectorsAreaWeighted` | 46 | ~28 | 18 |
+| `normalizeNormals` | 14 | ~8 | 6 |
+| `interpolateSkinnedClothVertices` | 87 | ~52 | 35 |
+| `interpolateSkinnedSoftBodyVertices` | 48 | ~28 | 20 |
+
+### Per-kernel savings estimate (integration.py)
+
+| Section | Saved | What |
+|---------|-------|------|
+| Matrix-vector multiply (2x) | 4 | `sqrtInvInertia.multiply_vec(ang_vel)` |
+| Quaternion rotateInv | 8 | `b2w_q.rotate_inv(thread, am)` |
+| Quaternion integration | 30 | `quat_vel.qmul(b2w_q)` + normalize |
+
+---
+
+## Technique 2: First-class struct tiles instead of flat offset constants
+
+**Impact: MEDIUM** — saves ~49 lines in integration.py.
+
+Currently integration.py defines ~84 lines of offset constants and struct layout comments:
+
+```python
+SBD_INIT_ANG_X, SBD_INIT_ANG_Y, SBD_INIT_ANG_Z, SBD_PEN_BIAS = 0, 1, 2, 3
+SBD_INIT_LIN_X, SBD_INIT_LIN_Y, SBD_INIT_LIN_Z, SBD_INV_MASS = 4, 5, 6, 7
+# ... 80 more lines of offsets
+```
+
+With `@cp.struct` types matching the C++ layout, these become self-documenting field definitions (~50 lines total for 5 struct types). Kernel access changes from:
+
+```python
+node_id_f = solver_body_data[a, SBD_NODE_ID]
+node_id = thread.bitcast(node_id_f, cp.int32)
+```
+
+to:
+
+```python
+data = solver_body_data[a]
+node_id = data.islandNodeIndex
+```
+
+This also eliminates ~8 `thread.bitcast` calls for int-in-float fields.
+
+**Caveat**: Verify that Capybara struct tiles handle mixed int32/float32 fields correctly when the underlying tensor is float32. The current bitcast workaround exists for a reason — test before migrating.
+
+---
+
+## Technique 3: Common math module
+
+**Impact: ORGANIZATIONAL** — no line savings in kernels, but prevents duplication across files.
+
+Extract struct definitions (PxVec3, PxQuat, PxMat33) and shared helpers (_tanh_approx) into a single module importable by all kernel files:
+
+```python
+# physx_math.py — shared across all Capybara kernel files
+from physx_math import PxVec3, PxQuat, PxMat33
+```
+
+This is analogous to CUDA including `foundation/PxVec3.h`. The ~90 lines of struct definitions are a one-time cost, not counted against individual kernel budgets.
+
+---
+
+## Technique 4: thread.load() instead of + cp.float32(0.0)
+
+**Impact: READABILITY** — no line count change, but clearer intent.
+
+~40 lines in integration.py use a load-forcing workaround:
+
+```python
+inv_mass = solver_body_data[a, SBD_INV_MASS] + cp.float32(0.0)
+```
+
+The proper API is `thread.load(ref)`:
+
+```python
+inv_mass = thread.load(solver_body_data[a, SBD_INV_MASS])
+```
+
+Same line count, but communicates intent (force a load from memory reference to value) instead of disguising it as arithmetic. Note: if struct tiles (Technique 2) are adopted, field access on loaded struct values are already values — this workaround disappears entirely.
+
+---
+
+## Unavoidable expansion (cannot be shortened)
+
+### Variable pre-definition for structured control flow
+
+Capybara compiles to MLIR structured control flow. Variables assigned in both `if`/`else` branches must be defined before the `if`. CUDA avoids this via SSA phi nodes.
+
+```python
+# Required by Capybara — ~14 lines in integration.py sleep state machine
+sla_x = cp.float32(0.0)
+sla_y = cp.float32(0.0)
+sla_z = cp.float32(0.0)
+# ...
+```
+
+**Cost**: ~14 lines per branching scope with many outputs. Cannot be eliminated without compiler changes.
+
+### Kernel boilerplate
+
+Each kernel needs:
+
+```python
+with cp.Kernel(grid, threads=BLOCK_SIZE) as (bx, block):
+    for tid, thread in block.threads():
+        idx = bx * BLOCK_SIZE + tid
+```
+
+This is ~3 lines per kernel, roughly matching CUDA's `threadIdx.x + blockIdx.x * blockDim.x`. Negligible for large kernels, noticeable for tiny ones like `clampMaxValue` (explains 3.0x ratio).
+
+### No operator overloading on structs
+
+`v1.add(v2)` instead of `v1 + v2`. Multi-operand expressions like `uvw.x * a + uvw.y * b + uvw.z * c` must be written with explicit method calls:
+
+```python
+# CUDA: 1 line
+PxVec3 q = uvw.x * a + uvw.y * b + uvw.z * c;
+
+# Capybara: still multiple calls (no operator overloading)
+q = a.scale(uvw.x).add(b.scale(uvw.y)).add(c.scale(uvw.z))
+```
+
+Still shorter than 3 lines of manual scalar math, but not as terse as CUDA. This is the floor.
+
+---
+
+## Projected results after applying all techniques
+
+| File | Current | After | CUDA | Ratio |
+|------|---------|-------|------|-------|
+| utility.py | 449 | ~310 | ~196 | 1.6x |
+| MemCopyBalanced.py | 42 | 42 | ~14 | 3.0x |
+| integration.py | 668 | ~560 | ~550 | 1.0x |
+| physx_math.py (new) | — | ~90 | N/A | — |
+
+integration.py reaches near-parity. utility.py's remaining gap (1.6x) comes from the no-operator-overloading limitation on common expressions like barycentric interpolation.
+
+---
+
+## Implementation order
+
+1. Create `physx_math.py` with PxVec3, PxQuat, PxMat33
+2. Refactor utility.py to use PxVec3 methods
+3. Refactor integration.py to use struct tiles + PxQuat/PxMat33
+4. Replace `+ cp.float32(0.0)` with `thread.load()` in integration.py
+5. Verify all kernels compile and produce correct PTX (e2e test)
