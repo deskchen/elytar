@@ -4,15 +4,16 @@ Lessons learned from reviewing the first three ported files (`utility.py`, `MemC
 
 ---
 
-## Current state
+## Current state (after first round of shortening)
 
-| File | Capybara | CUDA kernel lines | Ratio |
-|------|----------|-------------------|-------|
-| utility.py | 449 | ~196 | 2.3x |
-| MemCopyBalanced.py | 42 | ~14 | 3.0x (tiny; boilerplate-dominated) |
-| integration.py | 668 | ~550 (cu + cuh) | 1.2x |
+| File | Before | After | CUDA kernel lines | Ratio |
+|------|--------|-------|-------------------|-------|
+| utility.py | 449 | 236 | ~196 | 1.2x |
+| MemCopyBalanced.py | 42 | 41 | ~14 | 2.9x (tiny; boilerplate-dominated) |
+| integration.py | 668 | 657 | ~550 (cu + cuh) | 1.2x |
+| physx_math.py (new shared) | — | 54 | N/A (in C++ headers) | — |
 
-The dominant expansion factor is **manual scalar decomposition** of PxVec3/PxQuat/PxMat33 operations. CUDA gets these for free via header-defined operator overloading.
+The dominant expansion factor was **manual scalar decomposition** of PxVec3/PxQuat/PxMat33 operations. CUDA gets these for free via header-defined operator overloading. The PxVec3 struct + inline methods approach (Technique 1) provided the biggest win in utility.py.
 
 ---
 
@@ -239,16 +240,19 @@ Still shorter than 3 lines of manual scalar math, but not as terse as CUDA. This
 
 ---
 
-## Projected results after applying all techniques
+## Actual results after first round
 
-| File | Current | After | CUDA | Ratio |
-|------|---------|-------|------|-------|
-| utility.py | 449 | ~310 | ~196 | 1.6x |
-| MemCopyBalanced.py | 42 | 42 | ~14 | 3.0x |
-| integration.py | 668 | ~560 | ~550 | 1.0x |
-| physx_math.py (new) | — | ~90 | N/A | — |
+| File | Before | After | CUDA | Ratio |
+|------|--------|-------|------|-------|
+| utility.py | 449 | 236 | ~196 | 1.2x |
+| MemCopyBalanced.py | 42 | 41 | ~14 | 2.9x |
+| integration.py | 668 | 657 | ~550 | 1.2x |
+| physx_math.py (new) | — | 54 | N/A | — |
 
-integration.py reaches near-parity. utility.py's remaining gap (1.6x) comes from the no-operator-overloading limitation on common expressions like barycentric interpolation.
+utility.py achieved 1.2x ratio (better than projected 1.6x) thanks to PxVec3 struct methods
+compressing vertex loads, cross products, dot products, and Phong interpolation. integration.py
+gains were modest (lock-flag helpers + quaternion helpers) because most expansion comes from
+flat tensor offsets and load-forcing patterns that require struct kernel parameters to eliminate.
 
 ---
 
