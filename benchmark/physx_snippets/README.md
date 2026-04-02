@@ -14,20 +14,22 @@ Use **headless** snippet binaries for benchmarking: they run a fixed step count 
 | `utility.cu` | gpucommon | `interleaveBuffers`, `zeroNormals`, `normalVectorsAreaWeighted`, `normalizeNormals`, `interpolateSkinnedClothVertices`, `interpolateSkinnedSoftBodyVertices` | Ported (6) | Skinning kernels use host adapter (`ELYTAR_CAPYBARA_SKINNING`) |
 | `MemCopyBalanced.cu` | gpucommon | `clampMaxValue`, `clampMaxValues` | Ported (2) | `MemCopyBalanced` kernel deferred (shared mem + 2D warp copy) |
 | `integration.cu` | gpusolver | `integrateCoreParallelLaunch` | Ported (1) | Rigid body integration + sleep/freeze. Host adapter (`ELYTAR_CAPYBARA_INTEGRATION`) unpacks `PxgSolverCoreDesc` into 20 flat args |
+| `algorithms.cu` | gpusimulationcontroller | `reorderKernel`, `scanPerBlockKernel`, `scanPerBlockKernel4x4`, `addBlockSumsKernel`, `addBlockSumsKernel4x4`, `radixFourBitCountPerBlockKernel`, `radixFourBitReorderKernel` | Ported (7) | Scan/sort/reorder. NULL ptrs replaced by int flags. int4x4 as int32[N,16] flat tensors |
 
-**Total: 9 kernels ported across 3 `.cu` files.**
+**Total: 16 kernels ported across 4 `.cu` files.**
 
 ### Capybara PTX compilation
 
 ```bash
 conda run -n triton-dev python scripts/compile_capybara_ptx.py -v
-# Expected: Compiled 3 module(s), 9 kernel entry block(s).
+# Expected: Compiled 4 module(s), 16 kernel entry block(s).
 ```
 
 Output files:
 - `source/gpucommon/src/PTX/utility.capybara.ptx`
 - `source/gpucommon/src/PTX/MemCopyBalanced.capybara.ptx`
 - `source/gpusolver/src/PTX/integration.capybara.ptx`
+- `source/gpusimulationcontroller/src/PTX/algorithms.capybara.ptx`
 
 ## Build both variants with `update_toolchain.sh`
 
@@ -50,7 +52,7 @@ conda run -n triton-dev python3 scripts/compile_capybara_ptx.py -v
 
 ELYTAR_PHYSX_ONLY=1 \
 PHYSX_DIR="/workspace/physx-5.6.1-capybara" \
-PX_PTX_REPLACE_LIST="utility;MemCopyBalanced;integration" \
+PX_PTX_REPLACE_LIST="utility;MemCopyBalanced;integration;algorithms" \
 PX_PTX_SOURCE=capybara \
 ELYTAR_BUILD_PHYSX_SNIPPETS=1 \
 ./scripts/update_toolchain.sh

@@ -256,10 +256,61 @@ flat tensor offsets and load-forcing patterns that require struct kernel paramet
 
 ---
 
-## Implementation order
+## algorithms.cu — all 7 kernels
 
-1. Create `physx_math.py` with PxVec3, PxQuat, PxMat33
-2. Refactor utility.py to use PxVec3 methods
-3. Refactor integration.py to use struct tiles + PxQuat/PxMat33
-4. Replace `+ cp.float32(0.0)` with `thread.load()` in integration.py
-5. Verify all kernels compile and produce correct PTX (e2e test)
+All kernels ported from `gpusimulationcontroller/CUDA/algorithms.cu` (527 lines Capybara vs 438 lines CUDA including headers).
+
+| Kernel | CUDA body lines | Capybara body lines | Ratio | Notes |
+|--------|----------------|---------------------|-------|-------|
+| `reorderKernel` | 5 | 9 | 1.8x | No float4 type → 4-component copy |
+| `scanPerBlockKernel` | ~90 (kernel + 3 device fns) | 88 | 0.98x | Template boilerplate eliminated |
+| `addBlockSumsKernel` | 13 | 10 | 0.77x | No template wrapper needed |
+| `scanPerBlockKernel4x4` | ~44 (+ shared scan ~90) | ~160 | 1.2x | 4 int4 iterations × 3 phases; no int4 type |
+| `addBlockSumsKernel4x4` | 25 | ~45 | 1.8x | 16-component decomposition + exclusiveSumInt16 phases |
+| `radixFourBitCountPerBlockKernel` | ~55 (+ shared scan ~90) | ~120 | 0.83x | u64 scan inlined; packed bit ops same length |
+| `radixFourBitReorderKernel` | 20 | 15 | 0.75x | Simpler without template wrapper |
+
+### Why reorderKernel is longer (1.8x)
+
+CUDA `float4` is a native type — `reordered[id] = data[map[id]]` copies 16 bytes in one statement. Capybara has no float4; the gather must copy 4 components explicitly (+4 lines). Kernel boilerplate (`with cp.Kernel` / `for tid, thread`) adds 3 lines vs CUDA's 1-line `threadIdx.x + blockIdx.x * blockDim.x`.
+
+### Why scanPerBlockKernel achieves near-parity (0.98x)
+
+CUDA pays a heavy tax for the multi-level scan architecture:
+- **4 separate functions**: `warpScan<T>` (12 lines) + `scanPerBlock<T>` (72 lines) + `scanPerBlockKernelShared<T>` (28 lines) + kernel wrapper (10 lines)
+- **Template boilerplate**: `template<typename T>`, `extern __shared__`, `reinterpret_cast<T*>(sumsMemory)`
+- **Separate compilation units**: functions defined independently with their own signatures
+
+Capybara inlines everything into one flat kernel with 3 barrier-separated thread phases. The barrier-phase pattern is actually cleaner than CUDA's "one thread body with `__syncthreads()` inside" because each phase's data flow is explicit via shared memory reads/writes.
+
+**New patterns discovered:**
+- `block.barrier()` must be between `block.threads()` regions, not inside — forces multi-phase structure
+- `cp.disjoint(value)` needed for shared memory writes inside `block.threads()` to prove race-freedom
+- `cp.assume_uniform(cond)` needed for shuffle operations inside conditionals that are warp-uniform but not provably so to the compiler
+- Ternary `a if cond else b` avoids creating `cp.if` (which causes warp-convergence failures before `shfl_up`)
+
+### Why addBlockSumsKernel is shorter (0.77x)
+
+The CUDA version uses a template wrapper `addBlockSumsKernelShared<PxU32>` that adds function signature + bounds check overhead. Capybara inlines it directly — no wrapper needed.
+
+### New Capybara limitations discovered
+
+See `docs/CAPYBARA_STRUCT_LIMITATIONS.md` for full details. Additional findings from algorithms.cu:
+
+5. **`block.barrier()` illegal inside `block.threads()`** — must structure kernel as multiple thread regions separated by barriers, using shared memory to carry values between phases
+6. **`shfl_up` rejected under divergent conditions** — even if the value is produced by a conditional load (via `cp.if`), the warp convergence verifier flags it. Fix: use ternary (`arith.select`) instead of `if` for the conditional load
+7. **No sub-warp shuffle width** — `thread.shfl_up(val, delta)` always uses full warp (width=32). CUDA's `__shfl_up_sync(mask, val, delta, width)` supports sub-warp widths. This means BLOCK_SIZE must be 1024 so NUM_WARPS=32 (fills one full warp for the second-level scan)
+
+---
+
+## Summary table (all files)
+
+| File | Capybara lines | CUDA lines | Ratio | Key factor |
+|------|---------------|------------|-------|------------|
+| utility.py | 249 | ~234 | 1.1x | PxVec3 struct methods compress vector math |
+| MemCopyBalanced.py | 41 | ~106 | 0.4x | Only 2 tiny kernels ported (rest deferred) |
+| integration.py | 668 | ~550 | 1.2x | Flat tensor offsets + load-forcing expand |
+| algorithms.py | 527 | ~438 | 1.2x | int4x4 decomposition + multi-phase barriers expand |
+| physx_math.py (shared) | 54 | N/A | — | Shared struct definitions |
+
+Key takeaway: Capybara is **shorter** than CUDA when templates and device function call graphs dominate (scanPerBlockKernel 0.98x, radix kernels 0.75-0.83x). It is **longer** when CUDA uses vector types (int4, float4, int4x4) that have no Capybara equivalent, requiring per-component decomposition.

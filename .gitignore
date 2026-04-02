@@ -13,3 +13,5 @@ benchmark/physx_snippets/results/
 
 # Generated PTX/fatbin files (produced by generate_ptx.sh or DSL; not committed)
 physx-5.6.1-capybara/source/**/PTX/*
+
+.claude/
