@@ -122,6 +122,22 @@ if [[ ! -d "${PHYSX_BUILD_DIR}" ]]; then
   exit 1
 fi
 
+# Auto-discover capybara PTX files when no explicit list is given.
+if [[ -z "${PX_PTX_REPLACE_LIST}" && "${PX_PTX_SOURCE}" == "capybara" ]]; then
+  _auto_stems=()
+  for _dir in "${PHYSX_DIR}/source"/*/src/PTX; do
+    for _f in "${_dir}"/*.capybara.ptx; do
+      [[ -f "$_f" ]] || continue
+      _base="$(basename "$_f" .capybara.ptx)"
+      _auto_stems+=("$_base")
+    done
+  done
+  if [[ ${#_auto_stems[@]} -gt 0 ]]; then
+    PX_PTX_REPLACE_LIST="$(IFS=';'; echo "${_auto_stems[*]}")"
+    echo "Auto-discovered capybara PTX stems: ${PX_PTX_REPLACE_LIST}"
+  fi
+fi
+
 # When PTX kernels are requested, validate each required <stem><suffix> source.
 # CMake consumes the selected suffix directly via ELYTAR_PTX_INPUT_SUFFIX.
 if [[ -n "${PX_PTX_REPLACE_LIST}" ]]; then
