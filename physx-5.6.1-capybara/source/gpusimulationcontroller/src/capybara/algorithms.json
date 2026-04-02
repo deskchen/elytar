@@ -1,0 +1,97 @@
+{
+  "kernels": [
+    {
+      "name": "reorderKernel",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024 }
+    },
+    {
+      "name": "scanPerBlockKernel",
+      "args": [
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1 },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024, "NUM_WARPS": 32 }
+    },
+    {
+      "name": "addBlockSumsKernel",
+      "args": [
+        { "kind": "tensor", "shape": [4], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1 },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024 }
+    },
+    {
+      "name": "addBlockSumsKernel4x4",
+      "args": [
+        { "kind": "tensor", "shape": [4, 16], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 16], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [16], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1 },
+        { "kind": "int", "value": 1 },
+        { "kind": "int", "value": 0 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024 }
+    },
+    {
+      "name": "scanPerBlockKernel4x4",
+      "args": [
+        { "kind": "tensor", "shape": [512, 16], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512, 16], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1, 16], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 512 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [16], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1 },
+        { "kind": "int", "value": 1 },
+        { "kind": "int", "value": 0 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 512, "NUM_WARPS": 16 }
+    },
+    {
+      "name": "radixFourBitCountPerBlockKernel",
+      "args": [
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [1, 16], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 512 },
+        { "kind": "tensor", "shape": [16], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 512, "NUM_WARPS": 16 }
+    },
+    {
+      "name": "radixFourBitReorderKernel",
+      "args": [
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [1, 16], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [16], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024 }
+    }
+  ]
+}

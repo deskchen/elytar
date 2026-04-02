@@ -68,7 +68,52 @@ def _extract_entry_body(ptx: str) -> str:
     idx = ptx.find(".visible .entry")
     if idx < 0:
         return ""
-    return ptx[idx:].rstrip()
+    # Collect .extern declarations from *before* the entry (e.g., .extern .shared
+    # for cp_dynamic_smem). These are per-kernel but appear before .visible .entry.
+    import re
+    pre = ptx[:idx]
+    externs = re.findall(r'^\s*\.extern\s+\.shared\s+.*$', pre, re.MULTILINE)
+    body = ptx[idx:].rstrip()
+    # Strip .file directives — the header already contains them.
+    body = re.sub(r'^\s*\.file\s+.*$', '', body, flags=re.MULTILINE)
+    if externs:
+        body = "\n".join(externs) + "\n" + body
+    return body
+
+
+def _patch_no_gpu():
+    """Allow PTX-only compilation on machines without a GPU.
+
+    Stubs out CUDA driver calls that require a live device so that
+    codegen → MLIR → LLVM → PTX succeeds and we can extract the PTX text.
+    The resulting CompiledKernel cannot *launch* but that is fine —
+    we only need the PTX."""
+    import capybara.compiler.backend as _be
+    import capybara.runtime as _rt
+    import ctypes
+
+    _orig_load = _be.cuda_load_module
+    _orig_getfn = _be.cuda_get_function
+
+    def _load_stub(cubin):
+        try:
+            return _orig_load(cubin)
+        except RuntimeError as e:
+            if "error code 200" in str(e):  # CUDA_ERROR_NO_DEVICE
+                return ctypes.c_void_p(0)
+            raise
+
+    def _getfn_stub(mod, name):
+        if not mod:  # null module from stub
+            return ctypes.c_void_p(0)
+        return _orig_getfn(mod, name)
+
+    _be.cuda_load_module = _load_stub
+    _be.cuda_get_function = _getfn_stub
+    _rt.cuda_load_module = _load_stub
+    _rt.cuda_get_function = _getfn_stub
+
+_patch_no_gpu()
 
 
 def _compile_one(jit_fn, args, constexprs):
