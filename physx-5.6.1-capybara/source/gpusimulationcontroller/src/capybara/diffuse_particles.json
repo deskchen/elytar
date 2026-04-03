@@ -1,0 +1,114 @@
+{
+  "kernels": [
+    {
+      "name": "ps_diffuseParticleCopy",
+      "args": [
+        { "kind": "tensor", "shape": [2], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "ps_diffuseParticleSum",
+      "args": [
+        { "kind": "tensor", "shape": [16], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4 },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 32 }
+    },
+    {
+      "name": "ps_updateUnsortedDiffuseArrayLaunch",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "ps_diffuseParticleOneWayCollision",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [16384, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "int", "value": 16 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "ps_diffuseParticleCreate",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 2], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [2], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [256], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 256 },
+        { "kind": "int", "value": 1024 },
+        { "kind": "int", "value": 4096 },
+        { "kind": "float", "value": 0.5 },
+        { "kind": "float", "value": 1.0 },
+        { "kind": "float", "value": 0.5 },
+        { "kind": "float", "value": 1.0 },
+        { "kind": "float", "value": 5.0 },
+        { "kind": "float", "value": 0.05 },
+        { "kind": "float", "value": 0.016 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "ps_diffuseParticleUpdatePBF",
+      "args": [
+        { "kind": "tensor", "shape": [65536], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [65536], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "float", "value": 0.2 },
+        { "kind": "float", "value": 0.04 },
+        { "kind": "float", "value": 5.0 },
+        { "kind": "int", "value": 64 },
+        { "kind": "int", "value": 64 },
+        { "kind": "int", "value": 64 },
+        { "kind": "int", "value": 3 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "ps_diffuseParticleCompact",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [2], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 0 },
+        { "kind": "float", "value": 100.0 },
+        { "kind": "float", "value": 0.1 },
+        { "kind": "float", "value": 0.5 },
+        { "kind": "float", "value": 0.1 },
+        { "kind": "float", "value": 0.0 },
+        { "kind": "float", "value": -9.81 },
+        { "kind": "float", "value": 0.0 },
+        { "kind": "float", "value": 0.016 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256, "NUM_WARPS": 8 }
+    }
+  ]
+}
