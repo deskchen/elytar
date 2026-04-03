@@ -314,3 +314,86 @@ See `docs/CAPYBARA_STRUCT_LIMITATIONS.md` for full details. Additional findings 
 | physx_math.py (shared) | 54 | N/A | — | Shared struct definitions |
 
 Key takeaway: Capybara is **shorter** than CUDA when templates and device function call graphs dominate (scanPerBlockKernel 0.98x, radix kernels 0.75-0.83x). It is **longer** when CUDA uses vector types (int4, float4, int4x4) that have no Capybara equivalent, requiring per-component decomposition.
+
+---
+
+## sparseGridStandalone.cu — all 10 kernels
+
+All kernels ported from `gpusimulationcontroller/CUDA/sparseGridStandalone.cu` (620 lines Capybara vs 373 lines .cu + 318 lines .cuh = ~691 lines CUDA total).
+
+| Kernel | CUDA body lines | Capybara body lines | Ratio | Notes |
+|--------|----------------|---------------------|-------|-------|
+| `sg_SparseGridClearDensity` | 5 | 6 | 1.2x | Trivial fill kernel |
+| `sg_MarkSubgridEndIndices` | 10 | 11 | 1.1x | Trivial run-end detection |
+| `sg_SparseGridSortedArrayToDelta` | 10 | 14 | 1.4x | NULL mask flag → explicit if branches |
+| `sg_SparseGridCalcSubgridHashes` | 15 | 20 | 1.3x | PxVec3/PxVec4 → component access + NULL flag |
+| `sg_SparseGridGetUniqueValues` | 20 | 25 | 1.25x | int4 → tuple returns; 3x3x3 loop via range() |
+| `sg_SparseGridBuildSubgridNeighbors` | 25 | 28 | 1.12x | 3x3x3 loop + tryFindHashkey |
+| `sg_ReuseSubgrids` | 22 | 22 | 1.0x | Clean mapping with tryFindHashkey |
+| `sg_AddReleasedSubgridsToUnusedStack` | 6 | 8 | 1.33x | Atomic + host-resolved scalar grid |
+| `sg_AllocateNewSubgrids` | 22 | 20 | 0.91x | No reinterpret_cast needed |
+| `sg_SparseGridMarkRequiredNeighbors` | 55 | 105 | 1.9x | Local buffer[8] → 8 scalars + unrolled branches |
+
+**Overall ratio**: 620 / 691 = **0.90x** (Capybara is shorter overall because all .cuh helper functions are inlined as @cp.inline, eliminating separate compilation units).
+
+### Why sg_SparseGridMarkRequiredNeighbors is longer (1.9x)
+
+The CUDA kernel uses `PxU32 buffer[8]` as a local array, incrementally appending values with `buffer[indexer++]`. Capybara has no local arrays — must use 8 scalar variables with extensive conditional assignment logic. The final `for (j = 0; j < indexer; ++j) applyMask(...)` loop also requires unrolled conditional calls. This is an inherent DSL limitation; local arrays would eliminate ~50 lines.
+
+### Why overall ratio is favorable (0.90x)
+
+The CUDA version splits code across .cu (kernels) and .cuh (helper functions with separate signatures). Capybara inlines all helpers as `@cp.inline` in one file, eliminating function signatures, include guards, and type declarations. The `searchSorted` binary search translated cleanly as a `while` loop.
+
+### ABI changes
+
+- `PxSparseGridParams` struct → 5 scalar args (maxNumSubgrids, gridSpacing, subgridSizeX/Y/Z); haloSize hardcoded to 0
+- NULL pointer args (phases, activeIndices, mask) → int flag + dummy tensor
+- `PxU32*` device pointers to single values → `int32[1]` tensors (or host-resolved scalars for grid dimensions)
+
+---
+
+## diffuseParticles.cu — all 7 kernels
+
+All kernels ported from `gpusimulationcontroller/CUDA/diffuseParticles.cu` (548 lines Capybara vs 552 lines CUDA).
+
+| Kernel | CUDA body lines | Capybara body lines | Ratio | Notes |
+|--------|----------------|---------------------|-------|-------|
+| `ps_diffuseParticleCopy` | 14 | 12 | 0.86x | No blockCopy overhead |
+| `ps_diffuseParticleSum` | 18 | 20 | 1.11x | Inlined warp reduction (shfl_xor) |
+| `ps_updateUnsortedDiffuseArrayLaunch` | 30 | 22 | 0.73x | Host pre-computes bufferOffset; no warpReduction needed |
+| `ps_diffuseParticleOneWayCollision` | 35 | 32 | 0.91x | Flat contact tensor + unrolled loop |
+| `ps_diffuseParticleCreate` | 80 | 75 | 0.94x | Flat args eliminate blockCopy + pointer indirection |
+| `ps_diffuseParticleUpdatePBF` | 80 | 95 | 1.19x | goto → done-flag pattern adds overhead in nested loops |
+| `ps_diffuseParticleCompact` | 75 | 90 | 1.20x | Warp-scope ballot/popc/shfl; explicit lane management |
+
+**Overall ratio**: 548 / 552 = **0.99x** (near-parity).
+
+### Why overall ratio is near-parity (0.99x)
+
+The major win is **eliminating blockCopy**. The CUDA version copies the entire PxgParticleSystem struct (hundreds of fields) into shared memory via `blockCopy<uint2>`, then accesses fields through pointer chains. Capybara receives only the needed fields as flat tensor/scalar args, eliminating:
+- `blockCopy<uint2>` call + `__syncthreads()` (5 lines per kernel × 5 kernels = 25 lines saved)
+- `reinterpret_cast<float4*>()` pointer aliasing (2-4 lines per kernel)
+- `PxgParticleSystem` shared memory declaration (2 lines per kernel)
+
+### New patterns
+
+- **goto → done-flag**: Replaced `goto weight_sum` with `done = cp.int32(0)` flag checked in loop conditions. Adds ~5 lines but preserves control flow correctness.
+- **Warp-scope ballot/popc**: `thread.coll.ballot()` requires warp scope (`for lane, thread in warp.threads()`), not block scope.
+- **shfl_xor for reduction**: Must be manually inlined (cannot pass `thread` to `@cp.inline` functions).
+- **Host-resolved PxgParticleSystem**: Each kernel receives only its accessed fields. The host adapter must resolve all pointer-of-pointer indirection before launch.
+
+---
+
+## Updated summary table (all files)
+
+| File | Capybara lines | CUDA lines | Ratio | Key factor |
+|------|---------------|------------|-------|------------|
+| utility.py | 249 | ~234 | 1.1x | PxVec3 struct methods compress vector math |
+| MemCopyBalanced.py | 41 | ~106 | 0.4x | Only 2 tiny kernels ported (rest deferred) |
+| integration.py | 668 | ~550 | 1.2x | Flat tensor offsets + load-forcing expand |
+| algorithms.py | 527 | ~438 | 1.2x | int4x4 decomposition + multi-phase barriers expand |
+| sparseGridStandalone.py | 620 | ~691 | 0.90x | .cuh inlined as @cp.inline; no separate compilation |
+| diffuseParticles.py | 548 | ~552 | 0.99x | blockCopy elimination offsets DSL overhead |
+| physx_math.py (shared) | 54 | N/A | — | Shared struct definitions |
+
+**Total: 33 kernels ported across 6 `.cu` files.**

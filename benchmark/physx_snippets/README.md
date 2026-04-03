@@ -15,14 +15,16 @@ Use **headless** snippet binaries for benchmarking: they run a fixed step count 
 | `MemCopyBalanced.cu` | gpucommon | `clampMaxValue`, `clampMaxValues` | Ported (2) | `MemCopyBalanced` kernel deferred (shared mem + 2D warp copy) |
 | `integration.cu` | gpusolver | `integrateCoreParallelLaunch` | Ported (1) | Rigid body integration + sleep/freeze. Host adapter (`ELYTAR_CAPYBARA_INTEGRATION`) unpacks `PxgSolverCoreDesc` into 20 flat args |
 | `algorithms.cu` | gpusimulationcontroller | `reorderKernel`, `scanPerBlockKernel`, `scanPerBlockKernel4x4`, `addBlockSumsKernel`, `addBlockSumsKernel4x4`, `radixFourBitCountPerBlockKernel`, `radixFourBitReorderKernel` | Ported (7) | Scan/sort/reorder. NULL ptrs replaced by int flags. int4x4 as int32[N,16] flat tensors |
+| `sparseGridStandalone.cu` | gpusimulationcontroller | `sg_SparseGridCalcSubgridHashes`, `sg_SparseGridMarkRequiredNeighbors`, `sg_SparseGridSortedArrayToDelta`, `sg_SparseGridGetUniqueValues`, `sg_SparseGridClearDensity`, `sg_SparseGridBuildSubgridNeighbors`, `sg_MarkSubgridEndIndices`, `sg_ReuseSubgrids`, `sg_AddReleasedSubgridsToUnusedStack`, `sg_AllocateNewSubgrids` | Ported (10) | PxSparseGridParams decomposed to 5 scalars. NULL ptr flags. searchSorted while loop. Local buffer[8] as 8 scalars. Atomics for stack ops |
+| `diffuseParticles.cu` | gpusimulationcontroller | `ps_diffuseParticleCopy`, `ps_diffuseParticleSum`, `ps_updateUnsortedDiffuseArrayLaunch`, `ps_diffuseParticleOneWayCollision`, `ps_diffuseParticleCreate`, `ps_diffuseParticleUpdatePBF`, `ps_diffuseParticleCompact` | Ported (7) | PxgParticleSystem decomposed to per-kernel flat args. blockCopy eliminated. Warp ballot/popc/shfl for compaction. goto → done-flag |
 
-**Total: 16 kernels ported across 4 `.cu` files.**
+**Total: 33 kernels ported across 6 `.cu` files.**
 
 ### Capybara PTX compilation
 
 ```bash
 conda run -n triton-dev python scripts/compile_capybara_ptx.py -v
-# Expected: Compiled 4 module(s), 16 kernel entry block(s).
+# Expected: Compiled 6 module(s), 33 kernel entry block(s).
 ```
 
 Output files:
@@ -30,6 +32,8 @@ Output files:
 - `source/gpucommon/src/PTX/MemCopyBalanced.capybara.ptx`
 - `source/gpusolver/src/PTX/integration.capybara.ptx`
 - `source/gpusimulationcontroller/src/PTX/algorithms.capybara.ptx`
+- `source/gpusimulationcontroller/src/PTX/sparseGridStandalone.capybara.ptx`
+- `source/gpusimulationcontroller/src/PTX/diffuseParticles.capybara.ptx`
 
 ## Build both variants with `update_toolchain.sh`
 

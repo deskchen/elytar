@@ -64,21 +64,39 @@ def _extract_ptx_header(ptx: str) -> str:
     return ptx[:idx].rstrip() + "\n"
 
 
-def _extract_entry_body(ptx: str) -> str:
+def _extract_entry_body(ptx: str) -> tuple[str, list[str]]:
+    """Returns (entry_body, list_of_func_blocks).
+
+    Separates .visible .func definitions (from @cp.inline helpers) out of
+    the entry body so they can be deduplicated across kernels.
+    """
     idx = ptx.find(".visible .entry")
     if idx < 0:
-        return ""
-    # Collect .extern declarations from *before* the entry (e.g., .extern .shared
-    # for cp_dynamic_smem). These are per-kernel but appear before .visible .entry.
+        return "", []
     import re
     pre = ptx[:idx]
     externs = re.findall(r'^\s*\.extern\s+\.shared\s+.*$', pre, re.MULTILINE)
     body = ptx[idx:].rstrip()
     # Strip .file directives — the header already contains them.
     body = re.sub(r'^\s*\.file\s+.*$', '', body, flags=re.MULTILINE)
+
+    # Extract .visible .func blocks (inline helper functions).
+    # They start with a // .globl comment or directly with .visible .func
+    # and end at the closing brace of the function body.
+    func_blocks: list[str] = []
+    func_pattern = re.compile(
+        r'((?:^\s*//\s*\.globl\s+\S+.*\n)?'  # optional .globl comment
+        r'\.visible\s+\.func\b.*?\n\})',       # .func ... to closing }
+        re.MULTILINE | re.DOTALL,
+    )
+    for m in func_pattern.finditer(body):
+        func_blocks.append(m.group(0))
+    # Remove .func blocks from entry body
+    body = func_pattern.sub('', body)
+
     if externs:
         body = "\n".join(externs) + "\n" + body
-    return body
+    return body, func_blocks
 
 
 def _patch_no_gpu():
@@ -223,12 +241,24 @@ def _compile_job(module_path: Path, spec_path: Path, out_ptx: Path, verbose: boo
         raise RuntimeError(f"No kernels compiled from spec: {spec_path}")
 
     header = _extract_ptx_header(compiled[0][1])
-    entry_bodies = [_extract_entry_body(ptx) for _, ptx in compiled]
-    entry_bodies = [body for body in entry_bodies if body]
+    extracted = [_extract_entry_body(ptx) for _, ptx in compiled]
+    entry_bodies = [body for body, _ in extracted if body]
     if len(entry_bodies) != len(compiled):
         print(f"Warning: missing .entry body in {spec_path}", file=sys.stderr)
 
-    merged = header + "\n\n".join(entry_bodies) + "\n"
+    # Deduplicate .func blocks (from @cp.inline helpers shared across kernels)
+    seen_funcs: dict[str, str] = {}
+    for _, func_blocks in extracted:
+        for fb in func_blocks:
+            # Key by function name (first line after optional .globl comment)
+            import re
+            name_match = re.search(r'__cp_inline_\w+', fb)
+            key = name_match.group(0) if name_match else fb[:80]
+            if key not in seen_funcs:
+                seen_funcs[key] = fb
+
+    func_section = "\n\n".join(seen_funcs.values()) + "\n" if seen_funcs else ""
+    merged = header + func_section + "\n\n".join(entry_bodies) + "\n"
     out_ptx.parent.mkdir(parents=True, exist_ok=True)
     with open(out_ptx, "w", encoding="utf-8") as f:
         f.write(merged)
