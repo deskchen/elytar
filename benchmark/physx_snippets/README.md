@@ -17,22 +17,30 @@ Use **headless** snippet binaries for benchmarking: they run a fixed step count 
 | `algorithms.cu` | gpusimulationcontroller | `reorderKernel`, `scanPerBlockKernel`, `scanPerBlockKernel4x4`, `addBlockSumsKernel`, `addBlockSumsKernel4x4`, `radixFourBitCountPerBlockKernel`, `radixFourBitReorderKernel` | Ported (7) | Scan/sort/reorder. NULL ptrs replaced by int flags. int4x4 as int32[N,16] flat tensors |
 | `sparseGridStandalone.cu` | gpusimulationcontroller | `sg_SparseGridCalcSubgridHashes`, `sg_SparseGridMarkRequiredNeighbors`, `sg_SparseGridSortedArrayToDelta`, `sg_SparseGridGetUniqueValues`, `sg_SparseGridClearDensity`, `sg_SparseGridBuildSubgridNeighbors`, `sg_MarkSubgridEndIndices`, `sg_ReuseSubgrids`, `sg_AddReleasedSubgridsToUnusedStack`, `sg_AllocateNewSubgrids` | Ported (10) | PxSparseGridParams decomposed to 5 scalars. NULL ptr flags. searchSorted while loop. Local buffer[8] as 8 scalars. Atomics for stack ops |
 | `diffuseParticles.cu` | gpusimulationcontroller | `ps_diffuseParticleCopy`, `ps_diffuseParticleSum`, `ps_updateUnsortedDiffuseArrayLaunch`, `ps_diffuseParticleOneWayCollision`, `ps_diffuseParticleCreate`, `ps_diffuseParticleUpdatePBF`, `ps_diffuseParticleCompact` | Ported (7) | PxgParticleSystem decomposed to per-kernel flat args. blockCopy eliminated. Warp ballot/popc/shfl for compaction. goto → done-flag |
+| `anisotropy.cu` | gpusimulationcontroller | `smoothPositionsLaunch`, `calculateAnisotropyLaunch`, `anisotropyKernel`, `smoothPositionsKernel` | Ported (4) | PxMat33 eigen decomposition via Jacobi rotation (manually inlined — tuple-return @cp.inline in loops fails). PxGpuParticleSystem decomposed. Subgrid neighbor iteration. |
+| `pairManagement.cu` | gpunarrowphase | `removeContactManagers_Stage1`–`Stage5`, `Stage5_CvxTri`, `initializeManifolds` | Ported (7) | SparseRemove scan inlined (same as algorithms.py). Struct copy via flat tensors. binarySearch for swap indices. |
+| `radixSortImpl.cu` | gpucommon | `radixSortCopyHigh32Bits`, `radixSortDoubleCopyHigh32Bits`, `radixSortCopy`, `radixSortDoubleCopy`, `radixSortCopyBits2`, `radixSortCopy2`, `radixSortMultiBlockLaunch` (+2 variants), `radixSortMultiCalculateRanksLaunch` (+2 variants) | Ported (12) | RadixSort.cuh templates inlined. PxgRadixSortBlockDesc decomposed. Copy kernels trivial. Alias kernels require full body duplication (no kernel-to-kernel calls). |
+| `updateBodiesAndShapes.cu` | gpusimulationcontroller | `updateBodiesLaunch`, `updateBodiesLaunchDirectAPI`, `updateShapesLaunch`, `newArticulationsLaunch`, `updateArticulationsLaunch`, `updateBodyExternalVelocitiesLaunch`, `updateJointsLaunch`, 5 getters, 4 setters, `copyUserData`, `getD6JointForces`, `getD6JointTorques` | Ported (20) | Massive descriptor decomposition. warpCopy → while loops. Quaternion math manually inlined (MLIR vectorizer issue). 2000+ lines. |
 
-**Total: 33 kernels ported across 6 `.cu` files.**
+**Total: 76 kernels ported across 10 `.cu` files.**
 
 ### Capybara PTX compilation
 
 ```bash
 conda run -n triton-dev python scripts/compile_capybara_ptx.py -v
-# Expected: Compiled 6 module(s), 33 kernel entry block(s).
+# Expected: Compiled 10 module(s), 76 kernel entry block(s).
 ```
 
 Output files:
 - `source/gpucommon/src/PTX/utility.capybara.ptx`
 - `source/gpucommon/src/PTX/MemCopyBalanced.capybara.ptx`
+- `source/gpucommon/src/PTX/radixSortImpl.capybara.ptx`
 - `source/gpusolver/src/PTX/integration.capybara.ptx`
+- `source/gpunarrowphase/src/PTX/pairManagement.capybara.ptx`
 - `source/gpusimulationcontroller/src/PTX/algorithms.capybara.ptx`
 - `source/gpusimulationcontroller/src/PTX/sparseGridStandalone.capybara.ptx`
+- `source/gpusimulationcontroller/src/PTX/anisotropy.capybara.ptx`
+- `source/gpusimulationcontroller/src/PTX/updateBodiesAndShapes.capybara.ptx`
 - `source/gpusimulationcontroller/src/PTX/diffuseParticles.capybara.ptx`
 
 ## Build both variants with `update_toolchain.sh`
