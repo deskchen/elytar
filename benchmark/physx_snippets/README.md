@@ -21,14 +21,17 @@ Use **headless** snippet binaries for benchmarking: they run a fixed step count 
 | `pairManagement.cu` | gpunarrowphase | `removeContactManagers_Stage1`–`Stage5`, `Stage5_CvxTri`, `initializeManifolds` | Ported (7) | SparseRemove scan inlined (same as algorithms.py). Struct copy via flat tensors. binarySearch for swap indices. |
 | `radixSortImpl.cu` | gpucommon | `radixSortCopyHigh32Bits`, `radixSortDoubleCopyHigh32Bits`, `radixSortCopy`, `radixSortDoubleCopy`, `radixSortCopyBits2`, `radixSortCopy2`, `radixSortMultiBlockLaunch` (+2 variants), `radixSortMultiCalculateRanksLaunch` (+2 variants) | Ported (12) | RadixSort.cuh templates inlined. PxgRadixSortBlockDesc decomposed. Copy kernels trivial. Alias kernels require full body duplication (no kernel-to-kernel calls). |
 | `updateBodiesAndShapes.cu` | gpusimulationcontroller | `updateBodiesLaunch`, `updateBodiesLaunchDirectAPI`, `updateShapesLaunch`, `newArticulationsLaunch`, `updateArticulationsLaunch`, `updateBodyExternalVelocitiesLaunch`, `updateJointsLaunch`, 5 getters, 4 setters, `copyUserData`, `getD6JointForces`, `getD6JointTorques` | Ported (20) | Massive descriptor decomposition. warpCopy → while loops. Quaternion math manually inlined (MLIR vectorizer issue). 2000+ lines. |
+| `integrationTGS.cu` | gpusolver | `integrateCoreParallelLaunchTGS` | Ported (1) | TGS variant of integration. Uses deltaBody2World from TxIData. Reuses BS_*/SBD_*/TXI_* constants. |
+| `compressOutputContacts.cu` | gpunarrowphase | `compressContactStage1`, `compressContactStage2`, `updateFrictionPatches` | Ported (3) | Multi-iteration ballot+scan reduction. Pointer arithmetic decomposed to index arithmetic. GPU pointer fields as int64 lo/hi pairs. |
+| `updateTransformAndBoundArray.cu` | gpusimulationcontroller | `mergeTransformCacheAndBoundArrayChanges`, `updateTransformCacheAndBoundArrayLaunch`, `updateChangedAABBMgrHandlesLaunch`, `mergeChangedAABBMgrHandlesLaunch`, `computeFrozenAndUnfrozenHistogramLaunch`, `outputFrozenAndUnfrozenHistogram`, `createFrozenAndUnfrozenArray` | Ported (7) | Geometry-specific bounds (sphere/capsule/box/convex). Ballot compaction. Frozen/unfrozen histogram scan. binarySearch partitioning. |
 
-**Total: 76 kernels ported across 10 `.cu` files.**
+**Total: 87 kernels ported across 13 `.cu` files.**
 
 ### Capybara PTX compilation
 
 ```bash
 conda run -n triton-dev python scripts/compile_capybara_ptx.py -v
-# Expected: Compiled 10 module(s), 76 kernel entry block(s).
+# Expected: Compiled 13 module(s), 87 kernel entry block(s).
 ```
 
 Output files:
@@ -42,6 +45,9 @@ Output files:
 - `source/gpusimulationcontroller/src/PTX/anisotropy.capybara.ptx`
 - `source/gpusimulationcontroller/src/PTX/updateBodiesAndShapes.capybara.ptx`
 - `source/gpusimulationcontroller/src/PTX/diffuseParticles.capybara.ptx`
+- `source/gpusolver/src/PTX/integrationTGS.capybara.ptx`
+- `source/gpunarrowphase/src/PTX/compressOutputContacts.capybara.ptx`
+- `source/gpusimulationcontroller/src/PTX/updateTransformAndBoundArray.capybara.ptx`
 
 ## Build both variants with `update_toolchain.sh`
 
