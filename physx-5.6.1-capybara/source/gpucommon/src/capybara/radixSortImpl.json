@@ -1,0 +1,143 @@
+{
+  "kernels": [
+    {
+      "name": "radixSortCopyHigh32Bits",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "radixSortDoubleCopyHigh32Bits",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "radixSortCopy",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "radixSortDoubleCopy",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "radixSortCopyBits2",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "radixSortCopy2",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "radixSortMultiBlockLaunch",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024, "NUM_WARPS": 32, "RADIX_SIZE": 16, "NB_BLOCKS": 32 }
+    },
+    {
+      "name": "radixSortMultiBlockLaunchWithoutCount",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024, "NUM_WARPS": 32, "RADIX_SIZE": 16, "NB_BLOCKS": 32 }
+    },
+    {
+      "name": "radixSortMultiBlockLaunchWithCount",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024, "NUM_WARPS": 32, "RADIX_SIZE": 16, "NB_BLOCKS": 32 }
+    },
+    {
+      "name": "radixSortMultiCalculateRanksLaunch",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024, "NUM_WARPS": 32, "RADIX_SIZE": 16, "NB_BLOCKS": 32 }
+    },
+    {
+      "name": "radixSortMultiCalculateRanksLaunchWithoutCount",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024, "NUM_WARPS": 32, "RADIX_SIZE": 16, "NB_BLOCKS": 32 }
+    },
+    {
+      "name": "radixSortMultiCalculateRanksLaunchWithCount",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 1024, "NUM_WARPS": 32, "RADIX_SIZE": 16, "NB_BLOCKS": 32 }
+    }
+  ]
+}
