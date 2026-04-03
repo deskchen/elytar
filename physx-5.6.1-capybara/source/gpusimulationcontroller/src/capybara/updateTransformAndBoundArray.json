@@ -1,0 +1,328 @@
+{
+  "kernels": [
+    {
+      "name": "mergeTransformCacheAndBoundArrayChanges",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096, 6],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096, 8],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096, 6],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096, 8],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 1024
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256
+      }
+    },
+    {
+      "name": "updateTransformCacheAndBoundArrayLaunch",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [1024, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024, 60],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096, 17],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [64, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [64, 448],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [64, 448],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096, 8],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096, 6],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "LINKS_PER_ARTI": 64,
+        "SS_SIZE": 17,
+        "BLOCK_SIZE": 256,
+        "NUM_BLOCKS": 256
+      }
+    },
+    {
+      "name": "updateChangedAABBMgrHandlesLaunch",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "NUM_BLOCKS": 256
+      }
+    },
+    {
+      "name": "mergeChangedAABBMgrHandlesLaunch",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "NUM_BLOCKS": 256
+      }
+    },
+    {
+      "name": "computeFrozenAndUnfrozenHistogramLaunch",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [32],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [32],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32,
+        "NUM_WARPS": 8,
+        "LOG2_NUM_WARPS": 3
+      }
+    },
+    {
+      "name": "outputFrozenAndUnfrozenHistogram",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [32],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [32],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "NB_BLOCKS": 32
+      }
+    },
+    {
+      "name": "createFrozenAndUnfrozenArray",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [4096],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [512],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [512],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "int",
+          "value": 512
+        },
+        {
+          "kind": "int",
+          "value": 512
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "NUM_BLOCKS": 256
+      }
+    }
+  ]
+}
