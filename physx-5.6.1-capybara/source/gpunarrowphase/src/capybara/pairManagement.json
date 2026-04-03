@@ -1,0 +1,85 @@
+{
+  "kernels": [
+    {
+      "name": "removeContactManagers_Stage1",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 128 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "removeContactManagers_Stage2",
+      "args": [
+        { "kind": "tensor", "shape": [128], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 128 },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "removeContactManagers_Stage3",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "tensor", "shape": [32], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 512, "NUM_WARPS": 16, "GRID_SIZE": 32 }
+    },
+    {
+      "name": "removeContactManagers_Stage4",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "tensor", "shape": [32], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 512, "NUM_WARPS": 16, "GRID_SIZE": 32 }
+    },
+    {
+      "name": "removeContactManagers_Stage5",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 128 },
+        { "kind": "tensor", "shape": [4096, 8], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 8], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 2], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 64], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "CMI_SIZE": 8, "CMO_SIZE": 8, "TORSION_SIZE": 2, "MANIFOLD_F4_SIZE": 16, "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "removeContactManagers_Stage5_CvxTri",
+      "args": [
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "int", "value": 128 },
+        { "kind": "tensor", "shape": [4096, 8], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 8], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 2], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 304], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "CMI_SIZE": 8, "CMO_SIZE": 8, "TORSION_SIZE": 2, "MULTI_MANIFOLD_F4_SIZE": 76, "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "initializeManifolds",
+      "args": [
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [16, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 16 },
+        { "kind": "int", "value": 1024 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256, "MAX_SMEM_FLOATS": 1024 }
+    }
+  ]
+}
