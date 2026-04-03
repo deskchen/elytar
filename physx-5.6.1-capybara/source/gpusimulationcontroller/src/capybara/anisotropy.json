@@ -1,0 +1,84 @@
+{
+  "kernels": [
+    {
+      "name": "smoothPositionsLaunch",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [65536], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "float", "value": 0.04 },
+        { "kind": "float", "value": 5.0 },
+        { "kind": "float", "value": 0.2 },
+        { "kind": "float", "value": 0.5 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "calculateAnisotropyLaunch",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [65536], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "float", "value": 0.04 },
+        { "kind": "float", "value": 5.0 },
+        { "kind": "float", "value": 0.2 },
+        { "kind": "float", "value": 1.0 },
+        { "kind": "float", "value": 0.1 },
+        { "kind": "float", "value": 2.0 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "anisotropyKernel",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 512 },
+        { "kind": "tensor", "shape": [13824], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 65535 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "float", "value": 1.0 },
+        { "kind": "float", "value": 0.1 },
+        { "kind": "float", "value": 2.0 },
+        { "kind": "float", "value": 0.2 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "smoothPositionsKernel",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 512 },
+        { "kind": "tensor", "shape": [13824], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "tensor", "shape": [4096], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 65535 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "float", "value": 0.5 },
+        { "kind": "float", "value": 0.2 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    }
+  ]
+}
