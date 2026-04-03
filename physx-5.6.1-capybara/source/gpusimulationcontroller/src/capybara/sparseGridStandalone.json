@@ -1,0 +1,133 @@
+{
+  "kernels": [
+    {
+      "name": "sg_SparseGridClearDensity",
+      "args": [
+        { "kind": "tensor", "shape": [16384], "dtype": "float32", "device": "cuda" },
+        { "kind": "float", "value": 0.0 },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 32768 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_MarkSubgridEndIndices",
+      "args": [
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_SparseGridSortedArrayToDelta",
+      "args": [
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_SparseGridCalcSubgridHashes",
+      "args": [
+        { "kind": "int", "value": 512 },
+        { "kind": "float", "value": 0.2 },
+        { "kind": "int", "value": 32 },
+        { "kind": "int", "value": 32 },
+        { "kind": "int", "value": 32 },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 65535 },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1 },
+        { "kind": "int", "value": 0 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_SparseGridGetUniqueValues",
+      "args": [
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [13824], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 512 },
+        { "kind": "int", "value": 1 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_SparseGridBuildSubgridNeighbors",
+      "args": [
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 512 },
+        { "kind": "tensor", "shape": [13824], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_ReuseSubgrids",
+      "args": [
+        { "kind": "int", "value": 512 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_AddReleasedSubgridsToUnusedStack",
+      "args": [
+        { "kind": "int", "value": 128 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_AllocateNewSubgrids",
+      "args": [
+        { "kind": "int", "value": 128 },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [512], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 0 },
+        { "kind": "int", "value": 512 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    },
+    {
+      "name": "sg_SparseGridMarkRequiredNeighbors",
+      "args": [
+        { "kind": "tensor", "shape": [13824], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [13824], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 512 },
+        { "kind": "float", "value": 0.2 },
+        { "kind": "int", "value": 32 },
+        { "kind": "int", "value": 32 },
+        { "kind": "int", "value": 32 },
+        { "kind": "int", "value": 2 },
+        { "kind": "tensor", "shape": [1024, 4], "dtype": "float32", "device": "cuda" },
+        { "kind": "int", "value": 1024 },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 65535 },
+        { "kind": "tensor", "shape": [1024], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 0 },
+        { "kind": "int", "value": 0 }
+      ],
+      "constexprs": { "BLOCK_SIZE": 256 }
+    }
+  ]
+}
