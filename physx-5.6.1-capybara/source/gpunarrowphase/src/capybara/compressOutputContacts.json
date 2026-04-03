@@ -1,0 +1,82 @@
+{
+  "kernels": [
+    {
+      "name": "compressContactStage1",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 12], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "tensor", "shape": [32], "dtype": "int32", "device": "cuda" }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32,
+        "CMO_SIZE": 12,
+        "CMO_NB_CONTACTS": 9
+      }
+    },
+    {
+      "name": "compressContactStage2",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 4], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 12], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096], "dtype": "int64", "device": "cuda" },
+        { "kind": "tensor", "shape": [32], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 0 },
+        { "kind": "int", "value": 0 },
+        { "kind": "int", "value": 0 },
+        { "kind": "int", "value": 0 },
+        { "kind": "tensor", "shape": [1], "dtype": "int32", "device": "cuda" },
+        { "kind": "tensor", "shape": [4096, 19], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32,
+        "CMI_SIZE": 4,
+        "CMO_SIZE": 12,
+        "PAIR_SIZE": 19,
+        "CMI_TRANSFORM_REF0": 2,
+        "CMI_TRANSFORM_REF1": 3,
+        "CMO_NB_CONTACTS": 9,
+        "CMO_PATCH_OFFSET": 0,
+        "CMO_CONTACT_OFFSET": 1,
+        "CMO_FORCE_OFFSET": 2,
+        "CMO_NB_PATCHES": 8,
+        "PAIR_PATCH_OFFSET": 0,
+        "PAIR_CONTACT_OFFSET": 2,
+        "PAIR_FORCE_OFFSET": 4,
+        "PAIR_FRICTION_OFFSET": 6,
+        "PAIR_TRANSFORM_REF0": 8,
+        "PAIR_TRANSFORM_REF1": 9,
+        "PAIR_NODE_INDEX0_LO": 10,
+        "PAIR_NODE_INDEX0_HI": 11,
+        "PAIR_NODE_INDEX1_LO": 12,
+        "PAIR_NODE_INDEX1_HI": 13,
+        "PAIR_ACTOR0_LO": 14,
+        "PAIR_ACTOR0_HI": 15,
+        "PAIR_ACTOR1_LO": 16,
+        "PAIR_ACTOR1_HI": 17,
+        "PAIR_NB_CONTACTS_PATCHES": 18,
+        "SIZEOF_CONTACT_PATCH": 64,
+        "SIZEOF_FRICTION_PATCH": 52
+      }
+    },
+    {
+      "name": "updateFrictionPatches",
+      "args": [
+        { "kind": "tensor", "shape": [4096, 12], "dtype": "int32", "device": "cuda" },
+        { "kind": "int", "value": 4096 }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "CMO_SIZE": 12,
+        "CMO_PATCH_OFFSET": 0,
+        "CMO_FRICTION_PATCH_OFFSET": 3,
+        "SIZEOF_CONTACT_PATCH": 64,
+        "SIZEOF_FRICTION_PATCH": 52
+      }
+    }
+  ]
+}
