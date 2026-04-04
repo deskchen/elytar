@@ -29,13 +29,17 @@ Use **headless** snippet binaries for benchmarking: they run a fixed step count 
 | `convexMeshOutput.cu` | gpunarrowphase | `convexTrimeshFinishContacts` | Ported (1) | Warp-level contact output. Material combining. Warp-cooperative reads replaced by per-thread reads. |
 | `accumulateThresholdStream.cu` | gpusolver | 14 kernels (bodyInputAndRanks*, initialRanks*, reorganize*, compute/output/writeout/set/create*) | Ported (14) | Radix sort bodies (duplicated from radixSortImpl). Multi-iteration warp scan for force accumulation. Binary search for threshold mask. |
 
-**Total: 103 kernels ported across 16 `.cu` files.**
+| `cudaBox.cu` | gpunarrowphase | `boxBoxNphase_Kernel` | Ported (1) | SAT box-box collision. 2300+ lines Capybara. No `elif` (MergeFlatIfToSwitchPass crash). 4-thread cooperative ops → per-thread. |
+| `preIntegration.cu` | gpusolver | `preIntegrationLaunch`, `initStaticKinematics` | Ported (2) | Swizzled smem eliminated → direct flat tensor reads. Velocity integration + inertia tensor + gyroscopic forces. |
+| `rigidDeltaAccum.cu` | gpusimulationcontroller | `accumulateDeltaVRigidFirstLaunch`, `accumulateDeltaVRigidSecondLaunch`, `clearDeltaVRigidSecondLaunchMulti`, Stage1, Stage2 | Ported (5) | Conditional warp reduction. Shuffles moved outside divergent ifs. 2D atomic_add flattened to 1D. |
+
+**Total: 111 kernels ported across 19 `.cu` files.**
 
 ### Capybara PTX compilation
 
 ```bash
 conda run -n triton-dev python scripts/compile_capybara_ptx.py -v
-# Expected: Compiled 16 module(s), 103 kernel entry block(s).
+# Expected: Compiled 19 module(s), 111 kernel entry block(s).
 ```
 
 Output files:
