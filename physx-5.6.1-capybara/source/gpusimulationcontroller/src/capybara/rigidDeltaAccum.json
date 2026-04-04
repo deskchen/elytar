@@ -5,31 +5,45 @@
       "args": [
         {
           "kind": "tensor",
-          "shape": [4096, 2],
+          "shape": [
+            4096,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1],
+          "shape": [
+            1
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [8192, 4],
+          "shape": [
+            8192,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [64, 4],
+          "shape": [
+            64,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [32, 2],
+          "shape": [
+            32,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         }
@@ -44,43 +58,62 @@
       "args": [
         {
           "kind": "tensor",
-          "shape": [4096, 2],
+          "shape": [
+            4096,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1],
+          "shape": [
+            1
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [8192, 4],
+          "shape": [
+            8192,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [64, 4],
+          "shape": [
+            64,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [32, 2],
+          "shape": [
+            32,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1024],
+          "shape": [
+            1024
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [512, 4],
+          "shape": [
+            512,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
@@ -90,19 +123,30 @@
         },
         {
           "kind": "tensor",
-          "shape": [16, 8],
+          "shape": [
+            16,
+            8
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [128, 32, 4],
+          "shape": [
+            128,
+            32,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [128, 32, 2],
+          "shape": [
+            128,
+            32,
+            2
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
@@ -125,25 +169,35 @@
       "args": [
         {
           "kind": "tensor",
-          "shape": [4096, 2],
+          "shape": [
+            4096,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1],
+          "shape": [
+            1
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1024],
+          "shape": [
+            1024
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [128, 32],
+          "shape": [
+            128,
+            32
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
@@ -153,14 +207,17 @@
         },
         {
           "kind": "tensor",
-          "shape": [256],
+          "shape": [
+            256
+          ],
           "dtype": "float32",
           "device": "cuda"
         }
       ],
       "constexprs": {
         "BLOCK_SIZE": 512,
-        "GRID_SIZE": 32
+        "GRID_SIZE": 32,
+        "MAX_ARTI_PER_BLOCK": 32
       }
     },
     {
@@ -168,43 +225,62 @@
       "args": [
         {
           "kind": "tensor",
-          "shape": [4096, 2],
+          "shape": [
+            4096,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1],
+          "shape": [
+            1
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [8192, 4],
+          "shape": [
+            8192,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [64, 4],
+          "shape": [
+            64,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [32, 2],
+          "shape": [
+            32,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1024],
+          "shape": [
+            1024
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [128, 32],
+          "shape": [
+            128,
+            32
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
@@ -214,7 +290,9 @@
         },
         {
           "kind": "tensor",
-          "shape": [256],
+          "shape": [
+            256
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
@@ -229,7 +307,8 @@
       ],
       "constexprs": {
         "BLOCK_SIZE": 512,
-        "GRID_SIZE": 32
+        "GRID_SIZE": 32,
+        "MAX_ARTI_PER_BLOCK": 32
       }
     },
     {
@@ -237,43 +316,62 @@
       "args": [
         {
           "kind": "tensor",
-          "shape": [4096, 2],
+          "shape": [
+            4096,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1],
+          "shape": [
+            1
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [8192, 4],
+          "shape": [
+            8192,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [64, 4],
+          "shape": [
+            64,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [32, 2],
+          "shape": [
+            32,
+            2
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [1024],
+          "shape": [
+            1024
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [512, 4],
+          "shape": [
+            512,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
@@ -283,25 +381,39 @@
         },
         {
           "kind": "tensor",
-          "shape": [16, 8],
+          "shape": [
+            16,
+            8
+          ],
           "dtype": "int32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [128, 32, 4],
+          "shape": [
+            128,
+            32,
+            4
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [128, 32, 2],
+          "shape": [
+            128,
+            32,
+            2
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
         {
           "kind": "tensor",
-          "shape": [128, 32],
+          "shape": [
+            128,
+            32
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
@@ -311,7 +423,9 @@
         },
         {
           "kind": "tensor",
-          "shape": [256],
+          "shape": [
+            256
+          ],
           "dtype": "float32",
           "device": "cuda"
         },
@@ -322,7 +436,8 @@
       ],
       "constexprs": {
         "BLOCK_SIZE": 512,
-        "GRID_SIZE": 32
+        "GRID_SIZE": 32,
+        "MAX_ARTI_PER_BLOCK": 32
       }
     }
   ]

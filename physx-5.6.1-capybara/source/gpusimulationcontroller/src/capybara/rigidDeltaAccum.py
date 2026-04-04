@@ -1189,6 +1189,7 @@ def accumulateDeltaVRigidSecondLaunchMultiStage1(
     useLocalRelax,           # int scalar (0/1)
     globalRelaxationCoefficient,  # float32 scalar
     BLOCK_SIZE: cp.constexpr = 512,
+    MAX_ARTI_PER_BLOCK: cp.constexpr = 32,
     GRID_SIZE: cp.constexpr = 32,
 ):
     with cp.Kernel(GRID_SIZE, threads=BLOCK_SIZE) as (bx, block):
@@ -1382,7 +1383,7 @@ def accumulateDeltaVRigidSecondLaunchMultiStage1(
                                     artiIndexInBlock = solverBodyIndex & cp.int32(31)
                                     linkID = nodeLinkId >> cp.int32(1)
                                     linkSlot = blockIndex * maxLinks + linkID
-                                    thread.atomic_add(artiLinkDeltaScale[linkSlot, artiIndexInBlock], denom)
+                                    thread.atomic_add(artiLinkDeltaScale[linkSlot * MAX_ARTI_PER_BLOCK + artiIndexInBlock], denom)
 
                                 if isArticulation == cp.int32(0):
                                     thread.atomic_add(tempDenom[solverBodyIndex], denom)
@@ -1409,6 +1410,7 @@ def accumulateDeltaVRigidSecondLaunchMultiStage2(
     tempDenom,               # float32[S]
     isTGS,                   # int scalar (0/1)
     BLOCK_SIZE: cp.constexpr = 512,
+    MAX_ARTI_PER_BLOCK: cp.constexpr = 32,
     GRID_SIZE: cp.constexpr = 32,
 ):
     with cp.Kernel(GRID_SIZE, threads=BLOCK_SIZE) as (bx, block):
@@ -1761,31 +1763,31 @@ def accumulateDeltaVRigidSecondLaunchMultiStage2(
                                     negAngY = cp.float32(0.0) - angVy * ratio
                                     negAngZ = cp.float32(0.0) - angVz * ratio
 
-                                    thread.atomic_add(artiLinkScratchImpTop[linkSlot, artiIndexInBlock, 0], negLinX)
-                                    thread.atomic_add(artiLinkScratchImpTop[linkSlot, artiIndexInBlock, 1], negLinY)
-                                    thread.atomic_add(artiLinkScratchImpTop[linkSlot, artiIndexInBlock, 2], negLinZ)
-                                    thread.atomic_add(artiLinkScratchImpTop[linkSlot, artiIndexInBlock, 3], negAngX)
-                                    thread.atomic_add(artiLinkScratchImpByz[linkSlot, artiIndexInBlock, 0], negAngY)
-                                    thread.atomic_add(artiLinkScratchImpByz[linkSlot, artiIndexInBlock, 1], negAngZ)
+                                    thread.atomic_add(artiLinkScratchImpTop[(linkSlot * MAX_ARTI_PER_BLOCK + artiIndexInBlock) * cp.int32(4) + 0], negLinX)
+                                    thread.atomic_add(artiLinkScratchImpTop[(linkSlot * MAX_ARTI_PER_BLOCK + artiIndexInBlock) * cp.int32(4) + 1], negLinY)
+                                    thread.atomic_add(artiLinkScratchImpTop[(linkSlot * MAX_ARTI_PER_BLOCK + artiIndexInBlock) * cp.int32(4) + 2], negLinZ)
+                                    thread.atomic_add(artiLinkScratchImpTop[(linkSlot * MAX_ARTI_PER_BLOCK + artiIndexInBlock) * cp.int32(4) + 3], negAngX)
+                                    thread.atomic_add(artiLinkScratchImpByz[(linkSlot * MAX_ARTI_PER_BLOCK + artiIndexInBlock) * cp.int32(2) + 0], negAngY)
+                                    thread.atomic_add(artiLinkScratchImpByz[(linkSlot * MAX_ARTI_PER_BLOCK + artiIndexInBlock) * cp.int32(2) + 1], negAngZ)
 
                                 if isArticulation == cp.int32(0):
                                     denom_val = tempDenom[solverBodyIndex] + cp.float32(0.0)
                                     ratio = cp.float32(1.0) / denom_val
 
                                     if isTGS != cp.int32(0):
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex, 0], linVx * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex, 1], linVy * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex, 2], linVz * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex, 3], angVx * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex + numSolverBodies, 0], angVy * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex + numSolverBodies, 1], angVz * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex * cp.int32(4) + 0], linVx * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex * cp.int32(4) + 1], linVy * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex * cp.int32(4) + 2], linVz * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex * cp.int32(4) + 3], angVx * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[(solverBodyIndex + numSolverBodies) * cp.int32(4) + cp.int32(0)], angVy * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[(solverBodyIndex + numSolverBodies) * cp.int32(4) + cp.int32(1)], angVz * ratio)
 
                                     if isTGS == cp.int32(0):
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex, 0], linVx * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex, 1], linVy * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex, 2], linVz * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex + numSolverBodies, 0], angVx * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex + numSolverBodies, 1], angVy * ratio)
-                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex + numSolverBodies, 2], angVz * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex * cp.int32(4) + 0], linVx * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex * cp.int32(4) + 1], linVy * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[solverBodyIndex * cp.int32(4) + 2], linVz * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[(solverBodyIndex + numSolverBodies) * cp.int32(4) + cp.int32(0)], angVx * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[(solverBodyIndex + numSolverBodies) * cp.int32(4) + cp.int32(1)], angVy * ratio)
+                                        thread.atomic_add(solverBodyDeltaVel[(solverBodyIndex + numSolverBodies) * cp.int32(4) + cp.int32(2)], angVz * ratio)
 
                 block.barrier()
