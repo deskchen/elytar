@@ -1,0 +1,678 @@
+{
+  "kernels": [
+    {
+      "name": "bodyInputAndRanksSingleBlockLaunch",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            1024,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            1024,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "int",
+          "value": 0
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            16
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 1024,
+        "NUM_WARPS": 32,
+        "RADIX_SIZE": 16,
+        "NB_BLOCKS": 32
+      }
+    },
+    {
+      "name": "bodyInputAndRanksBlocksLaunch",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            1024,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            1024,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "int",
+          "value": 0
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            16
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            1024,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            1024,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 1024,
+        "NUM_WARPS": 32,
+        "RADIX_SIZE": 16,
+        "NB_BLOCKS": 32
+      }
+    },
+    {
+      "name": "initialRanksAndBodyIndexB",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "TE_SIZE": 8,
+        "TE_NODE_INDEX_B": 3
+      }
+    },
+    {
+      "name": "initialRanksAndBodyIndexA",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "TE_SIZE": 8,
+        "TE_NODE_INDEX_A": 2
+      }
+    },
+    {
+      "name": "reorganizeThresholdElements",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "TE_SIZE": 8
+      }
+    },
+    {
+      "name": "writeoutAccumulatedForcePerObject",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256
+      }
+    },
+    {
+      "name": "computeAccumulateThresholdStream",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            32
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            32
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32,
+        "TE_SIZE": 8,
+        "TE_NODE_INDEX_A": 2,
+        "TE_NODE_INDEX_B": 3,
+        "TE_NORMAL_FORCE": 4
+      }
+    },
+    {
+      "name": "outputAccumulateThresholdStream",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            32
+          ],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            32
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            1
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32
+      }
+    },
+    {
+      "name": "computeExceededForceThresholdElementIndice",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            32
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32,
+        "TE_SIZE": 8,
+        "TE_ACCUM_FORCE": 5,
+        "TE_THRESHOLD": 6
+      }
+    },
+    {
+      "name": "outputExceededForceThresholdElementIndice",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            32
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            1
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32,
+        "TE_SIZE": 8,
+        "TE_ACCUM_FORCE": 5,
+        "TE_THRESHOLD": 6
+      }
+    },
+    {
+      "name": "setThresholdElementsMask",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "TE_SIZE": 8,
+        "TE_SHAPE_INTERACTION_LO": 0,
+        "TE_SHAPE_INTERACTION_HI": 1,
+        "TE_NODE_INDEX_A": 2,
+        "TE_NODE_INDEX_B": 3
+      }
+    },
+    {
+      "name": "computeThresholdElementMaskIndices",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            32
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32,
+        "TE_SIZE": 8,
+        "TE_ACCUM_FORCE": 5,
+        "TE_THRESHOLD": 6
+      }
+    },
+    {
+      "name": "outputThresholdPairsMaskIndices",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            32
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            1
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "GRID_SIZE": 32,
+        "TE_SIZE": 8
+      }
+    },
+    {
+      "name": "createForceChangeThresholdElements",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            1
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 256,
+        "TE_SIZE": 8
+      }
+    }
+  ]
+}
