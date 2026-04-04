@@ -1,0 +1,175 @@
+{
+  "kernels": [
+    {
+      "name": "preIntegrationLaunch",
+      "args": [
+        {
+          "kind": "int",
+          "value": 0
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "float",
+          "value": 0.016666
+        },
+        {
+          "kind": "float",
+          "value": 0.0
+        },
+        {
+          "kind": "float",
+          "value": -9.81
+        },
+        {
+          "kind": "float",
+          "value": 0.0
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            24
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            16
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            60
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            2
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            8192,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 16
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 128
+      }
+    },
+    {
+      "name": "initStaticKinematics",
+      "args": [
+        {
+          "kind": "int",
+          "value": 1024
+        },
+        {
+          "kind": "int",
+          "value": 4096
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            24
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            16
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            8
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            8192,
+            4
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096,
+            2
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [
+            4096
+          ],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 4
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 128
+      }
+    }
+  ]
+}
