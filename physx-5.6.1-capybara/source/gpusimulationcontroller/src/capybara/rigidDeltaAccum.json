@@ -1,0 +1,329 @@
+{
+  "kernels": [
+    {
+      "name": "accumulateDeltaVRigidFirstLaunch",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [8192, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [64, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [32, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 512,
+        "GRID_SIZE": 32
+      }
+    },
+    {
+      "name": "accumulateDeltaVRigidSecondLaunch",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [8192, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [64, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [32, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [512, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 256
+        },
+        {
+          "kind": "tensor",
+          "shape": [16, 8],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128, 32, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128, 32, 2],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 8
+        },
+        {
+          "kind": "int",
+          "value": 0
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 512,
+        "GRID_SIZE": 32
+      }
+    },
+    {
+      "name": "clearDeltaVRigidSecondLaunchMulti",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128, 32],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 8
+        },
+        {
+          "kind": "tensor",
+          "shape": [256],
+          "dtype": "float32",
+          "device": "cuda"
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 512,
+        "GRID_SIZE": 32
+      }
+    },
+    {
+      "name": "accumulateDeltaVRigidSecondLaunchMultiStage1",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [8192, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [64, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [32, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128, 32],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 8
+        },
+        {
+          "kind": "tensor",
+          "shape": [256],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 1
+        },
+        {
+          "kind": "float",
+          "value": 1.0
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 512,
+        "GRID_SIZE": 32
+      }
+    },
+    {
+      "name": "accumulateDeltaVRigidSecondLaunchMultiStage2",
+      "args": [
+        {
+          "kind": "tensor",
+          "shape": [4096, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [8192, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [64, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [32, 2],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [1024],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [512, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 256
+        },
+        {
+          "kind": "tensor",
+          "shape": [16, 8],
+          "dtype": "int32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128, 32, 4],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128, 32, 2],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "tensor",
+          "shape": [128, 32],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 8
+        },
+        {
+          "kind": "tensor",
+          "shape": [256],
+          "dtype": "float32",
+          "device": "cuda"
+        },
+        {
+          "kind": "int",
+          "value": 0
+        }
+      ],
+      "constexprs": {
+        "BLOCK_SIZE": 512,
+        "GRID_SIZE": 32
+      }
+    }
+  ]
+}
